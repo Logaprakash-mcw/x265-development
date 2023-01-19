@@ -941,7 +941,7 @@ bool RateControl::analyseABR2Pass(uint64_t allAvailableBits)
         /* weighted average of cplx of future frames */
         for (int j = 1; j < cplxBlur * 2 && j < m_numEntries - i; j++)
         {
-            int index = i+j;
+            int index = m_encOrder[i + j];
             RateControlEntry *rcj = &m_rce2Pass[index];
             weight *= 1 - pow(rcj->iCuCount / m_ncu, 2);
             if (weight < 0.0001)
@@ -954,7 +954,7 @@ bool RateControl::analyseABR2Pass(uint64_t allAvailableBits)
         weight = 1.0;
         for (int j = 0; j <= cplxBlur * 2 && j <= i; j++)
         {
-            int index = i-j;
+            int index = m_encOrder[i - j];
             RateControlEntry *rcj = &m_rce2Pass[index];
             gaussianWeight = weight * exp(-j * j / 200.0);
             weightSum += gaussianWeight;
@@ -963,7 +963,7 @@ bool RateControl::analyseABR2Pass(uint64_t allAvailableBits)
             if (weight < .0001)
                 break;
         }
-        m_rce2Pass[i].blurredComplexity= cplxSum / weightSum;
+        m_rce2Pass[m_encOrder[i]].blurredComplexity = cplxSum / weightSum;
     }
     CHECKED_MALLOC(qScale, double, m_numEntries);
     if (filterSize > 1)
@@ -982,7 +982,7 @@ bool RateControl::analyseABR2Pass(uint64_t allAvailableBits)
     expectedBits = 1;
     for (int i = 0; i < m_numEntries; i++)
     {
-        RateControlEntry* rce = &m_rce2Pass[i];
+        RateControlEntry* rce = &m_rce2Pass[m_encOrder[i]];
         double q = getQScale(rce, 1.0);
         expectedBits += qScale2bits(rce, q);
         m_lastQScaleFor[rce->sliceType] = q;
@@ -1005,15 +1005,15 @@ bool RateControl::analyseABR2Pass(uint64_t allAvailableBits)
         /* find qscale */
         for (int i = 0; i < m_numEntries; i++)
         {
-            RateControlEntry *rce = &m_rce2Pass[i];
+            RateControlEntry *rce = &m_rce2Pass[m_encOrder[i]];
             qScale[i] = getQScale(rce, rateFactor);
             m_lastQScaleFor[rce->sliceType] = qScale[i];
         }
 
         /* fixed I/B qscale relative to P */
-        for (int i = 0; i < m_numEntries; i++)
+        for (int i = m_numEntries - 1; i >= 0; i--)
         {
-            qScale[i] = getDiffLimitedQScale(&m_rce2Pass[i], qScale[i]);
+            qScale[i] = getDiffLimitedQScale(&m_rce2Pass[m_encOrder[i]], qScale[i]);
             X265_CHECK(qScale[i] >= 0, "qScale became negative\n");
         }
 
@@ -1024,6 +1024,7 @@ bool RateControl::analyseABR2Pass(uint64_t allAvailableBits)
             for (int i = 0; i < m_numEntries; i++)
             {
                 double q = 0.0, sum = 0.0;
+
                 for (int j = 0; j < filterSize; j++)
                 {
                     int idx = i + j - filterSize / 2;
@@ -1031,7 +1032,7 @@ bool RateControl::analyseABR2Pass(uint64_t allAvailableBits)
                     double coeff = qBlur == 0 ? 1.0 : exp(-d * d / (qBlur * qBlur));
                     if (idx < 0 || idx >= m_numEntries)
                         continue;
-                    if (m_rce2Pass[i].sliceType != m_rce2Pass[idx].sliceType)
+                    if (m_rce2Pass[m_encOrder[i]].sliceType != m_rce2Pass[m_encOrder[idx]].sliceType)
                         continue;
                     q += qScale[idx] * coeff;
                     sum += coeff;
@@ -1043,7 +1044,7 @@ bool RateControl::analyseABR2Pass(uint64_t allAvailableBits)
         /* find expected bits */
         for (int i = 0; i < m_numEntries; i++)
         {
-            RateControlEntry *rce = &m_rce2Pass[i];
+            RateControlEntry *rce = &m_rce2Pass[m_encOrder[i]];
             rce->newQScale = clipQscale(NULL, rce, blurredQscale[i]); // check if needed
             X265_CHECK(rce->newQScale >= 0, "new Qscale is negative\n");
             expectedBits += qScale2bits(rce, rce->newQScale);
