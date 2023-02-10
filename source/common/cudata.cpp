@@ -1915,13 +1915,13 @@ void CUData::getInterNeighbourMV(InterNeighbourMV *neighbour, uint32_t partUnitI
 void CUData::clipMv(MV& outMV) const
 {
     const uint32_t mvshift = 2;
-    uint32_t offset = 8;
+    uint32_t offset = 1;
 
     int32_t xmax = (int32_t)((m_slice->m_sps->picWidthInLumaSamples + offset - m_cuPelX - 1) << mvshift);
-    int32_t xmin = -(int32_t)((m_encData->m_param->maxCUSize + offset + m_cuPelX - 1) << mvshift);
+    int32_t xmin = -(int32_t)((offset + m_cuPelX - 1) << mvshift);
 
     int32_t ymax = (int32_t)((m_slice->m_sps->picHeightInLumaSamples + offset - m_cuPelY - 1) << mvshift);
-    int32_t ymin = -(int32_t)((m_encData->m_param->maxCUSize + offset + m_cuPelY - 1) << mvshift);
+    int32_t ymin = -(int32_t)(( offset + m_cuPelY - 1) << mvshift);
 
     outMV.x = X265_MIN(xmax, X265_MAX(xmin, outMV.x));
     outMV.y = X265_MIN(ymax, X265_MAX(ymin, outMV.y));
