@@ -123,7 +123,7 @@ void MotionEstimate::init(int csp)
 void MotionEstimate::initScales(void)
 {
 #define SETUP_SCALE(W, H) \
-    sizeScale[LUMA_ ## W ## x ## H] = (H * H) >> 4;
+    sizeScale[LUMA_ ## W ## x ## H] = (W * H) >> 4;
     SETUP_SCALE(4, 4);
     SETUP_SCALE(8, 8);
     SETUP_SCALE(8, 4);
@@ -837,6 +837,13 @@ int MotionEstimate::motionEstimate(ReferencePlanes *ref,
     }
 
     pmv = pmv.roundToFPel();
+    bmv = bestpre.roundToFPel();
+
+    if (bestpre.isSubpel()) /* Only test if the tested predictor is actually subpel... */
+        bcost = sad(fenc, FENC_STRIDE, fref + bmv.x + bmv.y * stride, stride) + mvcost(bmv << 2);
+    else                          /* Otherwise just copy the cost (we already know it) */
+        bcost = bprecost;
+
     MV omv = bmv;  // current search origin or starting point
 
     int search = ref->isHMELowres ? (hme ? searchMethodL0 : searchMethodL1) : searchMethod;
@@ -981,6 +988,9 @@ me_hex2:
         if (pmv.notZero())
             DIA1_ITER(0, 0);
 
+        if (partEnum == LUMA_4x4)
+            goto me_hex2;
+
         ucost2 = bcost;
         if (bmv.notZero() && bmv != pmv)
             DIA1_ITER(bmv.x, bmv.y);
@@ -1030,12 +1040,7 @@ me_hex2:
 
             if (numCandidates == 1)
             {
-                if (LUMA_64x64 == partEnum)
-                    /* mvc is probably the same as mvp, so the difference isn't meaningful.
-                     * but prediction usually isn't too bad, so just use medium range */
-                    mvd = 25;
-                else
-                    mvd = abs(qmvp.x - mvc[0].x) + abs(qmvp.y - mvc[0].y);
+                mvd = abs(qmvp.x - mvc[0].x) + abs(qmvp.y - mvc[0].y);
             }
             else
             {
@@ -1046,11 +1051,8 @@ me_hex2:
 
                 denom = numCandidates - 1;
                 mvd = 0;
-                if (partEnum != LUMA_64x64)
-                {
-                    mvd = abs(qmvp.x - mvc[0].x) + abs(qmvp.y - mvc[0].y);
-                    denom++;
-                }
+                mvd = abs(qmvp.x - mvc[0].x) + abs(qmvp.y - mvc[0].y);
+                denom++;
                 mvd += predictorDifference(mvc, numCandidates);
             }
 
