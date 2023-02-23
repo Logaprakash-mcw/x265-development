@@ -2731,6 +2731,7 @@ void Lookahead::slicetypeAnalyse(Lowres **frames, bool bKeyframe)
     if (m_param->scenecutThreshold && isScenecut)
     {
         frames[1]->sliceType = X265_TYPE_I;
+        cuTree(frames, X265_MIN(numFrames, m_param->keyframeMax), bKeyframe);
         return;
     }
     if (m_param->gopLookahead && (keyFrameLimit >= 0) && (keyFrameLimit <= m_param->bframes + 1))

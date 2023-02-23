@@ -1463,12 +1463,12 @@ int RateControl::rateControlStart(Frame* curFrame, RateControlEntry* rce, Encode
                 /* 1.5 * (Max( PicSizeInSamplesY, fR * MaxLumaSr) + MaxLumaSr * (AuCpbRemovalTime[ 0 ] -AuNominalRemovalTime[ 0 ])) ? MinCr */
                 double fr = 1. / 300;
                 int picSizeInSamplesY = m_param->sourceWidth * m_param->sourceHeight;
-                rce->frameSizeMaximum = 8 * 1.5 * X265_MAX(picSizeInSamplesY, fr * enc->m_vps.ptl.maxLumaSrForLevel) / mincr;
+                rce->frameSizeMaximum = X265_DEPTH * 1.5 * X265_MAX(picSizeInSamplesY, fr * enc->m_vps.ptl.maxLumaSrForLevel) / mincr;
             }
             else
             {
                 /* 1.5 * MaxLumaSr * (AuCpbRemovalTime[ n ] - AuCpbRemovalTime[ n - 1 ]) / MinCr */
-                rce->frameSizeMaximum = 8 * 1.5 * enc->m_vps.ptl.maxLumaSrForLevel * m_frameDuration / mincr;
+                rce->frameSizeMaximum = X265_DEPTH * 1.5 * enc->m_vps.ptl.maxLumaSrForLevel * m_frameDuration / mincr;
             }
             rce->frameSizeMaximum *= m_param->maxAUSizeFactor;
         }
