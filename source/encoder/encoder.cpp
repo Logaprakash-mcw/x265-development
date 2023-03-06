@@ -535,6 +535,12 @@ void Encoder::create()
 
     m_bZeroLatency = !m_param->bframes && !m_param->lookaheadDepth && m_param->frameNumThreads == 1 && m_param->maxSlices == 1;
     m_aborted |= parseLambdaFile(m_param);
+    if (m_param->bHDR10Opt || m_param->bHDROpt)
+    {
+        double *table = x265_lambda2_tab;
+        for (int i = 0; i < QP_MAX_MAX + 1; i++)
+            table[i] = x265_lambda2_HDR[i];
+    }
 
     m_encodeStartTime = x265_mdate();
 

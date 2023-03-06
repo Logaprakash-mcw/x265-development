@@ -87,7 +87,15 @@ public:
             m_chromaDistWeight[1] = lambdaOffset;
         }
         else
-            m_chromaDistWeight[0] = m_chromaDistWeight[1] = 256;
+        {
+            int chroma_offset_idx = X265_MIN(qp - qpCb + 12, MAX_CHROMA_LAMBDA_OFFSET);
+            uint16_t lambdaOffset = (slice.m_param->bHDR10Opt || slice.m_param->bHDROpt) ? x265_chroma_lambda2_offset_tab[chroma_offset_idx] : 256;
+            m_chromaDistWeight[0] = lambdaOffset;
+
+            chroma_offset_idx = X265_MIN(qp - qpCr + 12, MAX_CHROMA_LAMBDA_OFFSET);
+            lambdaOffset = (slice.m_param->bHDR10Opt || slice.m_param->bHDROpt) ? x265_chroma_lambda2_offset_tab[chroma_offset_idx] : 256;
+            m_chromaDistWeight[1] = lambdaOffset;
+        }
     }
 
     void setLambda(double lambda2, double lambda)
