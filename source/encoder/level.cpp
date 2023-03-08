@@ -137,7 +137,7 @@ void determineLevel(const x265_param &param, VPS& vps)
         i = 8;
         vps.ptl.levelIdc = levels[i].levelEnum;
         vps.ptl.tierFlag = Level::HIGH;
-        vps.ptl.minCrForLevel = levels[i].minCompressionRatio;
+        vps.ptl.minCrForLevel = (param.bHDR10Opt || param.bHDROpt) ? 4 : levels[i].minCompressionRatio;
         vps.ptl.maxLumaSrForLevel = levels[i].maxLumaSamplesPerSecond;
     }
     else for (i = 0; i < NumLevels; i++)
