@@ -2804,6 +2804,7 @@ void Analysis::checkMerge2Nx2N_rd0_4(Mode& skip, Mode& merge, const CUGeom& cuGe
             if (candMvField[i][0].mv.y >= (m_param->searchRange + 1) * 4 ||
                 candMvField[i][1].mv.y >= (m_param->searchRange + 1) * 4)
                 continue;
+
         }
 
         if (m_param->bIntraRefresh && m_slice->m_sliceType == P_SLICE &&
@@ -2811,6 +2812,13 @@ void Analysis::checkMerge2Nx2N_rd0_4(Mode& skip, Mode& merge, const CUGeom& cuGe
             candMvField[i][0].mv.x > maxSafeMv)
             // skip merge candidates which reference beyond safe reference area
             continue;
+
+		MV mvL0 = candMvField[i][0].mv;
+		MV mvL1 = candMvField[i][1].mv;
+		merge.cu.clipMv(mvL0);
+		merge.cu.clipMv(mvL1);
+		if (mvL0.x != candMvField[i][0].mv.x || mvL0.y != candMvField[i][0].mv.y || mvL1.x != candMvField[i][1].mv.x || mvL1.y != candMvField[i][1].mv.y)
+			continue;
 
         tempPred->cu.m_mvpIdx[0][0] = (uint8_t)i; // merge candidate ID is stored in L0 MVP idx
         X265_CHECK(m_slice->m_sliceType == B_SLICE || !(candDir[i] & 0x10), " invalid merge for P slice\n");
@@ -2935,6 +2943,13 @@ void Analysis::checkMerge2Nx2N_rd5_6(Mode& skip, Mode& merge, const CUGeom& cuGe
                 candMvField[i][1].mv.y >= (m_param->searchRange + 1) * 4)
                 continue;
         }
+
+		MV mvL0 = candMvField[i][0].mv;
+		MV mvL1 = candMvField[i][1].mv;
+		merge.cu.clipMv(mvL0);
+		merge.cu.clipMv(mvL1);
+		if (mvL0.x != candMvField[i][0].mv.x || mvL0.y != candMvField[i][0].mv.y || mvL1.x != candMvField[i][1].mv.x || mvL1.y != candMvField[i][1].mv.y)
+			continue;
 
         /* the merge candidate list is packed with MV(0,0) ref 0 when it is not full */
         if (candDir[i] == 1 && !candMvField[i][0].mv.word && !candMvField[i][0].refIdx)

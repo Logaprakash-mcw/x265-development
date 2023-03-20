@@ -1936,6 +1936,13 @@ uint32_t Search::mergeEstimation(CUData& cu, const CUGeom& cuGeom, const Predict
                 continue;
         }
 
+		MV mvL0 = candMvField[mergeCand][0].mv;
+		MV mvL1 = candMvField[mergeCand][1].mv;
+		cu.clipMv(mvL0);
+		cu.clipMv(mvL1);
+		if (mvL0.x != candMvField[mergeCand][0].mv.x || mvL0.y != candMvField[mergeCand][0].mv.y || mvL1.x != candMvField[mergeCand][1].mv.x || mvL1.y != candMvField[mergeCand][1].mv.y)
+			continue;
+
         cu.m_mv[0][pu.puAbsPartIdx] = candMvField[mergeCand][0].mv;
         cu.m_refIdx[0][pu.puAbsPartIdx] = (int8_t)candMvField[mergeCand][0].refIdx;
         cu.m_mv[1][pu.puAbsPartIdx] = candMvField[mergeCand][1].mv;
