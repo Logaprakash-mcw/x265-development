@@ -583,8 +583,11 @@ typedef enum
 #define X265_AQ_AUTO_VARIANCE        2
 #define X265_AQ_AUTO_VARIANCE_BIASED 3
 #define X265_AQ_EDGE                 4
+#define X265_AQ_HDR                  5
+
 #define x265_ADAPT_RD_STRENGTH   4
 #define X265_REFINE_INTER_LEVELS 3
+
 /* NOTE! For this release only X265_CSP_I420 and X265_CSP_I444 are supported */
 /* Supported internal color space types (according to semantics of chroma_format_idc) */
 #define X265_CSP_I400           0  /* yuv 4:0:0 planar */

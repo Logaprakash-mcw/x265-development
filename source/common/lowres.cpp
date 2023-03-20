@@ -100,6 +100,9 @@ bool Lowres::create(x265_param* param, PicYuv *origPic, uint32_t qgSize)
         CHECKED_MALLOC_ZERO(qpAqOffset, double, cuCountFullRes);
         CHECKED_MALLOC_ZERO(invQscaleFactor, int, cuCountFullRes);
         CHECKED_MALLOC_ZERO(qpCuTreeOffset, double, cuCountFullRes);
+
+        CHECKED_MALLOC_ZERO(m_edgePic, pixel, widthFullRes * heightFullRes);
+
         if (qgSize == 8)
             CHECKED_MALLOC_ZERO(invQscaleFactor8x8, int, cuCount);
         CHECKED_MALLOC_ZERO(edgeInclined, int, cuCountFullRes);
@@ -284,6 +287,9 @@ void Lowres::destroy(x265_param* param)
     X265_FREE(qpAqOffset);
     X265_FREE(invQscaleFactor);
     X265_FREE(qpCuTreeOffset);
+
+    X265_FREE(m_edgePic);
+
     X265_FREE(propagateCost);
     X265_FREE(invQscaleFactor8x8);
     X265_FREE(edgeInclined);

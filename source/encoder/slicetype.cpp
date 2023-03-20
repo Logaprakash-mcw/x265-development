@@ -449,6 +449,46 @@ void LookaheadTLD::xPreanalyze(Frame* curFrame)
     }
 }
 
+void LookaheadTLD::computeEdge(pixel* srcPic, intptr_t srcStride, pixel* edgePic, intptr_t dstStride, int height, int width)
+{
+    intptr_t rowOne = 0, rowTwo = 0, rowThree = 0, colOne = 0, colTwo = 0, colThree = 0;
+    intptr_t middle = 0, topLeft = 0, topRight = 0, bottomLeft = 0, bottomRight = 0;
+
+    float gradientH = 0, gradientV = 0;
+    float gradientMagnitude = 0;
+
+    //Applying Sobel filter expect for border pixels
+    for (int rowNum = 1; rowNum < height - 1; rowNum++)
+    {
+        rowTwo = rowNum * srcStride;
+        rowOne = rowTwo - srcStride;
+        rowThree = rowTwo + srcStride;
+
+        for (int colNum = 1; colNum < width - 1; colNum++)
+        {
+
+            /*  Horizontal and vertical gradients
+                [ -3   0   3 ]        [-3   -10  -3 ]
+            gH =[ -10  0   10]   gV = [ 0    0    0 ]
+                [ -3   0   3 ]        [ 3    10   3 ] */
+
+            colTwo = colNum;
+            colOne = colTwo - 1;
+            colThree = colTwo + 1;
+            middle = rowTwo + colTwo;
+            topLeft = rowOne + colOne;
+            topRight = rowOne + colThree;
+            bottomLeft = rowThree + colOne;
+            bottomRight = rowThree + colThree;
+            gradientH = (float)(-3 * srcPic[topLeft] + 3 * srcPic[topRight] - 10 * srcPic[rowTwo + colOne] + 10 * srcPic[rowTwo + colThree] - 3 * srcPic[bottomLeft] + 3 * srcPic[bottomRight]);
+            gradientV = (float)(-3 * srcPic[topLeft] - 10 * srcPic[rowOne + colTwo] - 3 * srcPic[topRight] + 3 * srcPic[bottomLeft] + 10 * srcPic[rowThree + colTwo] + 3 * srcPic[bottomRight]);
+            gradientMagnitude = sqrtf(gradientH * gradientH + gradientV * gradientV);
+
+            edgePic[rowNum * dstStride + colNum] = (pixel)(gradientMagnitude >= EDGE_THRESHOLD ? 1 : 0);
+        }
+    }
+}
+
 void LookaheadTLD::calcAdaptiveQuantFrame(Frame *curFrame, x265_param* param)
 {
     /* Actual adaptive quantization */
@@ -508,6 +548,100 @@ void LookaheadTLD::calcAdaptiveQuantFrame(Frame *curFrame, x265_param* param)
                 for (int blockY = 0; blockY < maxRow; blockY += loopIncr)
                     for (int blockX = 0; blockX < maxCol; blockX += loopIncr)
                         acEnergyCu(curFrame, blockX, blockY, param->internalCsp, param->rc.qgSize);
+            }
+        }
+        else if (param->rc.aqMode == X265_AQ_HDR)
+        {
+#if 1
+            pixel* srcPic = curFrame->m_fencPic->m_picOrg[0] /*+ blockOffsetLuma*/;
+            pixel* edgePic = curFrame->m_lowres.m_edgePic /*+ blockX + (blockY * curFrame->m_fencPic->m_picWidth)*/;
+            computeEdge(srcPic, curFrame->m_fencPic->m_stride, edgePic, curFrame->m_fencPic->m_picWidth, maxRow, maxCol);
+#endif
+
+            int blockXY = 0;
+            double avg_adj_pow2 = 0, avg_adj = 0, qp_adj = 0;
+            double strength = 0.f;
+
+            double bit_depth_correction = 1.f / (1 << (2 * (X265_DEPTH - 8)));
+            for (int blockY = 0; blockY < maxRow; blockY += loopIncr)
+            {
+                for (int blockX = 0; blockX < maxCol; blockX += loopIncr)
+                {
+                    uint32_t energy;
+                    energy = acEnergyCu(curFrame, blockX, blockY, param->internalCsp, param->rc.qgSize);
+                    qp_adj = pow(energy * bit_depth_correction + 1, 0.1) /*+  X265_LOG2(2 * energy + ssim_c2)*/;
+                    curFrame->m_lowres.qpCuTreeOffset[blockXY] = qp_adj;
+                    avg_adj += qp_adj;
+                    avg_adj_pow2 += qp_adj * qp_adj;
+                    blockXY++;
+                }
+            }
+            avg_adj /= blockCount;
+            avg_adj_pow2 /= blockCount;
+            strength = param->rc.aqStrength * avg_adj;
+            avg_adj = avg_adj - 0.5f * (avg_adj_pow2 - modeTwoConst) / avg_adj;
+
+            blockXY = 0;
+            for (int blockY = 0; blockY < maxRow; blockY += loopIncr)
+            {
+                for (int blockX = 0; blockX < maxCol; blockX += loopIncr)
+                {
+                    qp_adj = curFrame->m_lowres.qpCuTreeOffset[blockXY];
+                    qp_adj = strength * (qp_adj - avg_adj);
+
+#if 0
+                    //intptr_t blockOffsetLuma = blockX + (blockY * curFrame->m_fencPic->m_stride);
+                    //pixel* srcPic = curFrame->m_fencPic->m_picOrg[0] + blockOffsetLuma;
+                    pixel* edge = curFrame->m_lowres.m_edgePic + blockX + (blockY * curFrame->m_fencPic->m_picWidth);
+
+                    int edgehist[2] = { 0 };
+                    //computeEdge(srcPic, curFrame->m_fencPic->m_stride, edgePic, curFrame->m_fencPic->m_picWidth, loopIncr, loopIncr);
+                    for (int i = 1; i < loopIncr - 1 && blockY + i < maxRow - 1; i++)
+                    {
+                        for (int j = 1; j < loopIncr - 1 && blockX + j < maxCol - 1; j++) {
+                            edgehist[edge[(i * curFrame->m_fencPic->m_picWidth + j)]]++;
+                        }
+                    }
+
+                    if (((float)edgehist[1]) >= ((20.f / 100.f) * (loopIncr * loopIncr)))
+                    {
+                        double addn_qp_adj = 0.02f;
+                        qp_adj = qp_adj - addn_qp_adj;
+                    }
+#endif
+
+                    if (param->bHDR10Opt)
+                    {
+                        uint32_t sum = lumaSumCu(curFrame, blockX, blockY, param->rc.qgSize);
+                        uint32_t lumaAvg = sum / (loopIncr * loopIncr);
+                        if (lumaAvg < 301)
+                            qp_adj += 3;
+                        else if (lumaAvg >= 301 && lumaAvg < 367)
+                            qp_adj += 2;
+                        else if (lumaAvg >= 367 && lumaAvg < 434)
+                            qp_adj += 1;
+                        else if (lumaAvg >= 501 && lumaAvg < 567)
+                            qp_adj -= 1;
+                        else if (lumaAvg >= 567 && lumaAvg < 634)
+                            qp_adj -= 2;
+                        else if (lumaAvg >= 634 && lumaAvg < 701)
+                            qp_adj -= 3;
+                        else if (lumaAvg >= 701 && lumaAvg < 767)
+                            qp_adj -= 4;
+                        else if (lumaAvg >= 767 && lumaAvg < 834)
+                            qp_adj -= 5;
+                        else if (lumaAvg >= 834)
+                            qp_adj -= 6;
+                    }
+                    if (quantOffsets != NULL)
+                        qp_adj += quantOffsets[blockXY];
+
+                    curFrame->m_lowres.qpAqOffset[blockXY] = qp_adj;
+                    curFrame->m_lowres.qpCuTreeOffset[blockXY] = qp_adj;
+                    curFrame->m_lowres.invQscaleFactor[blockXY] = x265_exp2fix8(qp_adj);
+
+                    blockXY++;
+                }
             }
         }
         else

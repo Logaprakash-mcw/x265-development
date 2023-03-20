@@ -3714,6 +3714,33 @@ int Analysis::calculateQpforCuSize(const CUData& ctu, const CUGeom& cuGeom, int3
                 }
             }
             dQpOffset /= cnt;
+
+            if (m_param->rc.aqMode == X265_AQ_HDR)
+            {
+                int edgehist[2] = { 0 };
+
+                intptr_t blockOffsetLuma = block_x + (block_y * m_frame->m_fencPic->m_picWidth);
+                pixel* gradMagBuffer = m_frame->m_lowres.m_edgePic + blockOffsetLuma;
+
+                for (uint32_t i = 1; i < blockSize - 1 && block_y + i < height - 1; i++)
+                {
+                    for (uint32_t j = 1; j < blockSize - 1 && block_x + j < width - 1; j++)
+                    {
+                        edgehist[gradMagBuffer[(i * m_frame->m_fencPic->m_picWidth + j)]]++;
+                    }
+                }
+
+                double addn_qp_offset = 0.05;
+                if (((float)edgehist[1]) >= ((20.f / 100.f) * (blockSize * blockSize)))
+                {
+                    dQpOffset = dQpOffset - addn_qp_offset;
+                }
+                else
+                {
+                    dQpOffset = dQpOffset;
+                }
+            }
+
             qp += dQpOffset;
             if (complexCheck)
             {

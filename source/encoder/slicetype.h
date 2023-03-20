@@ -139,6 +139,8 @@ struct LookaheadTLD
     void weightsAnalyse(Lowres& fenc, Lowres& ref);
     void xPreanalyze(Frame* curFrame);
     void xPreanalyzeQp(Frame* curFrame);
+    void computeEdge(pixel* srcPic, intptr_t srcStride, pixel* edgePic, intptr_t dstStride,  int height, int width);
+
 protected:
 
     uint32_t acEnergyCu(Frame* curFrame, uint32_t blockX, uint32_t blockY, int csp, uint32_t qgSize);
