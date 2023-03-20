@@ -2660,7 +2660,6 @@ double RateControl::predictRowsSizeSum(Frame* curFrame, RateControlEntry* rce, d
             double pred_s = predictSize(rce->rowPred[0], qScale, satdCostForPendingCus);
             uint32_t refRowSatdCost = 0, refRowBits = 0, intraCostForPendingCus = 0;
             double refQScale = 0;
-			double pred_intra = 0;
             if (picType != I_SLICE && !m_param->rc.bEnableConstVbv)
             {
                 FrameData& refEncData = *refFrame->m_encData;
@@ -2761,8 +2760,7 @@ int RateControl::rowVbvRateControl(Frame* curFrame, uint32_t row, RateControlEnt
     if (row < m_sliceBaseRow[sliceId + 1] - 1)
     {
         /* More threads means we have to be more cautious in letting ratecontrol use up extra bits. */
-        //double rcTol = bufferLeftPlanned / ((m_param->frameNumThreads == 1 ? 1 :(rce->encodeOrder < m_param->frameNumThreads ? rce->encodeOrder : (m_param->frameNumThreads >> 1)))) * m_rateTolerance;
-		double rcTol = bufferLeftPlanned / m_param->frameNumThreads * m_rateTolerance;
+        double rcTol = bufferLeftPlanned / ((m_param->frameNumThreads == 1 ? 1 :(rce->encodeOrder < m_param->frameNumThreads ? rce->encodeOrder : (m_param->frameNumThreads >> 1)))) * m_rateTolerance;
         int32_t encodedBitsSoFar = 0;
         double accFrameBits = predictRowsSizeSum(curFrame, rce, qpVbv, encodedBitsSoFar);
         double vbvEndBias = 0.95;
