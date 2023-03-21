@@ -247,6 +247,9 @@ bool Lowres::create(x265_param* param, PicYuv *origPic, uint32_t qgSize)
         }
     }
 
+    CHECKED_MALLOC(diff_previous, pixel, width * lines);
+    CHECKED_MALLOC(diff_future, pixel, width * lines);
+
     return true;
 
 fail:
@@ -338,6 +341,10 @@ void Lowres::destroy(x265_param* param)
         X265_FREE(quarterSampleLowResBuffer);
 
     }
+
+    X265_FREE(diff_previous);
+    X265_FREE(diff_future);
+
 }
 // (re) initialize lowres state
 void Lowres::init(PicYuv *origPic, int poc)
@@ -406,4 +413,7 @@ void Lowres::init(PicYuv *origPic, int poc)
             quarterSampleLowResStrideY,
             widthFullRes / 4, heightFullRes / 4);
     }
+
+    threshold_previous = 0;
+    threshold_future = 0;
 }

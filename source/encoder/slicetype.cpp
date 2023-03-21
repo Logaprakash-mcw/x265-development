@@ -347,7 +347,7 @@ void LookaheadTLD::xPreanalyze(Frame* curFrame)
         if (!aqLayerDepth[ctuSizeIdx][aqDepth][d])
             continue;
 
-        const pixel* src = curFrame->m_fencPic->m_picOrg[0];;
+        const pixel* src = curFrame->m_fencPic->m_picOrg[0];
         PicQPAdaptationLayer* pQPLayer = &curFrame->m_lowres.pAQLayer[d];
         const uint32_t aqPartWidth = pQPLayer->aqPartWidth;
         const uint32_t aqPartHeight = pQPLayer->aqPartHeight;
@@ -552,11 +552,11 @@ void LookaheadTLD::calcAdaptiveQuantFrame(Frame *curFrame, x265_param* param)
         }
         else if (param->rc.aqMode == X265_AQ_HDR)
         {
-#if 1
+            curFrame->m_lowres.bStaticAndMotionLCUAnalysed = false;
+
             pixel* srcPic = curFrame->m_fencPic->m_picOrg[0] /*+ blockOffsetLuma*/;
             pixel* edgePic = curFrame->m_lowres.m_edgePic /*+ blockX + (blockY * curFrame->m_fencPic->m_picWidth)*/;
             computeEdge(srcPic, curFrame->m_fencPic->m_stride, edgePic, curFrame->m_fencPic->m_picWidth, maxRow, maxCol);
-#endif
 
             int blockXY = 0;
             double avg_adj_pow2 = 0, avg_adj = 0, qp_adj = 0;
@@ -2856,6 +2856,11 @@ void Lookahead::slicetypeAnalyse(Lowres **frames, bool bKeyframe)
     int numAnalyzed = numFrames;
     bool isScenecut = false;
 
+    if (m_param->rc.aqMode == X265_AQ_HDR)
+    {
+        StaticAndMotionLCU(frames, origNumFrames);
+    }
+
     if (m_param->bHistBasedSceneCut)
         isScenecut = histBasedScenecut(frames, 0, 1, origNumFrames);
     else
@@ -3172,6 +3177,109 @@ bool Lookahead::scenecutInternal(Lowres **frames, int p0, int p1, bool bRealScen
     return res;
 }
 
+void Lookahead::computeHistogram(Lowres* srcFrame1, Lowres* srcFrame2, pixel *diff,  unsigned *hist)
+{
+    // Initialize array
+    for (int i = 0; i <= MAX_INTENSITY; i++)
+        hist[i] = 0;
+
+    int width = srcFrame1->width;
+    int height = srcFrame1->lines;
+    intptr_t stride = srcFrame1->lumaStride;
+
+    const pixel* lowResPlane1 = srcFrame1->fpelPlane[0];
+    const pixel* lowResPlane2 = srcFrame2->lowresPlane[0];
+
+    for (int i = 0; i < height; i++)
+    {
+        for (int j = 0; j < width; j++)
+        {
+            int value = (uint8_t)abs(lowResPlane1[i * stride + j] - lowResPlane2[i * stride + j]);
+
+            diff[i * width + j] = (uint8_t)value;
+            hist[value]++;
+        }
+    }
+
+}
+
+int Lookahead::computeOtsusThreshold(Lowres* srcFrame1, unsigned* hist)
+{
+    // Compute number of pixels
+    int width = srcFrame1->width;
+    int height = srcFrame1->lines;
+    long int N = width * height;
+
+    int threshold = 0;
+
+
+    // Compute threshold
+    // Init variables
+    float sum = 0;
+    float sumB = 0;
+    int q1 = 0;
+    int q2 = 0;
+    float varMax = 0;
+
+    // Auxiliary value for computing m2
+    for (int i = 0; i <= MAX_INTENSITY; i++)
+    {
+        sum += i * ((int)hist[i]);
+    }
+
+    for (int i = 0; i <= MAX_INTENSITY; i++)
+    {
+        // Update q1
+        q1 += hist[i];
+        if (q1 == 0)
+            continue;
+        // Update q2
+        q2 = N - q1;
+
+        if (q2 == 0)
+            break;
+        // Update m1 and m2
+        sumB += (float)(i * ((int)hist[i]));
+        float m1 = sumB / q1;
+        float m2 = (sum - sumB) / q2;
+
+        // Update the between class variance
+        float varBetween = (float)q1 * (float)q2 * (m1 - m2) * (m1 - m2);
+
+        // Update the threshold if necessary
+        if (varBetween > varMax) {
+            varMax = varBetween;
+            threshold = i;
+        }
+    }
+
+    return threshold;
+}
+
+bool Lookahead::detectStaticAndMotionLCU(Lowres **frames, int p0, int p1, int p2)
+{
+    Lowres  *previousFrame = frames[p0];
+    Lowres  *currentFrame  = frames[p1];
+    Lowres  *futureFrame   = frames[p2];
+
+    currentFrame->bStaticAndMotionLCUAnalysed = true;
+
+    x265_log(m_param, X265_LOG_DEBUG, "Pic Number in detecting static and motion LCU# %i\n", currentFrame->frameNum);
+
+    unsigned hist_previous[MAX_INTENSITY + 1];
+    unsigned hist_future[MAX_INTENSITY + 1];
+
+    computeHistogram(currentFrame, previousFrame, currentFrame->diff_previous, hist_previous);
+    computeHistogram(currentFrame, futureFrame, currentFrame->diff_future, hist_future);
+
+    // Otsu thresholding
+    currentFrame->threshold_previous = computeOtsusThreshold(currentFrame, hist_previous);
+    currentFrame->threshold_future = computeOtsusThreshold(currentFrame, hist_future);
+
+
+    return true;
+}
+
 bool Lookahead::detectHistBasedSceneChange(Lowres **frames, int p0, int p1, int p2)
 {
     bool isAbruptChange;
@@ -3303,6 +3411,28 @@ bool Lookahead::detectHistBasedSceneChange(Lowres **frames, int p0, int p1, int 
         return false;
     }
 
+}
+
+void Lookahead::StaticAndMotionLCU(Lowres **frames, int numFrames)
+{
+    if (m_param->bframes)
+    {
+        int origmaxp1 = 1;
+        origmaxp1 += m_param->bframes;
+        int maxp1 = X265_MIN(origmaxp1, numFrames);
+
+        for (int cp1 = 0; cp1 < maxp1; cp1++)
+        {
+            if (frames[cp1 + 1]->bStaticAndMotionLCUAnalysed == true)
+                continue;
+
+            if (frames[cp1 + 2] != NULL && detectStaticAndMotionLCU(frames, cp1, cp1 + 1, cp1 + 2))
+            {
+                x265_log(m_param, X265_LOG_DEBUG, "Pic Number in detecting static and motion LCU# %i\n", frames[cp1 + 1]->frameNum);
+            }
+        }
+
+    }
 }
 
 bool Lookahead::histBasedScenecut(Lowres **frames, int p0, int p1, int numFrames)

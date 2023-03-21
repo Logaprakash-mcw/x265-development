@@ -62,10 +62,13 @@ class Lookahead;
 
 #define NUM64x64INPIC(w,h)                  ((w*h)>> (MAX_LOG2_CU_SIZE<<1))
 
+
 #if HIGH_BIT_DEPTH
 #define EDGE_THRESHOLD 1023.0
+#define MAX_INTENSITY 1023
 #else
 #define EDGE_THRESHOLD 255.0
+#define MAX_INTENSITY 255
 #endif
 #define PI 3.14159265
 
@@ -202,7 +205,7 @@ public:
     bool          m_resetRunningAvg;
     uint32_t      m_segmentCountThreshold;
 
-    int8_t                  m_gopId;
+    int8_t        m_gopId;
 
     Lookahead(x265_param *param, ThreadPool *pool);
 #if DETAILED_CU_STATS
@@ -239,6 +242,11 @@ protected:
 
     bool    histBasedScenecut(Lowres **frames, int p0, int p1, int numFrames);
     bool    detectHistBasedSceneChange(Lowres **frames, int p0, int p1, int p2);
+
+    void    StaticAndMotionLCU(Lowres **frames, int numFrames);
+    bool    detectStaticAndMotionLCU(Lowres **frames, int p0, int p1, int p2);
+    void    computeHistogram(Lowres* currentFrame, Lowres* previousFrame, pixel *diff, unsigned *hist);
+    int     computeOtsusThreshold(Lowres* srcFrame1, unsigned* hist);
 
     void    slicetypePath(Lowres **frames, int length, char(*best_paths)[X265_LOOKAHEAD_MAX + 1]);
     int64_t slicetypePathCost(Lowres **frames, char *path, int64_t threshold);

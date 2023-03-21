@@ -259,6 +259,13 @@ struct Lowres : public ReferencePlanes
     uint64_t     averageIntensityPerSegment[NUMBER_OF_SEGMENTS_IN_WIDTH][NUMBER_OF_SEGMENTS_IN_HEIGHT][3];
     uint8_t      averageIntensity[3];
 
+    /*For new AQ mode*/
+    bool         bStaticAndMotionLCUAnalysed;
+    pixel       *diff_previous;
+    pixel       *diff_future;
+    int          threshold_previous;
+    int          threshold_future;
+
     bool create(x265_param* param, PicYuv *origPic, uint32_t qgSize);
     void destroy(x265_param* param);
     void init(PicYuv *origPic, int poc);
