@@ -3764,6 +3764,18 @@ int Analysis::calculateQpforCuSize(const CUData& ctu, const CUGeom& cuGeom, int3
                 {
                     dQpOffset = dQpOffset;
                 }
+                double blockIntensity = 0;
+                for (uint32_t block_yy = block_y; block_yy < block_y + blockSize && block_yy < height; block_yy++)
+                {
+                    for (uint32_t block_xx = block_x; block_xx < block_x + blockSize && block_xx < width; block_xx++)
+                    {
+                        uint32_t idx = block_yy * width + block_xx;
+                        blockIntensity += m_frame->m_fencPic->m_picOrg[0][idx];
+                        //printf("\nBlock X:Y = %d:%d block_XX:YY = %d:%d m_frame->m_fencPic->m_picOrg[0][%d] = %d \n", block_x, block_y, block_xx, block_yy, idx, m_frame->m_fencPic->m_picOrg[0][idx]);
+                    }
+                }
+                blockIntensity = blockIntensity / (blockSize * blockSize);
+                dQpOffset = dQpOffset - ((blockIntensity > 100)? 0.75 : (blockIntensity > 80)? 0.3 : 0.05);
             }
 
             qp += dQpOffset;
