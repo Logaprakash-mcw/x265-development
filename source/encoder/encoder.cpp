@@ -542,6 +542,13 @@ void Encoder::create()
             table[i] = x265_lambda2_HDR[i];
     }*/
 
+    if (m_param->rc.aqMode == X265_AQ_HDR)
+    {
+        double *table = x265_lambda_tab;
+        for (int i = 0; i < QP_MAX_MAX + 1; i++)
+            table[i] = x265_lambda_HDR[i];
+    }
+
     m_encodeStartTime = x265_mdate();
 
     m_nalList.m_annexB = !!m_param->bAnnexB;

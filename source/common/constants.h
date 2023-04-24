@@ -32,7 +32,7 @@ namespace X265_NS {
 
 extern double x265_lambda_tab[QP_MAX_MAX + 1];
 extern double x265_lambda2_tab[QP_MAX_MAX + 1];
-//extern double x265_lambda2_HDR[QP_MAX_MAX + 1];
+extern const double x265_lambda_HDR[QP_MAX_MAX + 1];
 extern const uint16_t x265_chroma_lambda2_offset_tab[MAX_CHROMA_LAMBDA_OFFSET + 1];
 
 enum { ChromaQPMappingTableSize = 70 };
