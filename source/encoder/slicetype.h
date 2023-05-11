@@ -111,7 +111,7 @@ struct LookaheadTLD
 
     ~LookaheadTLD() { X265_FREE(wbuffer[0]); }
 
-    void collectPictureStatistics(Frame *curFrame);
+//    void collectPictureStatistics(Frame *curFrame);
     void computeIntensityHistogramBinsLuma(Frame *curFrame, uint64_t *sumAvgIntensityTotalSegmentsLuma);
 
     void computeIntensityHistogramBinsChroma(
@@ -215,13 +215,12 @@ public:
     void    destroy();
     void    stopJobs();
 
-    void    addPicture(Frame&, int sliceType);
+    //void    addPicture(Frame&, int sliceType);
     void    addPicture(Frame& curFrame);
     void    checkLookaheadQueue(int &frameCnt);
     void    flush();
     Frame*  getDecidedPicture();
 
-    void    getEstimatedPictureCost(Frame *pic);
     void    setLookaheadQueue();
     int     findSliceType(int poc);
 

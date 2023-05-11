@@ -102,7 +102,7 @@ x265_param *x265_param_alloc()
 
 void x265_param_free(x265_param* p)
 {
-    x265_zone_free(p);
+    //x265_zone_free(p);
 #ifdef SVT_HEVC
      x265_free(p->svtHevcParam);
 #endif
@@ -247,12 +247,7 @@ void x265_param_default(x265_param* param)
     param->rdPenalty = 0;
     param->psyRd = 2.0;
     param->psyRdoq = 0.0;
-    param->analysisReuseMode = 0; /*DEPRECATED*/
-    param->analysisMultiPassRefine = 0;
-    param->analysisMultiPassDistortion = 0;
-    param->analysisReuseFileName = NULL;
-    param->analysisSave = NULL;
-    param->analysisLoad = NULL;
+
     param->bIntraInBFrames = 1;
     param->bLossless = 0;
     param->bCULossless = 0;
@@ -1695,47 +1690,6 @@ int x265_check_params(x265_param* param)
     CHECK(param->psyRd < 0 || 5.0 < param->psyRd, "Psy-rd strength must be between 0 and 5.0");
     CHECK(param->psyRdoq < 0 || 50.0 < param->psyRdoq, "Psy-rdoq strength must be between 0 and 50.0");
     CHECK(param->bEnableWavefront < 0, "WaveFrontSynchro cannot be negative");
-    CHECK((param->vui.aspectRatioIdc < 0
-           || param->vui.aspectRatioIdc > 16)
-          && param->vui.aspectRatioIdc != X265_EXTENDED_SAR,
-          "Sample Aspect Ratio must be 0-16 or 255");
-    CHECK(param->vui.aspectRatioIdc == X265_EXTENDED_SAR && param->vui.sarWidth <= 0,
-          "Sample Aspect Ratio width must be greater than 0");
-    CHECK(param->vui.aspectRatioIdc == X265_EXTENDED_SAR && param->vui.sarHeight <= 0,
-          "Sample Aspect Ratio height must be greater than 0");
-    CHECK(param->vui.videoFormat < 0 || param->vui.videoFormat > 5,
-          "Video Format must be component,"
-          " pal, ntsc, secam, mac or unknown");
-    CHECK(param->vui.colorPrimaries < 0
-          || param->vui.colorPrimaries > 12
-          || param->vui.colorPrimaries == 3,
-          "Color Primaries must be unknown, bt709, bt470m,"
-          " bt470bg, smpte170m, smpte240m, film, bt2020, smpte-st-428, smpte-rp-431 or smpte-eg-432");
-    CHECK(param->vui.transferCharacteristics < 0
-          || param->vui.transferCharacteristics > 18
-          || param->vui.transferCharacteristics == 3,
-          "Transfer Characteristics must be unknown, bt709, bt470m, bt470bg,"
-          " smpte170m, smpte240m, linear, log100, log316, iec61966-2-4, bt1361e,"
-          " iec61966-2-1, bt2020-10, bt2020-12, smpte-st-2084, smpte-st-428 or arib-std-b67");
-    CHECK(param->vui.matrixCoeffs < 0
-          || param->vui.matrixCoeffs > 14
-          || param->vui.matrixCoeffs == 3,
-          "Matrix Coefficients must be unknown, bt709, fcc, bt470bg, smpte170m,"
-          " smpte240m, gbr, ycgco, bt2020nc, bt2020c, smpte-st-2085, chroma-nc, chroma-c or ictcp");
-    CHECK(param->vui.chromaSampleLocTypeTopField < 0
-          || param->vui.chromaSampleLocTypeTopField > 5,
-          "Chroma Sample Location Type Top Field must be 0-5");
-    CHECK(param->vui.chromaSampleLocTypeBottomField < 0
-          || param->vui.chromaSampleLocTypeBottomField > 5,
-          "Chroma Sample Location Type Bottom Field must be 0-5");
-    CHECK(param->vui.defDispWinLeftOffset < 0,
-          "Default Display Window Left Offset must be 0 or greater");
-    CHECK(param->vui.defDispWinRightOffset < 0,
-          "Default Display Window Right Offset must be 0 or greater");
-    CHECK(param->vui.defDispWinTopOffset < 0,
-          "Default Display Window Top Offset must be 0 or greater");
-    CHECK(param->vui.defDispWinBottomOffset < 0,
-          "Default Display Window Bottom Offset must be 0 or greater");
     CHECK(param->rc.rfConstant < -6 * (param->internalBitDepth - 8) || param->rc.rfConstant > 51,
           "Valid quality based range: -qpBDOffsetY to 51");
     CHECK(param->rc.rfConstantMax < -6 * (param->internalBitDepth - 8) || param->rc.rfConstantMax > 51,
@@ -1780,25 +1734,7 @@ int x265_check_params(x265_param* param)
           "Target bitrate can not be less than zero");
     CHECK(param->rc.qCompress < 0.5 || param->rc.qCompress > 1.0,
           "qCompress must be between 0.5 and 1.0");
-    if (param->noiseReductionIntra)
-        CHECK(0 > param->noiseReductionIntra || param->noiseReductionIntra > 2000, "Valid noise reduction range 0 - 2000");
-    if (param->noiseReductionInter)
-        CHECK(0 > param->noiseReductionInter || param->noiseReductionInter > 2000, "Valid noise reduction range 0 - 2000");
-    CHECK(param->rc.rateControlMode == X265_RC_CQP && param->rc.bStatRead,
-          "Constant QP is incompatible with 2pass");
-    CHECK(param->rc.bStrictCbr && (param->rc.bitrate <= 0 || param->rc.vbvBufferSize <=0),
-          "Strict-cbr cannot be applied without specifying target bitrate or vbv bufsize");
-    CHECK(param->analysisSave && (param->analysisSaveReuseLevel < 0 || param->analysisSaveReuseLevel > 10),
-        "Invalid analysis save refine level. Value must be between 1 and 10 (inclusive)");
-    CHECK(param->analysisLoad && (param->analysisLoadReuseLevel < 0 || param->analysisLoadReuseLevel > 10),
-        "Invalid analysis load refine level. Value must be between 1 and 10 (inclusive)");
-    CHECK(param->analysisLoad && (param->mvRefine < 1 || param->mvRefine > 3),
-        "Invalid mv refinement level. Value must be between 1 and 3 (inclusive)");
-    CHECK(param->scaleFactor > 2, "Invalid scale-factor. Supports factor <= 2");
-    CHECK(param->rc.qpMax < QP_MIN || param->rc.qpMax > QP_MAX_MAX,
-        "qpmax exceeds supported range (0 to 69)");
-    CHECK(param->rc.qpMin < QP_MIN || param->rc.qpMin > QP_MAX_MAX,
-        "qpmin exceeds supported range (0 to 69)");
+
     CHECK(param->log2MaxPocLsb < 4 || param->log2MaxPocLsb > 16,
         "Supported range for log2MaxPocLsb is 4 to 16");
     CHECK(param->bCTUInfo < 0 || (param->bCTUInfo != 0 && param->bCTUInfo != 1 && param->bCTUInfo != 2 && param->bCTUInfo != 4 && param->bCTUInfo != 6) || param->bCTUInfo > 6,
@@ -1811,54 +1747,9 @@ int x265_check_params(x265_param* param)
         "Invalid refine-ctu-distortion value, must be either 0 or 1");
     CHECK(param->maxAUSizeFactor < 0.5 || param->maxAUSizeFactor > 1.0,
         "Supported factor for controlling max AU size is from 0.5 to 1");
-    CHECK((param->dolbyProfile != 0) && (param->dolbyProfile != 50) && (param->dolbyProfile != 81) && (param->dolbyProfile != 82) && (param->dolbyProfile != 84),
-        "Unsupported Dolby Vision profile, only profile 5, profile 8.1, profile 8.2 and profile 8.4 enabled");
-    CHECK(param->dupThreshold < 1 || 99 < param->dupThreshold,
-        "Invalid frame-duplication threshold. Value must be between 1 and 99.");
-    if (param->dolbyProfile)
-    {
-        CHECK((param->rc.vbvMaxBitrate <= 0 || param->rc.vbvBufferSize <= 0), "Dolby Vision requires VBV settings to enable HRD.\n");
-        CHECK((param->internalBitDepth != 10), "Dolby Vision profile - 5, profile - 8.1, profile - 8.2 and profile - 8.4 are Main10 only\n");
-        CHECK((param->internalCsp != X265_CSP_I420), "Dolby Vision profile - 5, profile - 8.1, profile - 8.2 and profile - 8.4 requires YCbCr 4:2:0 color space\n");
-        if (param->dolbyProfile == 81)
-            CHECK(!(param->masteringDisplayColorVolume), "Dolby Vision profile - 8.1 requires Mastering display color volume information\n");
-    }
-    if (param->bField && param->interlaceMode)
-    {
-        CHECK( (param->bFrameAdaptive==0), "Adaptive B-frame decision method should be closed for field feature.\n" );
-        // to do
-    }
-    CHECK(param->selectiveSAO < 0 || param->selectiveSAO > 4,
-        "Invalid SAO tune level. Value must be between 0 and 4 (inclusive)");
-    if (param->bEnableSceneCutAwareQp)
-    {
-        if (!param->rc.bStatRead)
-        {
-            param->bEnableSceneCutAwareQp = 0;
-            x265_log(param, X265_LOG_WARNING, "Disabling Scenecut Aware Frame Quantizer Selection since it works only in pass 2\n");
-        }
-        else
-        {
-            CHECK(param->bEnableSceneCutAwareQp < 0 || param->bEnableSceneCutAwareQp > 3,
-            "Invalid masking direction. Value must be between 0 and 3(inclusive)");
-            for (int i = 0; i < 6; i++)
-            {
-                CHECK(param->fwdScenecutWindow[i] < 0 || param->fwdScenecutWindow[i] > 1000,
-                    "Invalid forward scenecut Window duration. Value must be between 0 and 1000(inclusive)");
-                CHECK(param->fwdRefQpDelta[i] < 0 || param->fwdRefQpDelta[i] > 20,
-                    "Invalid fwdRefQpDelta value. Value must be between 0 and 20 (inclusive)");
-                CHECK(param->fwdNonRefQpDelta[i] < 0 || param->fwdNonRefQpDelta[i] > 20,
-                    "Invalid fwdNonRefQpDelta value. Value must be between 0 and 20 (inclusive)");
 
-                CHECK(param->bwdScenecutWindow[i] < 0 || param->bwdScenecutWindow[i] > 1000,
-                    "Invalid backward scenecut Window duration. Value must be between 0 and 1000(inclusive)");
-                CHECK(param->bwdRefQpDelta[i] < -1 || param->bwdRefQpDelta[i] > 20,
-                    "Invalid bwdRefQpDelta value. Value must be between 0 and 20 (inclusive)");
-                CHECK(param->bwdNonRefQpDelta[i] < -1 || param->bwdNonRefQpDelta[i] > 20,
-                    "Invalid bwdNonRefQpDelta value. Value must be between 0 and 20 (inclusive)");
-            }
-        }
-    }
+
+    
     if (param->bEnableHME)
     {
         for (int level = 0; level < 3; level++)
@@ -1870,42 +1761,11 @@ int x265_check_params(x265_param* param)
         "SEA motion search does not support resolutions greater than 480p in 32 bit build");
 #endif
 
-    if (param->masteringDisplayColorVolume || param->maxFALL || param->maxCLL)
-        param->bEmitHDR10SEI = 1;
-
-    bool isSingleSEI = (param->bRepeatHeaders
-                     || param->bEmitHRDSEI
-                     || param->bEmitInfoSEI
-                     || param->bEmitHDR10SEI
-                     || param->bEmitIDRRecoverySEI
-                   || !!param->interlaceMode
-                     || param->preferredTransferCharacteristics > 1
-                     || param->toneMapFile
-                     || param->naluFile);
-
-    if (!isSingleSEI && param->bSingleSeiNal)
-    {
-        param->bSingleSeiNal = 0;
-        x265_log(param, X265_LOG_WARNING, "None of the SEI messages are enabled. Disabling Single SEI NAL\n");
-    }
     if (param->bEnableTemporalFilter && (param->frameNumThreads > 1))
     {
         param->bEnableTemporalFilter = 0;
         x265_log(param, X265_LOG_WARNING, "MCSTF can be enabled with frame thread = 1 only. Disabling MCSTF\n");
     }
-    CHECK(param->confWinRightOffset < 0, "Conformance Window Right Offset must be 0 or greater");
-    CHECK(param->confWinBottomOffset < 0, "Conformance Window Bottom Offset must be 0 or greater");
-    CHECK(param->decoderVbvMaxRate < 0, "Invalid Decoder Vbv Maxrate. Value can not be less than zero");
-    if (param->bliveVBV2pass)
-    {
-        CHECK((param->rc.bStatRead == 0), "Live VBV in multi pass option requires rate control 2 pass to be enabled");
-        if ((param->rc.vbvMaxBitrate <= 0 || param->rc.vbvBufferSize <= 0))
-        {
-            param->bliveVBV2pass = 0;
-            x265_log(param, X265_LOG_WARNING, "Live VBV enabled without VBV settings.Disabling live VBV in 2 pass\n");
-        }
-    }
-    CHECK(param->rc.dataShareMode != X265_SHARE_MODE_FILE && param->rc.dataShareMode != X265_SHARE_MODE_SHAREDMEM, "Invalid data share mode. It must be one of the X265_DATA_SHARE_MODES enum values\n" );
     return check_failed;
 }
 

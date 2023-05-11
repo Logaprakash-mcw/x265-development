@@ -174,14 +174,9 @@ class Encoder : public x265_encoder
 {
 public:
 
-    uint32_t           m_residualSumEmergency[MAX_NUM_TR_CATEGORIES][MAX_NUM_TR_COEFFS];
-    uint32_t           m_countEmergency[MAX_NUM_TR_CATEGORIES];
-    uint16_t           (*m_offsetEmergency)[MAX_NUM_TR_CATEGORIES][MAX_NUM_TR_COEFFS];
-
     int64_t            m_firstPts;
-    int64_t            m_bframeDelayTime;
-    int64_t            m_prevReorderedPts[2];
     int64_t            m_encodeStartTime;
+    int64_t            m_bframeDelayTime;
 
     int                m_pocLast;         // time index (POC)
     int                m_encodedFrameNum;
@@ -189,14 +184,6 @@ public:
     int                m_bframeDelay;
     int                m_numPools;
     int                m_curEncoder;
-
-    // weighted prediction
-    int                m_numLumaWPFrames;    // number of P frames with weighted luma reference
-    int                m_numChromaWPFrames;  // number of P frames with weighted chroma reference
-    int                m_numLumaWPBiFrames;  // number of B frames with weighted luma reference
-    int                m_numChromaWPBiFrames; // number of B frames with weighted chroma reference
-    int                m_conformanceMode;
-    int                m_lastBPSEI;
     uint32_t           m_numDelayedPic;
 
     ThreadPool*        m_threadPool;
@@ -312,53 +299,13 @@ public:
 
     int getRefFrameList(PicYuv** l0, PicYuv** l1, int sliceType, int poc, int* pocL0, int* pocL1);
 
-    int setAnalysisDataAfterZScan(x265_analysis_data *analysis_data, Frame* curFrame);
-
-    int setAnalysisData(x265_analysis_data *analysis_data, int poc, uint32_t cuBytes);
-
-    void getStreamHeaders(NALList& list, Entropy& sbacCoder, Bitstream& bs);
-
     void getEndNalUnits(NALList& list, Bitstream& bs);
-
-    void fetchStats(x265_stats* stats, size_t statsSizeBytes);
-
-    void printSummary();
-
-    void printReconfigureParams();
 
     char* statsString(EncStats&, char*);
 
     void configure(x265_param *param);
 
     void configureZone(x265_param *p, x265_param *zone);
-
-    void updateVbvPlan(RateControl* rc);
-
-    void readAnalysisFile(x265_analysis_data* analysis, int poc, int sliceType);
-
-    void readAnalysisFile(x265_analysis_data* analysis, int poc, const x265_picture* picIn, int paramBytes);
-
-    void readAnalysisFile(x265_analysis_data* analysis, int poc, const x265_picture* picIn, int paramBytes, cuLocation cuLoc);
-
-    void computeDistortionOffset(x265_analysis_data* analysis);
-
-    int getCUIndex(cuLocation* cuLoc, uint32_t* count, int bytes, int flag);
-
-    int getPuShape(puOrientation* puOrient, int partSize, int numCTU);
-
-    void writeAnalysisFile(x265_analysis_data* analysis, FrameData &curEncData);
-
-    void writeAnalysisFileRefine(x265_analysis_data* analysis, FrameData &curEncData);
-
-    void copyDistortionData(x265_analysis_data* analysis, FrameData &curEncData);
-
-    void finishFrameStats(Frame* pic, FrameEncoder *curEncoder, x265_frame_stats* frameStats, int inPoc);
-
-    int validateAnalysisData(x265_analysis_validate* param, int readWriteFlag);
-
-    void readUserSeiFile(x265_sei_payload& seiMsg, int poc);
-
-    void calcRefreshInterval(Frame* frameEnc);
 
     uint64_t computeSSD(pixel *fenc, pixel *rec, intptr_t stride, uint32_t width, uint32_t height, x265_param *param);
 
@@ -369,13 +316,6 @@ public:
     void initRefIdx();
     void analyseRefIdx(int *numRefIdx);
     void updateRefIdx();
-    bool computeSPSRPSIndex();
-
-    void copyUserSEIMessages(Frame *frame, const x265_picture* pic_in);
-
-    void configureDolbyVisionParams(x265_param* p);
-
-    void configureVideoSignalTypePreset(x265_param* p);
 
     bool isFilterThisframe(uint8_t sliceTypeConfig, int curSliceType);
     bool generateMcstfRef(Frame* frameEnc, FrameEncoder* currEncoder);

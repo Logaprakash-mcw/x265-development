@@ -77,7 +77,7 @@ Frame::Frame()
     m_sameLayerRefPic = false;
 }
 
-bool Frame::create(x265_param *param, float* quantOffsets)
+bool Frame::create(x265_param *param)
 {
     m_fencPic = new PicYuv;
     m_param = param;
@@ -98,80 +98,13 @@ bool Frame::create(x265_param *param, float* quantOffsets)
         CHECKED_MALLOC_ZERO(m_isSubSampled, int, 1);
     }
 
-    CHECKED_MALLOC_ZERO(m_rcData, RcStats, 1);
-
-    if (param->bCTUInfo)
-    {
-        uint32_t widthInCTU = (m_param->sourceWidth + param->maxCUSize - 1) >> m_param->maxLog2CUSize;
-        uint32_t heightInCTU = (m_param->sourceHeight +  param->maxCUSize - 1) >> m_param->maxLog2CUSize;
-        uint32_t numCTUsInFrame = widthInCTU * heightInCTU;
-        CHECKED_MALLOC_ZERO(m_addOnDepth, uint8_t *, numCTUsInFrame);
-        CHECKED_MALLOC_ZERO(m_addOnCtuInfo, uint8_t *, numCTUsInFrame);
-        CHECKED_MALLOC_ZERO(m_addOnPrevChange, int *, numCTUsInFrame);
-        for (uint32_t i = 0; i < numCTUsInFrame; i++)
-        {
-            CHECKED_MALLOC_ZERO(m_addOnDepth[i], uint8_t, uint32_t(param->num4x4Partitions));
-            CHECKED_MALLOC_ZERO(m_addOnCtuInfo[i], uint8_t, uint32_t(param->num4x4Partitions));
-            CHECKED_MALLOC_ZERO(m_addOnPrevChange[i], int, uint32_t(param->num4x4Partitions));
-        }
-    }
-
-    if (param->bAnalysisType == AVC_INFO)
-    {
-        m_analysisData.wt = NULL;
-        m_analysisData.intraData = NULL;
-        m_analysisData.interData = NULL;
-        m_analysisData.distortionData = NULL;
-    }
-
-    if (param->bDynamicRefine)
-    {
-        int size = m_param->maxCUDepth * X265_REFINE_INTER_LEVELS;
-        CHECKED_MALLOC_ZERO(m_classifyRd, uint64_t, size);
-        CHECKED_MALLOC_ZERO(m_classifyVariance, uint64_t, size);
-        CHECKED_MALLOC_ZERO(m_classifyCount, uint32_t, size);
-    }
-
-    if (param->rc.aqMode == X265_AQ_EDGE || (param->rc.zonefileCount && param->rc.aqMode != 0))
-    {
-        uint32_t numCuInWidth = (param->sourceWidth + param->maxCUSize - 1) / param->maxCUSize;
-        uint32_t numCuInHeight = (param->sourceHeight + param->maxCUSize - 1) / param->maxCUSize;
-        uint32_t m_lumaMarginX = param->maxCUSize + 32; // search margin and 8-tap filter half-length, padded for 32-byte alignment
-        uint32_t m_lumaMarginY = param->maxCUSize + 16; // margin for 8-tap filter and infinite padding
-        intptr_t m_stride = (numCuInWidth * param->maxCUSize) + (m_lumaMarginX << 1);
-        int maxHeight = numCuInHeight * param->maxCUSize;
-
-        m_edgePic = X265_MALLOC(pixel, m_stride * (maxHeight + (m_lumaMarginY * 2)));
-        m_gaussianPic = X265_MALLOC(pixel, m_stride * (maxHeight + (m_lumaMarginY * 2)));
-        m_thetaPic = X265_MALLOC(pixel, m_stride * (maxHeight + (m_lumaMarginY * 2)));
-    }
-
-    if (param->recursionSkipMode == EDGE_BASED_RSKIP)
-    {
-        uint32_t numCuInWidth = (param->sourceWidth + param->maxCUSize - 1) / param->maxCUSize;
-        uint32_t numCuInHeight = (param->sourceHeight + param->maxCUSize - 1) / param->maxCUSize;
-        uint32_t lumaMarginX = param->maxCUSize + 32;
-        uint32_t lumaMarginY = param->maxCUSize + 16;
-        uint32_t stride = (numCuInWidth * param->maxCUSize) + (lumaMarginX << 1);
-        uint32_t maxHeight = numCuInHeight * param->maxCUSize;
-        uint32_t bitPlaneSize = stride * (maxHeight + (lumaMarginY * 2));
-        CHECKED_MALLOC_ZERO(m_edgeBitPlane, pixel, bitPlaneSize);
-        m_edgeBitPic = m_edgeBitPlane + lumaMarginY * stride + lumaMarginX;
-    }
-
-    if (m_fencPic->create(param, !!m_param->bCopyPicToFrame) && m_lowres.create(param, m_fencPic, param->rc.qgSize))
+    if (m_fencPic->create(param, !!m_param->bCopyPicToFrame))
     {
         X265_CHECK((m_reconColCount == NULL), "m_reconColCount was initialized");
         m_numRows = (m_fencPic->m_picHeight + param->maxCUSize - 1)  / param->maxCUSize;
         m_reconRowFlag = new ThreadSafeInteger[m_numRows];
         m_reconColCount = new ThreadSafeInteger[m_numRows];
 
-        if (quantOffsets)
-        {
-            int32_t cuCount = (param->rc.qgSize == 8) ? m_lowres.maxBlocksInRowFullRes * m_lowres.maxBlocksInColFullRes :
-                                                        m_lowres.maxBlocksInRow * m_lowres.maxBlocksInCol;
-            m_quantOffsets = new float[cuCount];
-        }
         return true;
     }
     return false;

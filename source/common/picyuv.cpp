@@ -96,6 +96,7 @@ bool PicYuv::create(x265_param* param, bool picAlloc, pixel *pixelbuf)
         if (picAlloc)
         {
             CHECKED_MALLOC(m_picBuf[0], pixel, m_stride * (maxHeight + (m_lumaMarginY * 2)));
+            CHECKED_MALLOC(m_picFil[0], pixel, m_stride * (maxHeight + (m_lumaMarginY * 2)));
             m_picOrg[0] = m_picBuf[0] + m_lumaMarginY * m_stride + m_lumaMarginX;
         }
     }
@@ -109,6 +110,8 @@ bool PicYuv::create(x265_param* param, bool picAlloc, pixel *pixelbuf)
         {
             CHECKED_MALLOC(m_picBuf[1], pixel, m_strideC * ((maxHeight >> m_vChromaShift) + (m_chromaMarginY * 2)));
             CHECKED_MALLOC(m_picBuf[2], pixel, m_strideC * ((maxHeight >> m_vChromaShift) + (m_chromaMarginY * 2)));
+            CHECKED_MALLOC(m_picFil[1], pixel, m_strideC * ((maxHeight >> m_vChromaShift) + (m_chromaMarginY * 2)));
+            CHECKED_MALLOC(m_picFil[2], pixel, m_strideC * ((maxHeight >> m_vChromaShift) + (m_chromaMarginY * 2)));
 
             m_picOrg[1] = m_picBuf[1] + m_chromaMarginY * m_strideC + m_chromaMarginX;
             m_picOrg[2] = m_picBuf[2] + m_chromaMarginY * m_strideC + m_chromaMarginX;

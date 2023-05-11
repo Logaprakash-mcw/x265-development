@@ -88,19 +88,13 @@ namespace X265_NS {
         CLIOptions m_cliopt;
         InputFile* m_input;
         const char* m_reconPlayCmd;
-        FILE*    m_qpfile;
-        FILE*    m_zoneFile;
-        FILE*    m_dolbyVisionRpu;/* File containing Dolby Vision BL RPU metadata */
-        FILE*    m_scenecutAwareQpConfig;
 
         int m_ret;
 
         PassEncoder(uint32_t id, CLIOptions cliopt, AbrEncoder *parent);
         int init(int &result);
-        void setReuseLevel();
 
         void startThreads();
-        void copyInfo(x265_analysis_data *src);
 
         bool readPicture(x265_picture*);
         void destroy();

@@ -163,7 +163,7 @@ public:
 
     Frame();
 
-    bool create(x265_param *param, float* quantOffsets);
+    bool create(x265_param *param);
     bool createSubSample();
     bool allocEncodeData(x265_param *param, const SPS& sps);
     void reinit(const SPS& sps);

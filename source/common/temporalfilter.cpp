@@ -526,6 +526,7 @@ void TemporalFilter::bilateralFilter(Frame* frame,
     {
         int height, width;
         pixel *srcPelRow = NULL;
+        pixel *dstPelRow = NULL;
         intptr_t srcStride, correctedPicsStride = 0;
 
         if (!c)
@@ -533,6 +534,7 @@ void TemporalFilter::bilateralFilter(Frame* frame,
             height = orgPic->m_picHeight;
             width = orgPic->m_picWidth;
             srcPelRow = orgPic->m_picOrg[c];
+            dstPelRow = orgPic->m_picFil[c];
             srcStride = orgPic->m_stride;
         }
         else
@@ -543,6 +545,7 @@ void TemporalFilter::bilateralFilter(Frame* frame,
             height = orgPic->m_picHeight >> csy;
             width = orgPic->m_picWidth >> csx;
             srcPelRow = orgPic->m_picOrg[c];
+            dstPelRow = orgPic->m_picFil[c];
             srcStride = (int)orgPic->m_strideC;
         }
 
@@ -554,11 +557,12 @@ void TemporalFilter::bilateralFilter(Frame* frame,
 
         const int blkSize = (!c) ? 8 : 4;
 
-        for (int y = 0; y < height; y++, srcPelRow += srcStride)
+        for (int y = 0; y < height; y++, srcPelRow += srcStride, dstPelRow += srcStride)
         {
             pixel *srcPel = srcPelRow;
+            pixel *dstPel = dstPelRow;
 
-            for (int x = 0; x < width; x++, srcPel++)
+            for (int x = 0; x < width; x++, srcPel++, dstPel++)
             {
                 const int orgVal = (int)*srcPel;
                 double temporalWeightSum = 1.0;
@@ -637,7 +641,7 @@ void TemporalFilter::bilateralFilter(Frame* frame,
                 newVal /= temporalWeightSum;
                 double sampleVal = round(newVal);
                 sampleVal = (sampleVal < 0 ? 0 : (sampleVal > maxSampleValue ? maxSampleValue : sampleVal));
-                *srcPel = (pixel)sampleVal;
+                *dstPel = (pixel)sampleVal;
             }
         }
     }

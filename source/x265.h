@@ -396,17 +396,6 @@ typedef struct x265_dolby_vision_rpu
  * the encoder.  The input and output semantics are different */
 typedef struct x265_picture
 {
-    /* presentation time stamp: user-specified, returned on output */
-    int64_t pts;
-
-    /* display time stamp: ignored on input, copied from reordered pts. Returned
-     * on output */
-    int64_t dts;
-
-    /* force quantizer for != X265_QP_AUTO */
-    /* The value provided on input is returned with the same picture (POC) on
-     * output */
-    void*   userData;
 
     /* Must be specified on input pictures, the number of planes is determined
      * by the colorSpace value */
@@ -426,7 +415,7 @@ typedef struct x265_picture
 
     /* Must be specified on input pictures: X265_TYPE_AUTO or other.
      * x265_picture_init() sets this to auto, returned on output */
-    int     sliceType;
+    //int     sliceType;
 
     /* Ignored on input, set to picture count, returned on output */
     int     poc;
@@ -436,55 +425,12 @@ typedef struct x265_picture
      * initialize this value to the internal color space */
     int     colorSpace;
 
-    /* Force the slice base QP for this picture within the encoder. Set to 0
-     * to allow the encoder to determine base QP */
-    int     forceqp;
-
-    /* If param.analysisLoad and param.analysisSave are disabled, this field is
-     * ignored on input and output. Else the user must call x265_alloc_analysis_data()
-     * to allocate analysis buffers for every picture passed to the encoder.
-     *
-     * On input when param.analysisLoad is enabled and analysisData
-     * member pointers are valid, the encoder will use the data stored here to
-     * reduce encoder work.
-     *
-     * On output when param.analysisSave is enabled and analysisData
-     * member pointers are valid, the encoder will write output analysis into
-     * this data structure */
-    x265_analysis_data analysisData;
-
-    /* An array of quantizer offsets to be applied to this image during encoding.
-     * These are added on top of the decisions made by rateControl.
-     * Adaptive quantization must be enabled to use this feature. These quantizer
-     * offsets should be given for each 16x16 block (8x8 block, when qg-size is 8).
-     * Behavior if quant offsets differ between encoding passes is undefined. */
-    float            *quantOffsets;
-
     /* Frame level statistics */
     x265_frame_stats frameData;
-
-    /* User defined SEI */
-    x265_sei         userSEI;
-
-    /* Ratecontrol statistics for collecting the ratecontrol information.
-     * It is not used for collecting the last pass ratecontrol data in 
-     * multi pass ratecontrol mode. */
-    void*  rcData;
 
     size_t framesize;
 
     int    height;
-
-    // pts is reordered in the order of encoding.
-    int64_t reorderedPts;
-
-    //Dolby Vision RPU metadata
-    x265_dolby_vision_rpu rpu;
-
-    int fieldNum;
-
-    //SEI picture structure message
-    uint32_t picStruct;
 
     int    width;
 } x265_picture;
@@ -2438,7 +2384,7 @@ int x265_encoder_encode(x265_encoder *encoder, x265_nal **pp_nal, uint32_t *pi_n
  *      switched out of; using reconfig to switch between ultrafast and other
  *      presets is not recommended without a more fine-grained breakdown of
  *      parameters to take this into account. */
-int x265_encoder_reconfig(x265_encoder *, x265_param *);
+//int x265_encoder_reconfig(x265_encoder *, x265_param *);
 
 /* x265_encoder_reconfig_zone:
 *       zone settings are copied to the encoder's param.
@@ -2448,12 +2394,12 @@ int x265_encoder_reconfig_zone(x265_encoder *, x265_zone *);
 
 /* x265_encoder_get_stats:
  *       returns encoder statistics */
-void x265_encoder_get_stats(x265_encoder *encoder, x265_stats *, uint32_t statsSizeBytes);
+//void x265_encoder_get_stats(x265_encoder *encoder, x265_stats *, uint32_t statsSizeBytes);
 
 /* x265_encoder_log:
  *       write a line to the configured CSV file.  If a CSV filename was not
  *       configured, or file open failed, this function will perform no write. */
-void x265_encoder_log(x265_encoder *encoder, int argc, char **argv);
+//void x265_encoder_log(x265_encoder *encoder, int argc, char **argv);
 
 /* x265_encoder_close:
  *      close an encoder handler */
@@ -2496,7 +2442,7 @@ int x265_get_ref_frame_list(x265_encoder *encoder, x265_picyuv**, x265_picyuv**,
 /* x265_set_analysis_data:
  *     set the analysis data. The incoming analysis_data structure is assumed to be AVC-sized blocks.
  *     returns negative on error, 0 access unit were output. */
-int x265_set_analysis_data(x265_encoder *encoder, x265_analysis_data *analysis_data, int poc, uint32_t cuBytes);
+//int x265_set_analysis_data(x265_encoder *encoder, x265_analysis_data *analysis_data, int poc, uint32_t cuBytes);
 
 /* x265_cleanup:
  *       release library static allocations, reset configured CTU size */
@@ -2574,12 +2520,9 @@ typedef struct x265_api
     void          (*picture_init)(x265_param*, x265_picture*);
     x265_encoder* (*encoder_open)(x265_param*);
     void          (*encoder_parameters)(x265_encoder*, x265_param*);
-    int           (*encoder_reconfig)(x265_encoder*, x265_param*);
     int           (*encoder_reconfig_zone)(x265_encoder*, x265_zone*);
     int           (*encoder_headers)(x265_encoder*, x265_nal**, uint32_t*);
     int           (*encoder_encode)(x265_encoder*, x265_nal**, uint32_t*, x265_picture*, x265_picture*);
-    void          (*encoder_get_stats)(x265_encoder*, x265_stats*, uint32_t);
-    void          (*encoder_log)(x265_encoder*, int, char**);
     void          (*encoder_close)(x265_encoder*);
     void          (*cleanup)(void);
 
@@ -2592,7 +2535,6 @@ typedef struct x265_api
     void          (*csvlog_frame)(const x265_param*, const x265_picture*);
     void          (*csvlog_encode)(const x265_param*, const x265_stats *, int, int, int, char**);
     void          (*dither_image)(x265_picture*, int, int, int16_t*, int);
-    int           (*set_analysis_data)(x265_encoder *encoder, x265_analysis_data *analysis_data, int poc, uint32_t cuBytes);
 #if ENABLE_LIBVMAF
     double        (*calculate_vmafscore)(x265_param *, x265_vmaf_data *);
     double        (*calculate_vmaf_framelevelscore)(x265_vmaf_framedata *);

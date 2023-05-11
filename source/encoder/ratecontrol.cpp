@@ -1441,7 +1441,7 @@ int RateControl::rateControlStart(Frame* curFrame, RateControlEntry* rce, Encode
         rce->rowPred[0] = &rce->rowPreds[m_sliceType][0];
         rce->rowPred[1] = &rce->rowPreds[m_sliceType][1];
         m_predictedBits = m_totalBits;
-        updateVbvPlan(enc);
+
         rce->bufferFill = m_bufferFill;
         rce->vbvEndAdj = false;
         if (m_param->vbvBufferEnd && rce->encodeOrder >= m_param->vbvEndFrameAdjust * m_param->totalFrames)
@@ -2461,12 +2461,6 @@ void RateControl::hrdFullness(SEIBufferingPeriod *seiBP)
 
     seiBP->m_initialCpbRemovalDelay = (uint32_t)(num * cpbState / denom);
     seiBP->m_initialCpbRemovalDelayOffset = (uint32_t)(num * cpbSize / denom - seiBP->m_initialCpbRemovalDelay);
-}
-
-void RateControl::updateVbvPlan(Encoder* enc)
-{
-    m_bufferFill = m_bufferFillFinal;
-    enc->updateVbvPlan(this);
 }
 
 double RateControl::predictSize(Predictor *p, double q, double var)

@@ -464,11 +464,6 @@ static const struct option long_options[] =
         void printStatus(uint32_t frameNum);
         bool parse(int argc, char **argv);
         bool parseZoneParam(int argc, char **argv, x265_param* globalParam, int zonefileCount);
-        bool parseQPFile(x265_picture &pic_org);
-        bool parseZoneFile();
-        int rpuParser(x265_picture * pic);
-        bool parseScenecutAwareQpConfig();
-        bool parseScenecutAwareQpParam(int argc, char **argv, x265_param* globalParam);
     };
 #ifdef __cplusplus
 }

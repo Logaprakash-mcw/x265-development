@@ -41,6 +41,7 @@ public:
 
     pixel*   m_picBuf[3];  // full allocated buffers, including margins
     pixel*   m_picOrg[3];  // pointers to plane starts
+    pixel*   m_picFil[3];  // pointers to plane starts
 
     uint32_t m_picWidth;
     uint32_t m_picHeight;
