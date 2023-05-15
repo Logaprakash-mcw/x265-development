@@ -2428,16 +2428,10 @@ int x265_encoder_intra_refresh(x265_encoder *);
  */
 int x265_encoder_ctu_info(x265_encoder *, int poc, x265_ctu_info_t** ctu);
 
-/* x265_get_slicetype_poc_and_scenecut:
- *     get the slice type, poc and scene cut information for the current frame,
- *     returns negative on error, 0 when access unit were output.
- *     This API must be called after(poc >= lookaheadDepth + bframes + 2) condition check */
-int x265_get_slicetype_poc_and_scenecut(x265_encoder *encoder, int *slicetype, int *poc, int* sceneCut);
-
 /* x265_get_ref_frame_list:
  *     returns negative on error, 0 when access unit were output.
  *     This API must be called after(poc >= lookaheadDepth + bframes + 2) condition check */
-int x265_get_ref_frame_list(x265_encoder *encoder, x265_picyuv**, x265_picyuv**, int, int, int*, int*);
+//int x265_get_ref_frame_list(x265_encoder *encoder, x265_picyuv**, x265_picyuv**, int, int, int*, int*);
 
 /* x265_set_analysis_data:
  *     set the analysis data. The incoming analysis_data structure is assumed to be AVC-sized blocks.
@@ -2448,22 +2442,6 @@ int x265_get_ref_frame_list(x265_encoder *encoder, x265_picyuv**, x265_picyuv**,
  *       release library static allocations, reset configured CTU size */
 void x265_cleanup(void);
 
-/* Open a CSV log file. On success it returns a file handle which must be passed
- * to x265_csvlog_frame() and/or x265_csvlog_encode(). The file handle must be
- * closed by the caller using fclose(). If csv-loglevel is 0, then no frame logging
- * header is written to the file. This function will return NULL if it is unable
- * to open the file for write or if it detects a structure size skew */
-FILE* x265_csvlog_open(const x265_param *);
-
-/* Log frame statistics to the CSV file handle. csv-loglevel should have been non-zero
- * in the call to x265_csvlog_open() if this function is called. */
-void x265_csvlog_frame(const x265_param *, const x265_picture *);
-
-/* Log final encode statistics to the CSV file handle. 'argc' and 'argv' are
- * intended to be command line arguments passed to the encoder. padx and pady are
- * padding offsets for conformance and can be given from sps settings. Encode
- * statistics should be queried from the encoder just prior to closing it. */
-void x265_csvlog_encode(const x265_param*, const x265_stats *, int padx, int pady, int argc, char** argv);
 
 /* In-place downshift from a bit-depth greater than 8 to a bit-depth of 8, using
  * the residual bits to dither each row. */
@@ -2513,7 +2491,7 @@ typedef struct x265_api
     void          (*param_default)(x265_param*);
     int           (*param_parse)(x265_param*, const char*, const char*);
     int           (*scenecut_aware_qp_param_parse)(x265_param*, const char*, const char*);
-    int           (*param_apply_profile)(x265_param*, const char*);
+    //int           (*param_apply_profile)(x265_param*, const char*);
     int           (*param_default_preset)(x265_param*, const char*, const char *);
     x265_picture* (*picture_alloc)(void);
     void          (*picture_free)(x265_picture*);
@@ -2521,7 +2499,6 @@ typedef struct x265_api
     x265_encoder* (*encoder_open)(x265_param*);
     void          (*encoder_parameters)(x265_encoder*, x265_param*);
     int           (*encoder_reconfig_zone)(x265_encoder*, x265_zone*);
-    int           (*encoder_headers)(x265_encoder*, x265_nal**, uint32_t*);
     int           (*encoder_encode)(x265_encoder*, x265_nal**, uint32_t*, x265_picture*, x265_picture*);
     void          (*encoder_close)(x265_encoder*);
     void          (*cleanup)(void);
@@ -2529,17 +2506,7 @@ typedef struct x265_api
     int           sizeof_frame_stats;   /* sizeof(x265_frame_stats) */
     int           (*encoder_intra_refresh)(x265_encoder*);
     int           (*encoder_ctu_info)(x265_encoder*, int, x265_ctu_info_t**);
-    int           (*get_slicetype_poc_and_scenecut)(x265_encoder*, int*, int*, int*);
-    int           (*get_ref_frame_list)(x265_encoder*, x265_picyuv**, x265_picyuv**, int, int, int*, int*);
-    FILE*         (*csvlog_open)(const x265_param*);
-    void          (*csvlog_frame)(const x265_param*, const x265_picture*);
-    void          (*csvlog_encode)(const x265_param*, const x265_stats *, int, int, int, char**);
     void          (*dither_image)(x265_picture*, int, int, int16_t*, int);
-#if ENABLE_LIBVMAF
-    double        (*calculate_vmafscore)(x265_param *, x265_vmaf_data *);
-    double        (*calculate_vmaf_framelevelscore)(x265_vmaf_framedata *);
-    void          (*vmaf_encoder_log)(x265_encoder*, int, char**, x265_param *, x265_vmaf_data *);
-#endif
     int           (*zone_param_parse)(x265_param*, const char*, const char*);
     /* add new pointers to the end, or increment X265_MAJOR_VERSION */
 } x265_api;

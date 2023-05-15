@@ -26,11 +26,7 @@
 #include "param.h"
 
 #include "encoder.h"
-#include "entropy.h"
-#include "level.h"
-#include "nal.h"
 #include "bitcost.h"
-#include "svt.h"
 
 #if ENABLE_LIBVMAF
 #include "libvmaf/libvmaf.h"
@@ -172,11 +168,11 @@ x265_encoder *x265_encoder_open(x265_param *p)
     if (encoder->m_aborted)
         goto fail;
     // may change rate control and CPB params
-    if (!enforceLevel(*param, encoder->m_vps))
-        goto fail;
+    //if (!enforceLevel(*param, encoder->m_vps))
+        //goto fail;
 
     // will detect and set profile/tier/level in VPS
-    determineLevel(*param, encoder->m_vps);
+    //determineLevel(*param, encoder->m_vps);
 
     if (!param->bAllowNonConformance && encoder->m_vps.ptl.profileIdc == Profile::NONE)
     {
@@ -201,54 +197,6 @@ fail:
     PARAM_NS::x265_param_free(latestParam);
     PARAM_NS::x265_param_free(zoneParam);
     return NULL;
-}
-
-int x265_encoder_headers(x265_encoder *enc, x265_nal **pp_nal, uint32_t *pi_nal)
-{
-    if (pp_nal && enc)
-    {
-        Encoder *encoder = static_cast<Encoder*>(enc);
-#ifdef SVT_HEVC
-        if (encoder->m_param->bEnableSvtHevc)
-        {
-            EB_ERRORTYPE return_error;
-            EB_BUFFERHEADERTYPE* outputPtr;
-            return_error = EbH265EncStreamHeader(encoder->m_svtAppData->svtEncoderHandle, &outputPtr);
-            if (return_error != EB_ErrorNone)
-            {
-                x265_log(encoder->m_param, X265_LOG_ERROR, "SVT HEVC encoder: Error while generating stream headers \n");
-                encoder->m_aborted = true;
-                return -1;
-            }
-
-            //Copy data from output packet to NAL
-            encoder->m_nalList.m_nal[0].payload = outputPtr->pBuffer;
-            encoder->m_nalList.m_nal[0].sizeBytes = outputPtr->nFilledLen;
-            *pp_nal = &encoder->m_nalList.m_nal[0];
-            *pi_nal = 1;
-            encoder->m_svtAppData->byteCount += outputPtr->nFilledLen;
-
-            // Release the output buffer
-            EbH265ReleaseOutBuffer(&outputPtr);
-
-            return pp_nal[0]->sizeBytes;
-        }
-#endif
-
-        Entropy sbacCoder;
-        Bitstream bs;
-        //encoder->getStreamHeaders(encoder->m_nalList, sbacCoder, bs);
-        *pp_nal = &encoder->m_nalList.m_nal[0];
-        if (pi_nal) *pi_nal = encoder->m_nalList.m_numNal;
-        return encoder->m_nalList.m_occupancy;
-    }
-
-    if (enc)
-    {
-        Encoder *encoder = static_cast<Encoder*>(enc);
-        encoder->m_aborted = true;
-    }
-    return -1;
 }
 
 void x265_encoder_parameters(x265_encoder *enc, x265_param *out)
@@ -467,27 +415,8 @@ fail:
     if (numEncoded)
         encoder->m_externalFlush = false;
 
-    if (pp_nal && numEncoded > 0 && encoder->m_outputCount >= encoder->m_latestParam->chunkStart)
-    {
-        *pp_nal = &encoder->m_nalList.m_nal[0];
-        if (pi_nal) *pi_nal = encoder->m_nalList.m_numNal;
-    }
-    else if (pi_nal)
-        *pi_nal = 0;
-
-    if (numEncoded && encoder->m_param->csvLogLevel && encoder->m_outputCount >= encoder->m_latestParam->chunkStart)
-        x265_csvlog_frame(encoder->m_param, pic_out);
-
     if (numEncoded < 0)
         encoder->m_aborted = true;
-
-    if ((!encoder->m_numDelayedPic && !numEncoded) && (encoder->m_param->bEnableEndOfSequence || encoder->m_param->bEnableEndOfBitstream))
-    {
-        Bitstream bs;
-        encoder->getEndNalUnits(encoder->m_nalList, bs);
-        *pp_nal = &encoder->m_nalList.m_nal[0];
-        if (pi_nal) *pi_nal = encoder->m_nalList.m_numNal;
-    }
 
     return numEncoded;
 }
@@ -591,24 +520,15 @@ int x265_encoder_ctu_info(x265_encoder *enc, int poc, x265_ctu_info_t** ctu)
     return 0;
 }
 
-int x265_get_slicetype_poc_and_scenecut(x265_encoder *enc, int *slicetype, int *poc, int *sceneCut)
-{
-    if (!enc)
-        return -1;
-    Encoder *encoder = static_cast<Encoder*>(enc);
-    if (!encoder->copySlicetypePocAndSceneCut(slicetype, poc, sceneCut))
-        return 0;
-    return -1;
-}
 
-int x265_get_ref_frame_list(x265_encoder *enc, x265_picyuv** l0, x265_picyuv** l1, int sliceType, int poc, int* pocL0, int* pocL1)
-{
-    if (!enc)
-        return -1;
-
-    Encoder *encoder = static_cast<Encoder*>(enc);
-    return encoder->getRefFrameList((PicYuv**)l0, (PicYuv**)l1, sliceType, poc, pocL0, pocL1);
-}
+//int x265_get_ref_frame_list(x265_encoder *enc, x265_picyuv** l0, x265_picyuv** l1, int sliceType, int poc, int* pocL0, int* pocL1)
+//{
+//    if (!enc)
+//        return -1;
+//
+//    Encoder *encoder = static_cast<Encoder*>(enc);
+//    return encoder->getRefFrameList((PicYuv**)l0, (PicYuv**)l1, sliceType, poc, pocL0, pocL1);
+//}
 
 void x265_cleanup(void)
 {
@@ -680,7 +600,7 @@ static const x265_api libapi =
     &PARAM_NS::x265_param_default,
     &PARAM_NS::x265_param_parse,
     &PARAM_NS::x265_scenecut_aware_qp_param_parse,
-    &PARAM_NS::x265_param_apply_profile,
+    //&PARAM_NS::x265_param_apply_profile,
     &PARAM_NS::x265_param_default_preset,
     &x265_picture_alloc,
     &x265_picture_free,
@@ -688,7 +608,6 @@ static const x265_api libapi =
     &x265_encoder_open,
     &x265_encoder_parameters,
     &x265_encoder_reconfig_zone,
-    &x265_encoder_headers,
     &x265_encoder_encode,
     &x265_encoder_close,
     &x265_cleanup,
@@ -696,11 +615,6 @@ static const x265_api libapi =
     sizeof(x265_frame_stats),
     &x265_encoder_intra_refresh,
     &x265_encoder_ctu_info,
-    &x265_get_slicetype_poc_and_scenecut,
-    &x265_get_ref_frame_list,
-    &x265_csvlog_open,
-    &x265_csvlog_frame,
-    &x265_csvlog_encode,
     &x265_dither_image,
 #if ENABLE_LIBVMAF
     &x265_calculate_vmafscore,

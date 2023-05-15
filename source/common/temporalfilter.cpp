@@ -27,7 +27,6 @@
 #include "frame.h"
 #include "slice.h"
 #include "framedata.h"
-#include "analysis.h"
 
 using namespace X265_NS;
 

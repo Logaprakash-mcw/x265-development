@@ -26,7 +26,6 @@
 #endif
 
 #include "x265cli.h"
-#include "svt.h"
 
 #define START_CODE 0x00000001
 #define START_CODE_BYTES 4
@@ -888,8 +887,8 @@ namespace X265_NS {
             param->totalFrames *= 2;
         }
 
-        if (api->param_apply_profile(param, profile))
-            return true;
+        //if (api->param_apply_profile(param, profile))
+        //    return true;
 
         if (param->logLevel >= X265_LOG_INFO)
         {

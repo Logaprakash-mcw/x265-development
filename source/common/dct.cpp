@@ -864,14 +864,14 @@ static uint32_t costCoeffNxN_c(const uint16_t *scan, const coeff_t *coeff, intpt
             //encodeBin(sig, baseCtx[ctxSig]);
             const uint32_t mstate = baseCtx[ctxSig];
             const uint32_t mps = mstate & 1;
-            const uint32_t stateBits = PFX(entropyStateBits)[mstate ^ sig];
-            uint32_t nextState = (stateBits >> 24) + mps;
-            if ((mstate ^ sig) == 1)
-                nextState = sig;
-            X265_CHECK(sbacNext(mstate, sig) == nextState, "nextState check failure\n");
-            X265_CHECK(sbacGetEntropyBits(mstate, sig) == (stateBits & 0xFFFFFF), "entropyBits check failure\n");
-            baseCtx[ctxSig] = (uint8_t)nextState;
-            sum += stateBits;
+            //const uint32_t stateBits = PFX(entropyStateBits)[mstate ^ sig];
+            //uint32_t nextState = (stateBits >> 24) + mps;
+            //if ((mstate ^ sig) == 1)
+            //    nextState = sig;
+            //X265_CHECK(sbacNext(mstate, sig) == nextState, "nextState check failure\n");
+            //X265_CHECK(sbacGetEntropyBits(mstate, sig) == (stateBits & 0xFFFFFF), "entropyBits check failure\n");
+            /*baseCtx[ctxSig] = (uint8_t)nextState;
+            sum += stateBits;*/
         }
         assert(numNonZero <= 15);
         assert(blkPos <= 15);
@@ -947,8 +947,8 @@ static uint32_t costC1C2Flag_c(uint16_t *absCoeff, intptr_t numC1Flag, uint8_t *
         //encodeBin(symbol1, baseCtxMod[c1]);
         {
             const uint32_t mstate = baseCtxMod[c1];
-            baseCtxMod[c1] = sbacNext(mstate, symbol1);
-            sum += sbacGetEntropyBits(mstate, symbol1);
+            //baseCtxMod[c1] = sbacNext(mstate, symbol1);
+            //sum += sbacGetEntropyBits(mstate, symbol1);
         }
 
         if (symbol1)
@@ -976,8 +976,8 @@ static uint32_t costC1C2Flag_c(uint16_t *absCoeff, intptr_t numC1Flag, uint8_t *
         //encodeBin(firstC2Flag, baseCtxMod[0]);
         {
             const uint32_t mstate = baseCtxMod[0];
-            baseCtxMod[0] = sbacNext(mstate, firstC2Flag);
-            sum += sbacGetEntropyBits(mstate, firstC2Flag);
+            //baseCtxMod[0] = sbacNext(mstate, firstC2Flag);
+            //sum += sbacGetEntropyBits(mstate, firstC2Flag);
         }
     }
     return (sum & 0x00FFFFFF) + (c1 << 26) + (firstC2Idx << 28);

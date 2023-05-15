@@ -29,9 +29,7 @@
 #include "threading.h"
 #include "scalinglist.h"
 #include "x265.h"
-#include "nal.h"
 #include "framedata.h"
-#include "svt.h"
 #include "temporalfilter.h"
 #ifdef ENABLE_HDR10_PLUS
     #include "dynamicHDR10/hdr10plus.h"
@@ -211,7 +209,6 @@ public:
     VPS                m_vps;
     SPS                m_sps;
     PPS                m_pps;
-    NALList            m_nalList;
     ScalingList        m_scalingList;      // quantization matrix information
     Window             m_conformanceWindow;
 
@@ -295,11 +292,7 @@ public:
 
     void copyCtuInfo(x265_ctu_info_t** frameCtuInfo, int poc);
 
-    int copySlicetypePocAndSceneCut(int *slicetype, int *poc, int *sceneCut);
-
     int getRefFrameList(PicYuv** l0, PicYuv** l1, int sliceType, int poc, int* pocL0, int* pocL1);
-
-    void getEndNalUnits(NALList& list, Bitstream& bs);
 
     char* statsString(EncStats&, char*);
 

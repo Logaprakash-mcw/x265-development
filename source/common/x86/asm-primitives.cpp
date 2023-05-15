@@ -908,9 +908,6 @@ void interp_8tap_hv_pp_cpu(const pixel* src, intptr_t srcStride, pixel* dst, int
 
 void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main10
 {
-#if X86_64
-    p.scanPosLast = PFX(scanPosLast_x64);
-#endif
 
     if (cpuMask & X265_CPU_SSE2)
     {
@@ -977,8 +974,7 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main10
         ALL_LUMA_PU(luma_vps, interp_8tap_vert_ps, sse2);
 #endif
 
-        p.ssim_4x4x2_core = PFX(pixel_ssim_4x4x2_core_sse2);
-        p.ssim_end_4 = PFX(pixel_ssim_end4_sse2);
+
         ASSIGN2(p.pu[LUMA_64x64].pixelavg_pp, pixel_avg_64x64_sse2);
         ASSIGN2(p.pu[LUMA_64x48].pixelavg_pp, pixel_avg_64x48_sse2);
         ASSIGN2(p.pu[LUMA_64x32].pixelavg_pp, pixel_avg_64x32_sse2);
@@ -1020,9 +1016,6 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main10
         ASSIGN2(p.cu[BLOCK_16x16].ssd_s,pixel_ssd_s_16_sse2);
         ASSIGN2(p.cu[BLOCK_32x32].ssd_s,pixel_ssd_s_32_sse2 );
 #endif
-        ALL_LUMA_TU_S(calcresidual[ALIGNED], getResidual, sse2);
-        ALL_LUMA_TU_S(calcresidual[NONALIGNED], getResidual, sse2);
-        ALL_LUMA_TU_S(transpose, transpose, sse2);
 
         p.cu[BLOCK_4x4].intra_pred[PLANAR_IDX] = PFX(intra_pred_planar4_sse2);
         p.cu[BLOCK_8x8].intra_pred[PLANAR_IDX] = PFX(intra_pred_planar8_sse2);
@@ -1104,7 +1097,6 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main10
         ALL_CHROMA_422_PU(p2s[NONALIGNED], filterPixelToShort, sse2);
         ALL_CHROMA_444_PU(p2s[NONALIGNED], filterPixelToShort, sse2);
         ALL_LUMA_PU(convert_p2s[NONALIGNED], filterPixelToShort, sse2);
-        ALL_LUMA_TU(count_nonzero, count_nonzero, sse2);
         p.propagateCost = PFX(mbtree_propagate_cost_sse2);
     }
     if (cpuMask & X265_CPU_SSE3)
@@ -1120,8 +1112,6 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main10
     }
     if (cpuMask & X265_CPU_SSSE3)
     {
-        ASSIGN2(p.scale1D_128to64, scale1D_128to64_ssse3);
-        p.scale2D_64to32 = PFX(scale2D_64to32_ssse3);
         p.frameSubSampleLuma = PFX(frame_subsample_luma_ssse3);
 
         // p.pu[LUMA_4x4].satd = p.cu[BLOCK_4x4].sa8d = PFX(pixel_satd_4x4_ssse3); this one is broken
@@ -1183,7 +1173,6 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main10
         ASSIGN2(p.chroma[X265_CSP_I420].pu[CHROMA_420_8x2].p2s, filterPixelToShort_8x2_ssse3);
         ASSIGN2(p.chroma[X265_CSP_I420].pu[CHROMA_420_8x6].p2s, filterPixelToShort_8x6_ssse3);
 
-        p.findPosFirstLast = PFX(findPosFirstLast_ssse3);
         p.fix8Unpack = PFX(cutree_fix8_unpack_ssse3);
         p.fix8Pack = PFX(cutree_fix8_pack_ssse3);
     }
@@ -1279,10 +1268,6 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main10
         CHROMA_444_HORIZ_FILTERS(sse4);
 
         p.cu[BLOCK_8x8].dct = PFX(dct8_sse4);
-        p.quant = PFX(quant_sse4);
-        p.nquant = PFX(nquant_sse4);
-        p.dequant_normal = PFX(dequant_normal_sse4);
-        p.dequant_scaling = PFX(dequant_scaling_sse4);
 
         // p.pu[LUMA_4x4].satd = p.cu[BLOCK_4x4].sa8d = PFX(pixel_satd_4x4_sse4); fails tests
         ALL_LUMA_PU(satd, pixel_satd, sse4);
@@ -1304,8 +1289,6 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main10
         INTRA_ANG_SSE4_HIGH(sse4);
 
         p.planecopy_cp = PFX(upShift_8_sse4);
-        p.weight_pp = PFX(weight_pp_sse4);
-        p.weight_sp = PFX(weight_sp_sse4);
 
         p.cu[BLOCK_4x4].psy_cost_pp = PFX(psyCost_pp_4x4_sse4);
 
@@ -1321,7 +1304,6 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main10
         p.chroma[X265_CSP_I422].pu[CHROMA_422_2x8].p2s[NONALIGNED] = PFX(filterPixelToShort_2x8_sse4);
         p.chroma[X265_CSP_I422].pu[CHROMA_422_2x16].p2s[NONALIGNED] = PFX(filterPixelToShort_2x16_sse4);
         p.chroma[X265_CSP_I422].pu[CHROMA_422_6x16].p2s[NONALIGNED] = PFX(filterPixelToShort_6x16_sse4);
-        p.costCoeffRemain = PFX(costCoeffRemain_sse4);
 #if X86_64
         p.saoCuStatsE0 = PFX(saoCuStatsE0_sse4);
         p.saoCuStatsE1 = PFX(saoCuStatsE1_sse4);
@@ -1364,8 +1346,6 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main10
         p.chroma[X265_CSP_I420].cu[BLOCK_420_16x16].sa8d = PFX(pixel_sa8d_16x16_avx);
         p.chroma[X265_CSP_I420].cu[BLOCK_420_32x32].sa8d = PFX(pixel_sa8d_32x32_avx);
         LUMA_VAR(avx);
-        p.ssim_4x4x2_core = PFX(pixel_ssim_4x4x2_core_avx);
-        p.ssim_end_4 = PFX(pixel_ssim_end4_avx);
 
         // copy_pp primitives
         // 16 x N
@@ -1698,28 +1678,16 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main10
         p.chroma[X265_CSP_I420].cu[BLOCK_420_32x32].sse_pp = (pixel_sse_t)PFX(pixel_ssd_32x32_avx2);
         p.chroma[X265_CSP_I422].cu[BLOCK_422_16x32].sse_pp = (pixel_sse_t)PFX(pixel_ssd_ss_16x32_avx2);
         p.chroma[X265_CSP_I422].cu[BLOCK_422_32x64].sse_pp = (pixel_sse_t)PFX(pixel_ssd_ss_32x64_avx2);
-        p.quant = PFX(quant_avx2);
-        p.nquant = PFX(nquant_avx2);
-        p.dequant_normal  = PFX(dequant_normal_avx2);
-        p.dequant_scaling = PFX(dequant_scaling_avx2);
         p.dst4x4 = PFX(dst4_avx2);
         p.idst4x4 = PFX(idst4_avx2);
         p.denoiseDct = PFX(denoise_dct_avx2);
 
-        ASSIGN2(p.scale1D_128to64, scale1D_128to64_avx2);
-        p.scale2D_64to32 = PFX(scale2D_64to32_avx2);
-
-        p.weight_pp = PFX(weight_pp_avx2);
-        p.weight_sp = PFX(weight_sp_avx2);
         p.sign = PFX(calSign_avx2);
         p.planecopy_cp = PFX(upShift_8_avx2);
 
-        ASSIGN2(p.cu[BLOCK_16x16].calcresidual, getResidual16_avx2);
-        ASSIGN2(p.cu[BLOCK_32x32].calcresidual, getResidual32_avx2);
 
         ASSIGN2(p.cu[BLOCK_16x16].blockfill_s, blockfill_s_16x16_avx2);
         ASSIGN2(p.cu[BLOCK_32x32].blockfill_s, blockfill_s_32x32_avx2);
-        ALL_LUMA_TU(count_nonzero, count_nonzero, avx2);
         ALL_LUMA_TU_S(cpy1Dto2D_shl[ALIGNED], cpy1Dto2D_shl_, avx2);
         ALL_LUMA_TU_S(cpy1Dto2D_shl[NONALIGNED], cpy1Dto2D_shl_, avx2);
         ALL_LUMA_TU_S(cpy1Dto2D_shr, cpy1Dto2D_shr_, avx2);
@@ -1738,7 +1706,6 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main10
         ALL_LUMA_TU_S(idct, idct, avx2);
         ALL_LUMA_TU_S(dct, dct, avx2);
 
-        ALL_LUMA_CU_S(transpose, transpose, avx2);
 
         ALL_LUMA_PU(luma_vpp, interp_8tap_vert_pp, avx2);
         ALL_LUMA_PU(luma_vps, interp_8tap_vert_ps, avx2);
@@ -2356,17 +2323,10 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main10
         p.cu[LUMA_32x32].sa8d = PFX(pixel_sa8d_32x32_avx2);
 #endif
 
-        if (cpuMask & X265_CPU_BMI2)
-        {
-            p.scanPosLast = PFX(scanPosLast_avx2_bmi2);
-            p.costCoeffNxN = PFX(costCoeffNxN_avx2_bmi2);
-        }
     }
     if (cpuMask & X265_CPU_AVX512)
     {
         p.cu[BLOCK_16x16].var = PFX(pixel_var_16x16_avx512);
-        p.cu[BLOCK_32x32].calcresidual[NONALIGNED] = PFX(getResidual32_avx512);
-        p.cu[BLOCK_32x32].calcresidual[ALIGNED] = PFX(getResidual_aligned32_avx512);
         p.cu[BLOCK_64x64].sub_ps = PFX(pixel_sub_ps_64x64_avx512);
         p.cu[BLOCK_32x32].sub_ps = PFX(pixel_sub_ps_32x32_avx512);
         p.chroma[X265_CSP_I420].cu[BLOCK_420_32x32].sub_ps = PFX(pixel_sub_ps_32x32_avx512);
@@ -2595,10 +2555,6 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main10
         p.cu[BLOCK_16x16].cpy2Dto1D_shr = PFX(cpy2Dto1D_shr_16_avx512);
         p.cu[BLOCK_32x32].cpy2Dto1D_shr = PFX(cpy2Dto1D_shr_32_avx512);
 
-        p.weight_pp = PFX(weight_pp_avx512);
-        p.weight_sp = PFX(weight_sp_avx512);
-        p.dequant_normal = PFX(dequant_normal_avx512);
-        p.dequant_scaling = PFX(dequant_scaling_avx512);
         p.cu[BLOCK_32x32].copy_cnt = PFX(copy_cnt_32_avx512);
         p.cu[BLOCK_16x16].copy_cnt = PFX(copy_cnt_16_avx512);
 
@@ -3004,8 +2960,6 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main10
         p.cu[BLOCK_8x8].idct = PFX(idct8_avx512);
         p.cu[BLOCK_16x16].idct = PFX(idct16_avx512);
         p.cu[BLOCK_32x32].idct = PFX(idct32_avx512);
-        p.quant = PFX(quant_avx512);
-        p.nquant = PFX(nquant_avx512);
         p.denoiseDct = PFX(denoise_dct_avx512);
         p.chroma[X265_CSP_I420].pu[CHROMA_420_32x32].filter_hps = PFX(interp_4tap_horiz_ps_32x32_avx512);
         p.chroma[X265_CSP_I420].pu[CHROMA_420_32x16].filter_hps = PFX(interp_4tap_horiz_ps_32x16_avx512);

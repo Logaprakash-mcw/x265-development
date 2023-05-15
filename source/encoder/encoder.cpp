@@ -36,78 +36,12 @@
 #include "encoder.h"
 #include "slicetype.h"
 #include "frameencoder.h"
-#include "ratecontrol.h"
-#include "dpb.h"
-#include "nal.h"
-
 #include "x265.h"
+#include "dpb.h"
 
 #if _MSC_VER
 #pragma warning(disable: 4996) // POSIX functions are just fine, thanks
 #endif
-
-namespace X265_NS {
-const char g_sliceTypeToChar[] = {'B', 'P', 'I'};
-
-/* Dolby Vision profile specific settings */
-typedef struct
-{
-    int bEmitHRDSEI;
-    int bEnableVideoSignalTypePresentFlag;
-    int bEnableColorDescriptionPresentFlag;
-    int bEnableAccessUnitDelimiters;
-    int bAnnexB;
-
-    /* VUI parameters specific to Dolby Vision Profile */
-    int videoFormat;
-    int bEnableVideoFullRangeFlag;
-    int transferCharacteristics;
-    int colorPrimaries;
-    int matrixCoeffs;
-
-    int doviProfileId;
-}DolbyVisionProfileSpec;
-
-DolbyVisionProfileSpec dovi[] =
-{
-    { 1, 1, 1, 1, 1, 5, 1,  2, 2, 2, 50 },
-    { 1, 1, 1, 1, 1, 5, 0, 16, 9, 9, 81 },
-    { 1, 1, 1, 1, 1, 5, 0,  1, 1, 1, 82 },
-    { 1, 1, 1, 1, 1, 5, 0, 18, 9, 9, 84 }
-};
-
-typedef struct
-{
-    int bEnableVideoSignalTypePresentFlag;
-    int bEnableColorDescriptionPresentFlag;
-    int bEnableChromaLocInfoPresentFlag;
-    int colorPrimaries;
-    int transferCharacteristics;
-    int matrixCoeffs;
-    int bEnableVideoFullRangeFlag;
-    int chromaSampleLocTypeTopField;
-    int chromaSampleLocTypeBottomField;
-    const char* systemId;
-}VideoSignalTypePresets;
-
-VideoSignalTypePresets vstPresets[] =
-{
-    {1, 1, 1, 6, 6, 6, 0, 0, 0, "BT601_525"},
-    {1, 1, 1, 5, 6, 5, 0, 0, 0, "BT601_626"},
-    {1, 1, 1, 1, 1, 1, 0, 0, 0, "BT709_YCC"},
-    {1, 1, 0, 1, 1, 0, 0, 0, 0, "BT709_RGB"},
-    {1, 1, 1, 9, 14, 1, 0, 2, 2, "BT2020_YCC_NCL"},
-    {1, 1, 0, 9, 16, 9, 0, 0, 0, "BT2020_RGB"},
-    {1, 1, 1, 9, 16, 9, 0, 2, 2, "BT2100_PQ_YCC"},
-    {1, 1, 1, 9, 16, 14, 0, 2, 2, "BT2100_PQ_ICTCP"},
-    {1, 1, 0, 9, 16, 0, 0, 0, 0, "BT2100_PQ_RGB"},
-    {1, 1, 1, 9, 18, 9, 0, 2, 2, "BT2100_HLG_YCC"},
-    {1, 1, 0, 9, 18, 0, 0, 0, 0, "BT2100_HLG_RGB"},
-    {1, 1, 0, 1, 1, 0, 1, 0, 0, "FR709_RGB"},
-    {1, 1, 0, 9, 14, 0, 1, 0, 0, "FR2020_RGB"},
-    {1, 1, 1, 12, 1, 6, 1, 1, 1, "FRP3D65_YCC"}
-};
-}
 
 /* Threshold for motion vection, based on expermental result.
  * TODO: come up an algorithm for adoptive threshold */
@@ -220,7 +154,6 @@ void Encoder::create()
     for (int i = 0; i < m_param->frameNumThreads; i++)
     {
         m_frameEncoder[i] = new FrameEncoder;
-        m_frameEncoder[i]->m_nalList.m_annexB = !!m_param->bAnnexB;
     }
 
     if (m_numPools)
@@ -264,18 +197,6 @@ void Encoder::create()
 
     if (m_param->bEnableTemporalFilter)
         m_origPicBuffer = new OrigPicBuffer();
-
-    m_rateControl = new RateControl(*m_param, this);
-    if (!m_param->bResetZoneConfig)
-    {
-        zoneReadCount = new ThreadSafeInteger[m_param->rc.zonefileCount];
-        zoneWriteCount = new ThreadSafeInteger[m_param->rc.zonefileCount];
-    }
-
-   // initVPS(&m_vps);
-   // initSPS(&m_sps);
-    //initPPS(&m_pps);
-   
     
     int numRows = (m_param->sourceHeight + m_param->maxCUSize - 1) / m_param->maxCUSize;
     int numCols = (m_param->sourceWidth  + m_param->maxCUSize - 1) / m_param->maxCUSize;
@@ -303,43 +224,10 @@ void Encoder::create()
 
     m_encodeStartTime = x265_mdate();
 
-    m_nalList.m_annexB = !!m_param->bAnnexB;
-
-    if (m_param->naluFile)
-    {
-        m_naluFile = x265_fopen(m_param->naluFile, "r");
-        if (!m_naluFile)
-        {
-            x265_log_file(NULL, X265_LOG_ERROR, "%s file not found or Failed to open\n", m_param->naluFile);
-            m_aborted = true;
-        }
-        else
-             m_enableNal = 1;
-    }
-    else
-         m_enableNal = 0;
-
-#if ENABLE_HDR10_PLUS
-    if (m_bToneMap)
-        m_numCimInfo = m_hdr10plus_api->hdr10plus_json_to_movie_cim(m_param->toneMapFile, m_cim);
-#endif
-    if (m_param->bDynamicRefine)
-    {
-        /* Allocate memory for 1 GOP and reuse it for the subsequent GOPs */
-        int size = (m_param->keyframeMax + m_param->lookaheadDepth) * m_param->maxCUDepth * X265_REFINE_INTER_LEVELS;
-        CHECKED_MALLOC_ZERO(m_variance, uint64_t, size);
-        CHECKED_MALLOC_ZERO(m_rdCost, uint64_t, size);
-        CHECKED_MALLOC_ZERO(m_trainingCount, uint32_t, size);
-        return;
-    fail:
-        m_aborted = true;
-    }
 }
 
 void Encoder::stopJobs()
 {
-    if (m_rateControl)
-        m_rateControl->terminate(); // unblock all blocked RC calls
 
     if (m_lookahead)
         m_lookahead->stopJobs();
@@ -348,7 +236,7 @@ void Encoder::stopJobs()
     {
         if (m_frameEncoder[i])
         {
-            m_frameEncoder[i]->getEncodedPicture(m_nalList);
+            m_frameEncoder[i]->getEncodedPicture();
             m_frameEncoder[i]->m_threadActive = false;
             m_frameEncoder[i]->m_enable.trigger();
             m_frameEncoder[i]->stop();
@@ -362,68 +250,52 @@ void Encoder::stopJobs()
     }
 }
 
-int Encoder::copySlicetypePocAndSceneCut(int *slicetype, int *poc, int *sceneCut)
-{
-    Frame *FramePtr = m_dpb->m_picList.getCurFrame();
-    if (FramePtr != NULL)
-    {
-        *slicetype = FramePtr->m_lowres.sliceType;
-        *poc = FramePtr->m_encData->m_slice->m_poc;
-        *sceneCut = FramePtr->m_lowres.bScenecut;
-    }
-    else
-    {
-        x265_log(NULL, X265_LOG_WARNING, "Frame is still in lookahead pipeline, this API must be called after (poc >= lookaheadDepth + bframes + 2) condition check\n");
-        return -1;
-    }
-    return 0;
-}
 
-int Encoder::getRefFrameList(PicYuv** l0, PicYuv** l1, int sliceType, int poc, int* pocL0, int* pocL1)
-{
-    if (!(IS_X265_TYPE_I(sliceType)))
-    {
-        Frame *framePtr = m_dpb->m_picList.getPOC(poc);
-        if (framePtr != NULL)
-        {
-            for (int j = 0; j < framePtr->m_encData->m_slice->m_numRefIdx[0]; j++)    // check only for --ref=n number of frames.
-            {
-                if (framePtr->m_encData->m_slice->m_refFrameList[0][j] && framePtr->m_encData->m_slice->m_refFrameList[0][j]->m_reconPic != NULL)
-                {
-                    int l0POC = framePtr->m_encData->m_slice->m_refFrameList[0][j]->m_poc;
-                    pocL0[j] = l0POC;
-                    Frame* l0Fp = m_dpb->m_picList.getPOC(l0POC);
-                    while (l0Fp->m_reconRowFlag[l0Fp->m_numRows - 1].get() == 0)
-                        l0Fp->m_reconRowFlag[l0Fp->m_numRows - 1].waitForChange(0); /* If recon is not ready, current frame encoder has to wait. */
-                    l0[j] = l0Fp->m_reconPic;
-                }
-            }
-            for (int j = 0; j < framePtr->m_encData->m_slice->m_numRefIdx[1]; j++)    // check only for --ref=n number of frames.
-            {
-                if (framePtr->m_encData->m_slice->m_refFrameList[1][j] && framePtr->m_encData->m_slice->m_refFrameList[1][j]->m_reconPic != NULL)
-                {
-                    int l1POC = framePtr->m_encData->m_slice->m_refFrameList[1][j]->m_poc;
-                    pocL1[j] = l1POC;
-                    Frame* l1Fp = m_dpb->m_picList.getPOC(l1POC);
-                    while (l1Fp->m_reconRowFlag[l1Fp->m_numRows - 1].get() == 0)
-                        l1Fp->m_reconRowFlag[l1Fp->m_numRows - 1].waitForChange(0); /* If recon is not ready, current frame encoder has to wait. */
-                    l1[j] = l1Fp->m_reconPic;
-                }
-            }
-        }
-        else
-        {
-            x265_log(NULL, X265_LOG_WARNING, "Current frame is not in DPB piclist.\n");
-            return 1;
-        }
-    }
-    else
-    {
-        x265_log(NULL, X265_LOG_ERROR, "I frames does not have a refrence List\n");
-        return -1;
-    }
-    return 0;
-}
+//int Encoder::getRefFrameList(PicYuv** l0, PicYuv** l1, int sliceType, int poc, int* pocL0, int* pocL1)
+//{
+//    if (!(IS_X265_TYPE_I(sliceType)))
+//    {
+//        Frame *framePtr = m_dpb->m_picList.getPOC(poc);
+//        if (framePtr != NULL)
+//        {
+//            for (int j = 0; j < framePtr->m_encData->m_slice->m_numRefIdx[0]; j++)    // check only for --ref=n number of frames.
+//            {
+//                if (framePtr->m_encData->m_slice->m_refFrameList[0][j] && framePtr->m_encData->m_slice->m_refFrameList[0][j]->m_reconPic != NULL)
+//                {
+//                    int l0POC = framePtr->m_encData->m_slice->m_refFrameList[0][j]->m_poc;
+//                    pocL0[j] = l0POC;
+//                    Frame* l0Fp = m_dpb->m_picList.getPOC(l0POC);
+//                    while (l0Fp->m_reconRowFlag[l0Fp->m_numRows - 1].get() == 0)
+//                        l0Fp->m_reconRowFlag[l0Fp->m_numRows - 1].waitForChange(0); /* If recon is not ready, current frame encoder has to wait. */
+//                    l0[j] = l0Fp->m_reconPic;
+//                }
+//            }
+//            for (int j = 0; j < framePtr->m_encData->m_slice->m_numRefIdx[1]; j++)    // check only for --ref=n number of frames.
+//            {
+//                if (framePtr->m_encData->m_slice->m_refFrameList[1][j] && framePtr->m_encData->m_slice->m_refFrameList[1][j]->m_reconPic != NULL)
+//                {
+//                    int l1POC = framePtr->m_encData->m_slice->m_refFrameList[1][j]->m_poc;
+//                    pocL1[j] = l1POC;
+//                    Frame* l1Fp = m_dpb->m_picList.getPOC(l1POC);
+//                    while (l1Fp->m_reconRowFlag[l1Fp->m_numRows - 1].get() == 0)
+//                        l1Fp->m_reconRowFlag[l1Fp->m_numRows - 1].waitForChange(0); /* If recon is not ready, current frame encoder has to wait. */
+//                    l1[j] = l1Fp->m_reconPic;
+//                }
+//            }
+//        }
+//        else
+//        {
+//            x265_log(NULL, X265_LOG_WARNING, "Current frame is not in DPB piclist.\n");
+//            return 1;
+//        }
+//    }
+//    else
+//    {
+//        x265_log(NULL, X265_LOG_ERROR, "I frames does not have a refrence List\n");
+//        return -1;
+//    }
+//    return 0;
+//}
 
 
 void Encoder::destroy()
@@ -453,8 +325,6 @@ void Encoder::destroy()
         m_lookahead->destroy();
         delete m_lookahead;
     }
-
-    delete m_dpb;
 
     if (m_param->bEnableTemporalFilter)
         delete m_origPicBuffer;
@@ -996,7 +866,7 @@ int Encoder::encode(const x265_picture* pic_in, x265_picture* pic_out)
          * encoding the frame.  This is how back-pressure through the API is
          * accomplished when the encoder is full */
         if (!m_bZeroLatency || pass)
-            outFrame = curEncoder->getEncodedPicture(m_nalList);
+            outFrame = curEncoder->getEncodedPicture();
         if (outFrame)
         {
             Slice *slice = outFrame->m_encData->m_slice;
@@ -1039,7 +909,7 @@ int Encoder::encode(const x265_picture* pic_in, x265_picture* pic_out)
             if (!pic_out)
             {
                 ATOMIC_DEC(&outFrame->m_countRefEncoders);
-                m_dpb->recycleUnreferenced();
+                //m_dpb->recycleUnreferenced();
                 if (m_param->bEnableTemporalFilter)
                     m_origPicBuffer->recycleOrigPicList();
             }
@@ -1131,8 +1001,6 @@ int Encoder::encode(const x265_picture* pic_in, x265_picture* pic_out)
             if (!curEncoder->startCompressFrame(frameEnc))
                 m_aborted = true;
         }
-        else if (m_encodedFrameNum)
-            m_rateControl->setFinalFrameCount(m_encodedFrameNum);
     }
     while (m_bZeroLatency && ++pass < 2);
 
@@ -1447,156 +1315,6 @@ void Encoder::updateRefIdx()
     initRefIdx();
 
     return;
-}
-
-
-void Encoder::getEndNalUnits(NALList& list, Bitstream& bs)
-{
-    NALList nalList;
-    bs.resetBits();
-
-    if (m_param->bEnableEndOfSequence)
-        nalList.serialize(NAL_UNIT_EOS, bs);
-    if (m_param->bEnableEndOfBitstream)
-        nalList.serialize(NAL_UNIT_EOB, bs);
-
-    list.takeContents(nalList);
-}
-
-void Encoder::initVPS(VPS *vps)
-{
-    /* Note that much of the VPS is initialized by determineLevel() */
-    vps->ptl.progressiveSourceFlag = !m_param->interlaceMode;
-    vps->ptl.interlacedSourceFlag = !!m_param->interlaceMode;
-    vps->ptl.nonPackedConstraintFlag = false;
-    vps->ptl.frameOnlyConstraintFlag = !m_param->interlaceMode;
-}
-
-void Encoder::initSPS(SPS *sps)
-{
-    sps->conformanceWindow = m_conformanceWindow;
-    sps->chromaFormatIdc = m_param->internalCsp;
-    sps->picWidthInLumaSamples = m_param->sourceWidth;
-    sps->picHeightInLumaSamples = m_param->sourceHeight;
-    sps->numCuInWidth = (m_param->sourceWidth + m_param->maxCUSize - 1) / m_param->maxCUSize;
-    sps->numCuInHeight = (m_param->sourceHeight + m_param->maxCUSize - 1) / m_param->maxCUSize;
-    sps->numCUsInFrame = sps->numCuInWidth * sps->numCuInHeight;
-    sps->numPartitions = m_param->num4x4Partitions;
-    sps->numPartInCUSize = 1 << m_param->unitSizeDepth;
-
-    sps->log2MinCodingBlockSize = m_param->maxLog2CUSize - m_param->maxCUDepth;
-    sps->log2DiffMaxMinCodingBlockSize = m_param->maxCUDepth;
-    uint32_t maxLog2TUSize = (uint32_t)g_log2Size[m_param->maxTUSize];
-    sps->quadtreeTULog2MaxSize = X265_MIN((uint32_t)m_param->maxLog2CUSize, maxLog2TUSize);
-    sps->quadtreeTULog2MinSize = 2;
-    sps->quadtreeTUMaxDepthInter = m_param->tuQTMaxInterDepth;
-    sps->quadtreeTUMaxDepthIntra = m_param->tuQTMaxIntraDepth;
-
-    sps->bUseSAO = m_param->bEnableSAO;
-
-    sps->bUseAMP = m_param->bEnableAMP;
-    sps->maxAMPDepth = m_param->bEnableAMP ? m_param->maxCUDepth : 0;
-
-    sps->maxTempSubLayers = m_vps.maxTempSubLayers;// Getting the value from the user
-
-    for(uint8_t i = 0; i < sps->maxTempSubLayers; i++)
-    {
-        sps->maxDecPicBuffering[i] = m_vps.maxDecPicBuffering[i];
-        sps->numReorderPics[i] = m_vps.numReorderPics[i];
-        sps->maxLatencyIncrease[i] = m_vps.maxLatencyIncrease[i] = m_param->bframes;
-    }
-
-    sps->bUseStrongIntraSmoothing = m_param->bEnableStrongIntraSmoothing;
-    sps->bTemporalMVPEnabled = m_param->bEnableTemporalMvp;
-    sps->bEmitVUITimingInfo = m_param->bEmitVUITimingInfo;
-    sps->bEmitVUIHRDInfo = m_param->bEmitVUIHRDInfo;
-    sps->log2MaxPocLsb = m_param->log2MaxPocLsb;
-    int maxDeltaPOC = (m_param->bframes + 2) * (!!m_param->bBPyramid + 1) * 2;
-    while ((1 << sps->log2MaxPocLsb) <= maxDeltaPOC * 2)
-        sps->log2MaxPocLsb++;
-
-    if (sps->log2MaxPocLsb != m_param->log2MaxPocLsb)
-        x265_log(m_param, X265_LOG_WARNING, "Reset log2MaxPocLsb to %d to account for all POC values\n", sps->log2MaxPocLsb);
-
-    VUI& vui = sps->vuiParameters;
-    vui.aspectRatioInfoPresentFlag = !!m_param->vui.aspectRatioIdc;
-    vui.aspectRatioIdc = m_param->vui.aspectRatioIdc;
-    vui.sarWidth = m_param->vui.sarWidth;
-    vui.sarHeight = m_param->vui.sarHeight;
-
-    vui.overscanInfoPresentFlag = m_param->vui.bEnableOverscanInfoPresentFlag;
-    vui.overscanAppropriateFlag = m_param->vui.bEnableOverscanAppropriateFlag;
-
-    vui.videoSignalTypePresentFlag = m_param->vui.bEnableVideoSignalTypePresentFlag;
-    vui.videoFormat = m_param->vui.videoFormat;
-    vui.videoFullRangeFlag = m_param->vui.bEnableVideoFullRangeFlag;
-
-    vui.colourDescriptionPresentFlag = m_param->vui.bEnableColorDescriptionPresentFlag;
-    vui.colourPrimaries = m_param->vui.colorPrimaries;
-    vui.transferCharacteristics = m_param->vui.transferCharacteristics;
-    vui.matrixCoefficients = m_param->vui.matrixCoeffs;
-
-    vui.chromaLocInfoPresentFlag = m_param->vui.bEnableChromaLocInfoPresentFlag;
-    vui.chromaSampleLocTypeTopField = m_param->vui.chromaSampleLocTypeTopField;
-    vui.chromaSampleLocTypeBottomField = m_param->vui.chromaSampleLocTypeBottomField;
-
-    vui.defaultDisplayWindow.bEnabled = m_param->vui.bEnableDefaultDisplayWindowFlag;
-    vui.defaultDisplayWindow.rightOffset = m_param->vui.defDispWinRightOffset;
-    vui.defaultDisplayWindow.topOffset = m_param->vui.defDispWinTopOffset;
-    vui.defaultDisplayWindow.bottomOffset = m_param->vui.defDispWinBottomOffset;
-    vui.defaultDisplayWindow.leftOffset = m_param->vui.defDispWinLeftOffset;
-
-    vui.frameFieldInfoPresentFlag = !!m_param->interlaceMode || (m_param->pictureStructure >= 0);
-    vui.fieldSeqFlag = !!m_param->interlaceMode;
-
-    vui.hrdParametersPresentFlag = m_param->bEmitHRDSEI;
-
-    vui.timingInfo.numUnitsInTick = m_param->fpsDenom;
-    vui.timingInfo.timeScale = m_param->fpsNum;
-}
-
-void Encoder::initPPS(PPS *pps)
-{
-    bool bIsVbv = m_param->rc.vbvBufferSize > 0 && m_param->rc.vbvMaxBitrate > 0;
-    bool bEnableDistOffset = m_param->analysisMultiPassDistortion && m_param->rc.bStatRead;
-
-    if (!m_param->bLossless && (m_param->rc.aqMode || bIsVbv || m_param->bAQMotion))
-    {
-        pps->bUseDQP = true;
-        pps->maxCuDQPDepth = g_log2Size[m_param->maxCUSize] - g_log2Size[m_param->rc.qgSize];
-        X265_CHECK(pps->maxCuDQPDepth <= 3, "max CU DQP depth cannot be greater than 3\n");
-    }
-    else if (!m_param->bLossless && bEnableDistOffset)
-    {
-        pps->bUseDQP = true;
-        pps->maxCuDQPDepth = 0;
-    }
-    else
-    {
-        pps->bUseDQP = false;
-        pps->maxCuDQPDepth = 0;
-    }
-
-    pps->chromaQpOffset[0] = m_param->cbQpOffset;
-    pps->chromaQpOffset[1] = m_param->crQpOffset;
-    pps->pps_slice_chroma_qp_offsets_present_flag = m_param->bHDR10Opt;
-
-    pps->bConstrainedIntraPred = m_param->bEnableConstrainedIntra;
-    pps->bUseWeightPred = m_param->bEnableWeightedPred;
-    pps->bUseWeightedBiPred = m_param->bEnableWeightedBiPred;
-    pps->bTransquantBypassEnabled = m_param->bCULossless || m_param->bLossless;
-    pps->bTransformSkipEnabled = m_param->bEnableTransformSkip;
-    pps->bSignHideEnabled = m_param->bEnableSignHiding;
-
-    pps->bDeblockingFilterControlPresent = !m_param->bEnableLoopFilter || m_param->deblockingFilterBetaOffset || m_param->deblockingFilterTCOffset;
-    pps->bPicDisableDeblockingFilter = !m_param->bEnableLoopFilter;
-    pps->deblockingFilterBetaOffsetDiv2 = m_param->deblockingFilterBetaOffset;
-    pps->deblockingFilterTcOffsetDiv2 = m_param->deblockingFilterTCOffset;
-
-    pps->bEntropyCodingSyncEnabled = m_param->bEnableWavefront;
-
-    pps->numRefIdxDefault[0] = 1;
-    pps->numRefIdxDefault[1] = 1;
 }
 
 void Encoder::configureZone(x265_param *p, x265_param *zone)

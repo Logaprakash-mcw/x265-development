@@ -32,14 +32,9 @@
 #include "picyuv.h"
 #include "md5.h"
 
-#include "analysis.h"
-#include "sao.h"
 
 #include "entropy.h"
-#include "framefilter.h"
-#include "ratecontrol.h"
 #include "reference.h"
-#include "nal.h"
 #include "temporalfilter.h"
 
 namespace X265_NS {
@@ -72,8 +67,6 @@ struct StatisticLog
  * WPP is active, several rows will be simultaneously encoded. */
 struct CTURow
 {
-    Entropy           bufferedEntropy;  /* store CTU2 context for next row CTU0 */
-    Entropy           rowGoOnCoder;     /* store context between CTUs, code bitstream if !SAO */
     unsigned int      sliceId;          /* store current row slice id */
 
     FrameStats        rowStats;
@@ -110,7 +103,6 @@ struct CTURow
         sliceId = sid;
         reEncode = 0;
         memset(&rowStats, 0, sizeof(rowStats));
-        rowGoOnCoder.load(initContext);
     }
 };
 
@@ -159,9 +151,7 @@ public:
     bool startCompressFrame(Frame* curFrame);
 
     /* blocks until worker thread is done, returns access unit */
-    Frame *getEncodedPicture(NALList& list);
-
-    void initDecodedPictureHashSEI(int row, int cuAddr, int height);
+    Frame *getEncodedPicture();
 
     Event                    m_enable;
     Event                    m_done;
@@ -187,8 +177,6 @@ public:
     uint32_t*                m_sliceBaseRow;    
     uint32_t*                m_sliceMaxBlockRow;
     int64_t                  m_rowSliceTotalBits[2];
-    RateControlEntry         m_rce;
-    SEIDecodedPictureHash    m_seiReconPictureDigest;
 
     uint64_t                 m_SSDY;
     uint64_t                 m_SSDU;
@@ -218,8 +206,7 @@ public:
     Encoder*                 m_top;
     x265_param*              m_param;
     Frame*                   m_frame;
-    NoiseReduction*          m_nr;
-    ThreadLocalData*         m_tld; /* for --no-wpp */
+    //ThreadLocalData*         m_tld; /* for --no-wpp */
     Bitstream*               m_outStreams;
     Bitstream*               m_backupStreams;
     uint32_t*                m_substreamSizes;
@@ -229,61 +216,29 @@ public:
 
     Bitstream                m_bs;
     MotionReference          m_mref[2][MAX_NUM_REF + 1];
-    Entropy                  m_entropyCoder;
-    Entropy                  m_initSliceContext;
-    FrameFilter              m_frameFilter;
-    NALList                  m_nalList;
+
 
     // initialization for mcstf
     TemporalFilter*          m_frameEncTF;
     TemporalFilterRefPicInfo m_mcstfRefList[MAX_MCSTF_TEMPORAL_WINDOW_LENGTH];
 
-    class WeightAnalysis : public BondedTaskGroup
-    {
-    public:
-
-        FrameEncoder& master;
-
-        WeightAnalysis(FrameEncoder& fe) : master(fe) {}
-
-        void processTasks(int workerThreadId);
-
-    protected:
-
-        WeightAnalysis operator=(const WeightAnalysis&);
-    };
-
 protected:
 
-    bool initializeGeoms();
 
     /* analyze / compress frame, can be run in parallel within reference constraints */
     void compressFrame();
 
-    /* called by compressFrame to generate final per-row bitstreams */
-    void encodeSlice(uint32_t sliceAddr);
 
     void threadMain();
-    int  collectCTUStatistics(const CUData& ctu, FrameStats* frameLog);
-    void noiseReductionUpdate();
-    void writeTrailingSEIMessages();
-    bool writeToneMapInfo(x265_sei_payload *payload);
 
     /* Called by WaveFront::findJob() */
     virtual void processRow(int row, int threadId);
-    virtual void processRowEncoder(int row, ThreadLocalData& tld);
+    virtual void processRowEncoder(int row);
 
     void enqueueRowEncoder(int row) { WaveFront::enqueueRow(row * 2 + 0); }
     void enqueueRowFilter(int row)  { WaveFront::enqueueRow(row * 2 + 1); }
     void enableRowEncoder(int row)  { WaveFront::enableRow(row * 2 + 0); }
     void enableRowFilter(int row)   { WaveFront::enableRow(row * 2 + 1); }
-#if ENABLE_LIBVMAF
-    void vmafFrameLevelScore();
-#endif
-    void collectDynDataFrame();
-    void computeAvgTrainingData();
-    void collectDynDataRow(CUData& ctu, FrameStats* rowStats);    
-    void readModel(FilmGrainCharacteristics* m_filmGrain, FILE* filmgrain);
 };
 }
 
