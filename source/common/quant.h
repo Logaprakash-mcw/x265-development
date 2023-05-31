@@ -53,7 +53,7 @@ struct QpParam
             rem = qpScaled % 6;
             per = qpScaled / 6;
             qp  = qpScaled;
-            uint8_t qpClipped = x265_clip3(0, QP_MAX_MAX, qp - QP_BD_OFFSET);
+            int qpClipped = x265_clip3(0, QP_MAX_MAX, qp - QP_BD_OFFSET);
             lambda2 = (int64_t)(x265_lambda2_tab[qpClipped] * 256. + 0.5);
             lambda  = (int32_t)(x265_lambda_tab[qpClipped] * 256. + 0.5);
             X265_CHECK((x265_lambda_tab[qpClipped] * 256. + 0.5) < (double)MAX_INT, "x265_lambda_tab[] value too large\n");

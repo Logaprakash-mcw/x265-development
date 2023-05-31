@@ -3721,11 +3721,13 @@ int Analysis::calculateQpforCuSize(const CUData& ctu, const CUGeom& cuGeom, int3
                 bool isMotion = false;
                 if ((m_frame->m_lowres.threshold_previous != 0) && (m_frame->m_lowres.threshold_future != 0))
                 {
-                    pixel* diff_previous = m_frame->m_lowres.diff_previous + (block_x / 2) + ((block_y / 2) * m_frame->m_lowres.width);
-                    pixel* diff_future = m_frame->m_lowres.diff_future + (block_x / 2) + ((block_y / 2) * m_frame->m_lowres.width);
-                    for (uint32_t i = 1; i < blockSize / 2 - 1 && block_y + i < m_frame->m_lowres.lines - 1; i++)
+                    uint32_t lowresHeight = m_frame->m_lowres.lines;
+                    uint32_t lowresWidth = m_frame->m_lowres.width;
+                    pixel* diff_previous = m_frame->m_lowres.diff_previous + (block_x / 2) + ((block_y / 2) * lowresWidth);
+                    pixel* diff_future = m_frame->m_lowres.diff_future + (block_x / 2) + ((block_y / 2) * lowresWidth);
+                    for (uint32_t i = 1; i < blockSize / 2 - 1 && block_y + i < lowresHeight - 1; i++)
                     {
-                        for (uint32_t j = 1; j < blockSize / 2 - 1 && block_x + j < m_frame->m_lowres.width - 1; j++)
+                        for (uint32_t j = 1; j < blockSize / 2 - 1 && block_x + j < lowresWidth - 1; j++)
                         {
                             if ((int)diff_previous[i * m_frame->m_lowres.width + j] > m_frame->m_lowres.threshold_previous &&
                                 (int)diff_future[i * m_frame->m_lowres.width + j] > m_frame->m_lowres.threshold_future)
