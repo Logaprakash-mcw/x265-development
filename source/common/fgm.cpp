@@ -1784,6 +1784,7 @@ void FGAnalyser::setEstimatedParameters(std::vector<int> &quantizedVec, unsigned
     }
   }
   X265_CHECK(j == m_compModel[compID].m_filmGrainNumIntensityIntervalMinus1, "Check film grain intensity levels");
+  m_compModel[compID].m_filmGrainNumIntensityIntervalMinus1 -= 1;
 }
 
 long double FGAnalyser::ldpow(long double n, unsigned p)
@@ -1913,7 +1914,7 @@ void FGAnalyser::set_film_grain_parameters()
     filmgrain.m_filmGrainCharacteristicsPersistenceFlag = 0;
     filmgrain.m_filmGrainModelId = 0;
     filmgrain.m_separateColourDescriptionPresentFlag = 0; // Always set to 0
-    filmgrain.m_blendingModeId = 2;
+    filmgrain.m_blendingModeId = 0;
     filmgrain.m_log2ScaleFactor = m_log2ScaleFactor;
     memcpy(filmgrain.m_compModel, m_compModel, sizeof(m_compModel));
 }
