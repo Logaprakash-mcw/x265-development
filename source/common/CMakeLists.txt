@@ -56,14 +56,14 @@ if(ENABLE_ASSEMBLY AND X86)
     endif()
     set(VEC_PRIMITIVES vec/vec-primitives.cpp ${PRIMITIVES})
     source_group(Intrinsics FILES ${VEC_PRIMITIVES})
-    set(C_SRCS asm-primitives.cpp pixel.h mc.h ipfilter8.h blockcopy8.h dct8.h loopfilter.h seaintegral.h)
+    set(C_SRCS asm-primitives.cpp pixel.h mc.h blockcopy8.h dct8.h)
     set(A_SRCS pixel-a.asm const-a.asm cpu-a.asm ssd-a.asm mc-a.asm
                mc-a2.asm pixel-util8.asm blockcopy8.asm
-               pixeladd8.asm dct8.asm seaintegral.asm)
+               pixeladd8.asm dct8.asm)
     if(HIGH_BIT_DEPTH)
-        set(A_SRCS ${A_SRCS} sad16-a.asm intrapred16.asm v4-ipfilter16.asm h4-ipfilter16.asm h-ipfilter16.asm ipfilter16.asm loopfilter.asm)
+        set(A_SRCS ${A_SRCS} sad16-a.asm )
     else()
-        set(A_SRCS ${A_SRCS} sad-a.asm intrapred8.asm intrapred8_allangs.asm v4-ipfilter8.asm h-ipfilter8.asm ipfilter8.asm loopfilter.asm)
+        set(A_SRCS ${A_SRCS} sad-a.asm)
     endif()
     if(NOT X64)
         set(A_SRCS ${A_SRCS} pixel-32.asm)
@@ -84,10 +84,10 @@ if(ENABLE_ASSEMBLY AND X86)
 endif(ENABLE_ASSEMBLY AND X86)
 
 if(ENABLE_ASSEMBLY AND (ARM OR CROSS_COMPILE_ARM))
-    set(C_SRCS asm-primitives.cpp pixel.h mc.h ipfilter8.h blockcopy8.h dct8.h loopfilter.h)
+    set(C_SRCS asm-primitives.cpp pixel.h mc.h blockcopy8.h dct8.h)
 
     # add ARM assembly/intrinsic files here
-    set(A_SRCS asm.S cpu-a.S mc-a.S sad-a.S pixel-util.S ssd-a.S blockcopy8.S ipfilter8.S dct-a.S)
+    set(A_SRCS asm.S cpu-a.S mc-a.S sad-a.S pixel-util.S ssd-a.S blockcopy8.S dct-a.S)
     set(VEC_PRIMITIVES)
 
     set(ARM_ASMS "${A_SRCS}" CACHE INTERNAL "ARM Assembly Sources")
@@ -103,7 +103,7 @@ if(ENABLE_ASSEMBLY AND (ARM64 OR CROSS_COMPILE_ARM64))
         add_definitions(-DAUTO_VECTORIZE=1)
     endif()
 
-    set(C_SRCS asm-primitives.cpp pixel-prim.h pixel-prim.cpp filter-prim.h filter-prim.cpp dct-prim.h dct-prim.cpp loopfilter-prim.cpp loopfilter-prim.h intrapred-prim.cpp arm64-utils.cpp arm64-utils.h fun-decls.h)
+    set(C_SRCS asm-primitives.cpp pixel-prim.h pixel-prim.cpp filter-prim.h filter-prim.cpp dct-prim.h dct-prim.cpp arm64-utils.cpp arm64-utils.h fun-decls.h)
     enable_language(ASM)
 
     # add ARM assembly/intrinsic files here
@@ -120,7 +120,7 @@ endif(ENABLE_ASSEMBLY AND (ARM64 OR CROSS_COMPILE_ARM64))
 if(POWER)
     set_source_files_properties(version.cpp PROPERTIES COMPILE_FLAGS -DX265_VERSION=${X265_VERSION})
     if(ENABLE_ALTIVEC)
-        set(ALTIVEC_SRCS pixel_altivec.cpp dct_altivec.cpp ipfilter_altivec.cpp intrapred_altivec.cpp)
+        set(ALTIVEC_SRCS pixel_altivec.cpp dct_altivec.cpp ipfilter_altivec.cpp)
         foreach(SRC ${ALTIVEC_SRCS})
             set(ALTIVEC_PRIMITIVES ${ALTIVEC_PRIMITIVES} ppc/${SRC})
         endforeach()
@@ -149,14 +149,13 @@ endif(WIN32)
 add_library(common OBJECT
     ${ASM_PRIMITIVES} ${VEC_PRIMITIVES} ${ALTIVEC_PRIMITIVES} ${WINXP}
     primitives.cpp primitives.h
-    pixel.cpp dct.cpp lowpassdct.cpp ipfilter.cpp intrapred.cpp loopfilter.cpp
+    pixel.cpp dct.cpp lowpassdct.cpp ipfilter.cpp
     constants.cpp constants.h
     cpu.cpp cpu.h version.cpp
     threading.cpp threading.h
     threadpool.cpp threadpool.h
     wavefront.h wavefront.cpp
     md5.cpp md5.h
-    bitstream.h bitstream.cpp
     yuv.cpp yuv.h
     shortyuv.cpp shortyuv.h
     picyuv.cpp picyuv.h
@@ -164,14 +163,7 @@ add_library(common OBJECT
     param.cpp param.h
     frame.cpp frame.h
     framedata.cpp framedata.h
-    cudata.cpp cudata.h
-    slice.cpp slice.h
-    lowres.cpp lowres.h mv.h 
+    slice.cpp slice.h mv.h
     piclist.cpp piclist.h
-    predict.cpp  predict.h
-    scalinglist.cpp scalinglist.h
-    quant.cpp quant.h contexts.h
-    deblock.cpp deblock.h
-    scaler.cpp scaler.h
-    ringmem.cpp ringmem.h
-    temporalfilter.cpp temporalfilter.h)
+    temporalfilter.cpp temporalfilter.h
+    fgm.cpp fgm.h)

@@ -29,7 +29,6 @@
 
 #include "common.h"
 #include "primitives.h"
-#include "contexts.h"   // costCoeffNxN_c
 #include "threading.h"  // CLZ
 
 using namespace X265_NS;

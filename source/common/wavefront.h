@@ -95,7 +95,7 @@ public:
 
     // Start or resume encode processing of this row, must be implemented by
     // derived classes.
-    virtual void processRow(int row, int threadId) = 0;
+    //virtual void processRow(int row, int threadId) = 0;
 };
 } // end namespace X265_NS
 

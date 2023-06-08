@@ -61,7 +61,7 @@ void FrameEncoder::destroy()
             //delete [] m_tld;
         }
     }
-
+    m_fg->destroy();
     delete m_frameEncTF->m_metld;
 
     for (int i = 0; i < (m_frameEncTF->m_range << 1); i++)
@@ -89,6 +89,13 @@ bool FrameEncoder::init(Encoder *top, int numRows, int numCols)
 
     for (int i = 0; i < (m_frameEncTF->m_range << 1); i++)
         ok &= !!m_frameEncTF->createRefPicInfo(&m_mcstfRefList[i], m_param);
+
+    m_fg = new FGAnalyser;
+    if(m_fg)
+    {
+        m_fg->init(m_param);
+        m_fg->fout = this->m_top->m_filmGrainIn;
+    }
 
     return ok;
 }
@@ -125,8 +132,18 @@ void FrameEncoder::compressFrame()
 
     m_startCompressTime = x265_mdate();
 
+    PicYuv *original = new PicYuv();
+    original->create(m_param);
+    original->copyFromFrame(m_frame->m_fencPic);
+
     m_frameEncTF->m_QP = m_param->qp; // Keep qp is constant
     m_frameEncTF->bilateralFilter(m_frame, m_mcstfRefList, m_param->temporalFilterStrength);
+
+    //m_fg->initBufs(original, m_frame->m_fencPic);
+
+    m_fg->initBufs(original, m_frame->m_fencPic);
+
+    m_fg->estimate_grain_parameters();
 
     //Reset the MCSTF context in Frame Encoder and Frame
     for (int i = 0; i < (m_frameEncTF->m_range << 1); i++)
@@ -140,6 +157,10 @@ void FrameEncoder::compressFrame()
 
         m_frame->m_mcstf->m_numRef = 0;
     }
+
+    m_fg->set_film_grain_parameters();
+    if (m_top->m_filmGrainIn)
+        m_fg->write_film_grain_parameters();
     m_endCompressTime = m_endFrameTime = x265_mdate();
 }
 

@@ -320,7 +320,7 @@ uint32_t cpu_detect(bool benableavx512 )
         else if (cache == 64)
             cpu |= X265_CPU_CACHELINE_64;
         else
-            x265_log(NULL, X265_LOG_WARNING, "unable to determine cacheline size\n");
+            x265_log(X265_LOG_WARNING, "unable to determine cacheline size\n");
     }
 
 #if BROKEN_STACK_ALIGNMENT

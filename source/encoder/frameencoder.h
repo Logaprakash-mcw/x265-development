@@ -31,6 +31,7 @@
 #include "picyuv.h"
 #include "md5.h"
 #include "temporalfilter.h"
+#include "fgm.h"
 
 namespace X265_NS {
 // private x265 namespace
@@ -131,6 +132,8 @@ public:
     // initialization for mcstf
     TemporalFilter*          m_frameEncTF;
     TemporalFilterRefPicInfo m_mcstfRefList[MAX_MCSTF_TEMPORAL_WINDOW_LENGTH];
+
+    FGAnalyser*              m_fg;
 
 protected:
 

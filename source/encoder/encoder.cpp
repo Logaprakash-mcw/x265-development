@@ -155,6 +155,14 @@ void Encoder::create()
 
     int numRows = (m_param->sourceHeight + m_param->maxCUSize - 1) / m_param->maxCUSize;
     int numCols = (m_param->sourceWidth  + m_param->maxCUSize - 1) / m_param->maxCUSize;
+    if (m_param->filmGrain)
+    {
+        m_filmGrainIn = x265_fopen(m_param->filmGrain, "wb");
+        if (!m_filmGrainIn)
+        {
+            x265_log_file(NULL, X265_LOG_ERROR, "Failed to open film grain characteristics binary file %s\n", m_param->filmGrain);
+        }
+    }
     for (int i = 0; i < m_param->frameNumThreads; i++)
     {
         if (!m_frameEncoder[i]->init(this, numRows, numCols))
@@ -204,7 +212,8 @@ void Encoder::stopJobs()
 
 void Encoder::destroy()
 {
-
+    if (m_filmGrainIn)
+        x265_fclose(m_filmGrainIn);
     if (m_exportedPic)
     {
         ATOMIC_DEC(&m_exportedPic->m_countRefEncoders);
@@ -450,11 +459,6 @@ int Encoder::encode(const x265_picture* pic_in, x265_picture* pic_out)
         inFrame->m_poc       = ++m_pocLast;
         inFrame->m_param     = m_param;
 
-        //if (m_pocLast == 0)
-        //    m_firstPts = inFrame->m_pts;
-        //if (m_bframeDelay && m_pocLast == m_bframeDelay)
-        //    m_bframeDelayTime = inFrame->m_pts - m_firstPts;
-
         /* Encoder holds a reference count until stats collection is finished */
         ATOMIC_INC(&inFrame->m_countRefEncoders);
 
@@ -535,22 +539,19 @@ int Encoder::encode(const x265_picture* pic_in, x265_picture* pic_out)
             outFrame = curEncoder->getEncodedPicture();
         if (outFrame)
         {
-
             if (pic_out)
             {
                 PicYuv *recpic = outFrame->m_fencPic;
                 pic_out->poc = outFrame->m_poc;
                 pic_out->bitDepth = X265_DEPTH;
                 pic_out->colorSpace = m_param->internalCsp;
-                //pic_out->reorderedPts = outFrame->m_reorderedPts;
-                //pic_out->sliceType = outFrame->m_lowres.sliceType;
-                pic_out->planes[0] = recpic->m_picFil[0];
+                pic_out->planes[0] = recpic->m_picOrg[0];
                 pic_out->stride[0] = (int)(recpic->m_stride * sizeof(pixel));
                 if (m_param->internalCsp != X265_CSP_I400)
                 {
-                    pic_out->planes[1] = recpic->m_picFil[1];
+                    pic_out->planes[1] = recpic->m_picOrg[1];
                     pic_out->stride[1] = (int)(recpic->m_strideC * sizeof(pixel));
-                    pic_out->planes[2] = recpic->m_picFil[2];
+                    pic_out->planes[2] = recpic->m_picOrg[2];
                     pic_out->stride[2] = (int)(recpic->m_strideC * sizeof(pixel));
                 }
             }
@@ -658,121 +659,6 @@ int Encoder::encode(const x265_picture* pic_in, x265_picture* pic_out)
 
     return ret;
 }
-
-
-//void Encoder::copyCtuInfo(x265_ctu_info_t** frameCtuInfo, int poc)
-//{
-//    uint32_t widthInCU = (m_param->sourceWidth + m_param->maxCUSize - 1) >> m_param->maxLog2CUSize;
-//    uint32_t heightInCU = (m_param->sourceHeight + m_param->maxCUSize - 1) >> m_param->maxLog2CUSize;
-//    Frame* curFrame;
-//    Frame* prevFrame = NULL;
-//    int32_t* frameCTU;
-//    uint32_t numCUsInFrame = widthInCU * heightInCU;
-//    uint32_t maxNum8x8Partitions = 64;
-//    bool copied = false;
-//    do
-//    {
-//        curFrame = m_lookahead->m_inputQueue.getPOC(poc);
-//        if (!curFrame)
-//            curFrame = m_lookahead->m_outputQueue.getPOC(poc);
-//
-//        if (poc > 0)
-//        {
-//            prevFrame = m_lookahead->m_inputQueue.getPOC(poc - 1);
-//            if (!prevFrame)
-//                prevFrame = m_lookahead->m_outputQueue.getPOC(poc - 1);
-//            if (!prevFrame)
-//            {
-//                FrameEncoder* prevEncoder;
-//                for (int i = 0; i < m_param->frameNumThreads; i++)
-//                {
-//                    prevEncoder = m_frameEncoder[i];
-//                    prevFrame = prevEncoder->m_frame;
-//                    if (prevFrame && (prevEncoder->m_frame->m_poc == poc - 1))
-//                    {
-//                        prevFrame = prevEncoder->m_frame;
-//                        break;
-//                    }
-//                }
-//            }
-//        }
-//        x265_ctu_info_t* ctuTemp, *prevCtuTemp;
-//        if (curFrame)
-//        {
-//            if (!curFrame->m_ctuInfo)
-//                CHECKED_MALLOC(curFrame->m_ctuInfo, x265_ctu_info_t*, 1);
-//            CHECKED_MALLOC(*curFrame->m_ctuInfo, x265_ctu_info_t, numCUsInFrame);
-//            CHECKED_MALLOC_ZERO(curFrame->m_prevCtuInfoChange, int, numCUsInFrame * maxNum8x8Partitions);
-//            for (uint32_t i = 0; i < numCUsInFrame; i++)
-//            {
-//                ctuTemp = *curFrame->m_ctuInfo + i;
-//                CHECKED_MALLOC(frameCTU, int32_t, maxNum8x8Partitions);
-//                ctuTemp->ctuInfo = (int32_t*)frameCTU;
-//                ctuTemp->ctuAddress = frameCtuInfo[i]->ctuAddress;
-//                memcpy(ctuTemp->ctuPartitions, frameCtuInfo[i]->ctuPartitions, sizeof(int32_t) * maxNum8x8Partitions);
-//                memcpy(ctuTemp->ctuInfo, frameCtuInfo[i]->ctuInfo, sizeof(int32_t) * maxNum8x8Partitions);
-//                if (prevFrame && curFrame->m_poc > 1)
-//                {
-//                    prevCtuTemp = *prevFrame->m_ctuInfo + i;
-//                    for (uint32_t j = 0; j < maxNum8x8Partitions; j++)
-//                        curFrame->m_prevCtuInfoChange[i * maxNum8x8Partitions + j] = (*((int32_t *)prevCtuTemp->ctuInfo + j) == 2) ? (poc - 1) : prevFrame->m_prevCtuInfoChange[i * maxNum8x8Partitions + j];
-//                }
-//            }
-//            copied = true;
-//            curFrame->m_copied.trigger();
-//        }
-//        else
-//        {
-//            FrameEncoder* curEncoder;
-//            for (int i = 0; i < m_param->frameNumThreads; i++)
-//            {
-//                curEncoder = m_frameEncoder[i];
-//                curFrame = curEncoder->m_frame;
-//                if (curFrame)
-//                {
-//                    if (poc == curFrame->m_poc)
-//                    {
-//                        if (!curFrame->m_ctuInfo)
-//                            CHECKED_MALLOC(curFrame->m_ctuInfo, x265_ctu_info_t*, 1);
-//                        CHECKED_MALLOC(*curFrame->m_ctuInfo, x265_ctu_info_t, numCUsInFrame);
-//                        CHECKED_MALLOC_ZERO(curFrame->m_prevCtuInfoChange, int, numCUsInFrame * maxNum8x8Partitions);
-//                        for (uint32_t l = 0; l < numCUsInFrame; l++)
-//                        {
-//                            ctuTemp = *curFrame->m_ctuInfo + l;
-//                            CHECKED_MALLOC(frameCTU, int32_t, maxNum8x8Partitions);
-//                            ctuTemp->ctuInfo = (int32_t*)frameCTU;
-//                            ctuTemp->ctuAddress = frameCtuInfo[l]->ctuAddress;
-//                            memcpy(ctuTemp->ctuPartitions, frameCtuInfo[l]->ctuPartitions, sizeof(int32_t) * maxNum8x8Partitions);
-//                            memcpy(ctuTemp->ctuInfo, frameCtuInfo[l]->ctuInfo, sizeof(int32_t) * maxNum8x8Partitions);
-//                            if (prevFrame && curFrame->m_poc > 1)
-//                            {
-//                                prevCtuTemp = *prevFrame->m_ctuInfo + l;
-//                                for (uint32_t j = 0; j < maxNum8x8Partitions; j++)
-//                                    curFrame->m_prevCtuInfoChange[l * maxNum8x8Partitions + j] = (*((int32_t *)prevCtuTemp->ctuInfo + j) == CTU_INFO_CHANGE) ? (poc - 1) : prevFrame->m_prevCtuInfoChange[l * maxNum8x8Partitions + j];
-//                            }
-//                        }
-//                        copied = true;
-//                        curFrame->m_copied.trigger();
-//                        break;
-//                    }
-//                }
-//            }
-//        }
-//    } while (!copied);
-//    return;
-//fail:
-//    for (uint32_t i = 0; i < numCUsInFrame; i++)
-//    {
-//        X265_FREE((*curFrame->m_ctuInfo + i)->ctuInfo);
-//        (*curFrame->m_ctuInfo + i)->ctuInfo = NULL;
-//    }
-//    X265_FREE(*curFrame->m_ctuInfo);
-//    *(curFrame->m_ctuInfo) = NULL;
-//    X265_FREE(curFrame->m_ctuInfo);
-//    curFrame->m_ctuInfo = NULL;
-//    X265_FREE(curFrame->m_prevCtuInfoChange);
-//    curFrame->m_prevCtuInfoChange = NULL;
-//}
 
 #if defined(_MSC_VER)
 #pragma warning(disable: 4800) // forcing int to bool

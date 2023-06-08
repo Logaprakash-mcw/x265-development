@@ -338,7 +338,7 @@ public:
         if (pthread_mutex_init(&m_mutex, NULL) ||
             pthread_cond_init(&m_cond, NULL))
         {
-            x265_log(NULL, X265_LOG_ERROR, "fatal: unable to initialize conditional variable\n");
+            x265_log(X265_LOG_ERROR, "fatal: unable to initialize conditional variable\n");
         }
     }
 
@@ -426,7 +426,7 @@ public:
         if (pthread_mutex_init(&m_mutex, NULL) ||
             pthread_cond_init(&m_cond, NULL))
         {
-            x265_log(NULL, X265_LOG_ERROR, "fatal: unable to initialize conditional variable\n");
+            x265_log(X265_LOG_ERROR, "fatal: unable to initialize conditional variable\n");
         }
     }
 

@@ -111,7 +111,7 @@
 #if CHECKED_BUILD || _DEBUG
 namespace X265_NS { extern int g_checkFailures; }
 #define X265_CHECK(expr, ...) if (!(expr)) { \
-    x265_log(NULL, X265_LOG_ERROR, __VA_ARGS__); \
+    x265_log(X265_LOG_ERROR, __VA_ARGS__); \
     FILE *fp = fopen("x265_check_failures.txt", "a"); \
     if (fp) { fprintf(fp, "%s:%d\n", __FILE__, __LINE__); fprintf(fp, __VA_ARGS__); fclose(fp); } \
     g_checkFailures++; DEBUG_BREAK(); \
@@ -225,7 +225,7 @@ typedef int16_t  coeff_t;      // transform coefficient
         var = (type*)x265_malloc(sizeof(type) * (count)); \
         if (!var) \
         { \
-            x265_log(NULL, X265_LOG_ERROR, "malloc of size %d failed\n", sizeof(type) * (count)); \
+            x265_log( X265_LOG_ERROR, "malloc of size %d failed\n", sizeof(type) * (count)); \
             goto fail; \
         } \
     }
@@ -236,7 +236,7 @@ typedef int16_t  coeff_t;      // transform coefficient
             memset((void*)var, 0, sizeof(type) * (count)); \
         else \
         { \
-            x265_log(NULL, X265_LOG_ERROR, "malloc of size %d failed\n", sizeof(type) * (count)); \
+            x265_log(X265_LOG_ERROR, "malloc of size %d failed\n", sizeof(type) * (count)); \
             goto fail; \
         } \
     }
@@ -346,53 +346,8 @@ typedef int16_t  coeff_t;      // transform coefficient
 
 namespace X265_NS {
 
-enum { SAO_NUM_OFFSET = 4 };
 
-enum SaoMergeMode
-{
-    SAO_MERGE_NONE,
-    SAO_MERGE_LEFT,
-    SAO_MERGE_UP
-};
 
-struct SaoCtuParam
-{
-    SaoMergeMode mergeMode;
-    int  typeIdx;
-    uint32_t bandPos;    // BO band position
-    int  offset[SAO_NUM_OFFSET];
-
-    void reset()
-    {
-        mergeMode = SAO_MERGE_NONE;
-        typeIdx = -1;
-        bandPos = 0;
-        offset[0] = 0;
-        offset[1] = 0;
-        offset[2] = 0;
-        offset[3] = 0;
-    }
-};
-
-struct SAOParam
-{
-    SaoCtuParam* ctuParam[3];
-    bool         bSaoFlag[2];
-    int          numCuInWidth;
-
-    SAOParam()
-    {
-        for (int i = 0; i < 3; i++)
-            ctuParam[i] = NULL;
-    }
-
-    ~SAOParam()
-    {
-        delete[] ctuParam[0];
-        delete[] ctuParam[1];
-        delete[] ctuParam[2];
-    }
-};
 enum TextType
 {
     TEXT_LUMA     = 0,  // luma
@@ -401,38 +356,22 @@ enum TextType
     MAX_NUM_COMPONENT = 3
 };
 
-// coefficient scanning type used in ACS
-enum ScanType
-{
-    SCAN_DIAG = 0,     // up-right diagonal scan
-    SCAN_HOR = 1,      // horizontal first scan
-    SCAN_VER = 2,      // vertical first scan
-    NUM_SCAN_TYPE = 3
-};
-
-enum SignificanceMapContextType
-{
-    CONTEXT_TYPE_4x4 = 0,
-    CONTEXT_TYPE_8x8 = 1,
-    CONTEXT_TYPE_NxN = 2,
-    CONTEXT_NUMBER_OF_TYPES = 3
-};
 
 /* located in pixel.cpp */
 void extendPicBorder(pixel* recon, intptr_t stride, int width, int height, int marginX, int marginY);
 
 /* located in common.cpp */
 int64_t  x265_mdate(void);
-#define  x265_log(param, ...) general_log(param, "x265", __VA_ARGS__)
-#define  x265_log_file(param, ...) general_log_file(param, "x265", __VA_ARGS__)
-void     general_log(const x265_param* param, const char* caller, int level, const char* fmt, ...);
+#define  x265_log( ...) general_log( "x265", __VA_ARGS__)
+#define  x265_log_file( ...) general_log_file("x265", __VA_ARGS__)
+void     general_log(const char* caller, int level, const char* fmt, ...);
 #if _WIN32
-void     general_log_file(const x265_param* param, const char* caller, int level, const char* fmt, ...);
+void     general_log_file(const char* caller, int level, const char* fmt, ...);
 FILE*    x265_fopen(const char* fileName, const char* mode);
 int      x265_unlink(const char* fileName);
 int      x265_rename(const char* oldName, const char* newName);
 #else
-#define  general_log_file(param, caller, level, fmt, ...) general_log(param, caller, level, fmt, __VA_ARGS__)
+#define  general_log_file(caller, level, fmt, ...) general_log( caller, level, fmt, __VA_ARGS__)
 #define  x265_fopen(fileName, mode) fopen(fileName, mode)
 #define  x265_unlink(fileName) unlink(fileName)
 #define  x265_rename(oldName, newName) rename(oldName, newName)
@@ -442,25 +381,21 @@ int      x265_rename(const char* oldName, const char* newName);
 #define x265_fread(val, size, readSize, fileOffset,errorMessage)\
     if (fread(val, size, readSize, fileOffset) != readSize)\
     {\
-        x265_log(NULL, X265_LOG_ERROR, errorMessage); \
+        x265_log( X265_LOG_ERROR, errorMessage); \
         return; \
     }
-int      x265_exp2fix8(double x);
+//int      x265_exp2fix8(double x);
 
-double   x265_ssim2dB(double ssim);
-double   x265_qScale2qp(double qScale);
-double   x265_qp2qScale(double qp);
 uint32_t x265_picturePlaneSize(int csp, int width, int height, int plane);
 
 void*    x265_malloc(size_t size);
 void     x265_free(void *ptr);
-char*    x265_slurp_file(const char *filename);
 
 /* located in primitives.cpp */
 void     x265_setup_primitives(x265_param* param);
-void     x265_report_simd(x265_param* param);
-}
+//void     x265_report_simd(x265_param* param);
 
+}
 #include "constants.h"
 
 #endif // ifndef X265_COMMON_H

@@ -69,6 +69,14 @@ bool Frame::create(x265_param *param)
     m_fencPic = new PicYuv;
     m_param = param;
 
+    wp_sum[0] = 0;
+    wp_sum[1] = 0;
+    wp_sum[2] = 0;
+
+    wp_ssd[0] = 0;
+    wp_ssd[1] = 0;
+    wp_ssd[2] = 0;
+
     m_mcstf = new TemporalFilter;
     m_mcstf->init(param);
 
@@ -119,7 +127,7 @@ bool Frame::allocEncodeData(x265_param *param, const SPS& sps)
     m_reconPic = new PicYuv;
     m_param = param;
     m_encData->m_reconPic = m_reconPic;
-    bool ok = m_encData->create(*param, sps, m_fencPic->m_picCsp) && m_reconPic->create(param);
+    bool ok = m_encData->create(*param, m_fencPic->m_picCsp) && m_reconPic->create(param);
     if (ok)
     {
         /* initialize right border of m_reconpicYuv as SAO may read beyond the
@@ -142,14 +150,6 @@ bool Frame::allocEncodeData(x265_param *param, const SPS& sps)
         }
     }
     return ok;
-}
-
-/* prepare to re-use a FrameData instance to encode a new picture */
-void Frame::reinit(const SPS& sps)
-{
-    m_bChromaExtended = false;
-    m_reconPic = m_encData->m_reconPic;
-    //m_encData->reinit(sps);
 }
 
 void Frame::destroy()

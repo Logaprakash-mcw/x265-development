@@ -27,6 +27,10 @@
 
 #include "common.h"
 
+#define  TRANSFORM_FORWARD 0
+#define  TRANSFORM_INVERSE 1
+#define  TRANSFORM_NUMBER_OF_DIRECTIONS 2
+
 namespace X265_NS {
 // private namespace
 
@@ -56,6 +60,24 @@ extern const int16_t g_t8[8][8];
 extern const int16_t g_t16[16][16];
 extern const int16_t g_t32[32][32];
 
+extern const int16_t g_trCoreDCT2P2  [TRANSFORM_NUMBER_OF_DIRECTIONS][  2][  2];
+extern const int16_t g_trCoreDCT2P4  [TRANSFORM_NUMBER_OF_DIRECTIONS][  4][  4];
+extern const int16_t g_trCoreDCT2P8  [TRANSFORM_NUMBER_OF_DIRECTIONS][  8][  8];
+extern const int16_t g_trCoreDCT2P16 [TRANSFORM_NUMBER_OF_DIRECTIONS][ 16][ 16];
+extern const int16_t g_trCoreDCT2P32 [TRANSFORM_NUMBER_OF_DIRECTIONS][ 32][ 32];
+extern const int16_t g_trCoreDCT2P64 [TRANSFORM_NUMBER_OF_DIRECTIONS][ 64][ 64];
+
+extern const int16_t g_trCoreDCT8P4  [TRANSFORM_NUMBER_OF_DIRECTIONS][  4][  4];
+extern const int16_t g_trCoreDCT8P8  [TRANSFORM_NUMBER_OF_DIRECTIONS][  8][  8];
+extern const int16_t g_trCoreDCT8P16 [TRANSFORM_NUMBER_OF_DIRECTIONS][ 16][ 16];
+extern const int16_t g_trCoreDCT8P32 [TRANSFORM_NUMBER_OF_DIRECTIONS][ 32][ 32];
+
+extern const int16_t g_trCoreDST7P4  [TRANSFORM_NUMBER_OF_DIRECTIONS][  4][  4];
+extern const int16_t g_trCoreDST7P8  [TRANSFORM_NUMBER_OF_DIRECTIONS][  8][  8];
+extern const int16_t g_trCoreDST7P16 [TRANSFORM_NUMBER_OF_DIRECTIONS][ 16][ 16];
+extern const int16_t g_trCoreDST7P32 [TRANSFORM_NUMBER_OF_DIRECTIONS][ 32][ 32];
+
+
 // Subpel interpolation defines and constants
 
 #define NTAPS_LUMA        8                            // Number of taps for luma
@@ -64,6 +86,9 @@ extern const int16_t g_t32[32][32];
 #define IF_FILTER_PREC    6                            // Log2 of sum of filter taps
 #define IF_INTERNAL_OFFS (1 << (IF_INTERNAL_PREC - 1)) // Offset used internally
 #define SLFASE_CONSTANT  0x5f4e4a53
+
+
+
 
 
 }

@@ -287,7 +287,7 @@ ThreadPool* ThreadPool::allocThreadPools(x265_param* p, int& numPools, bool isTh
             if (!ret)
                 cpusPerNode[i] = numa_bitmask_weight(bitMask);
             else
-                x265_log(p, X265_LOG_ERROR, "Failed to genrate CPU mask\n");
+                x265_log(X265_LOG_ERROR, "Failed to genrate CPU mask\n");
         }
         numa_free_cpumask(bitMask);
     }
@@ -297,7 +297,7 @@ ThreadPool* ThreadPool::allocThreadPools(x265_param* p, int& numPools, bool isTh
 
     if (bNumaSupport)
     for (int i = 0; i < numNumaNodes; i++)
-        x265_log(p, X265_LOG_DEBUG, "detected NUMA node %d with %d logical cores\n", i, cpusPerNode[i]);
+        x265_log(X265_LOG_DEBUG, "detected NUMA node %d with %d logical cores\n", i, cpusPerNode[i]);
     /* limit threads based on param->numaPools
      * For windows because threads can't be allocated to live across sockets
      * changing the default behavior to be per-socket pools -- FIXME */
@@ -379,7 +379,7 @@ ThreadPool* ThreadPool::allocThreadPools(x265_param* p, int& numPools, bool isTh
         ((threadsPerPool[numNumaNodes] % MAX_POOL_THREADS) < (MAX_POOL_THREADS / 2)))
     {
         threadsPerPool[numNumaNodes] -= (threadsPerPool[numNumaNodes] % MAX_POOL_THREADS);
-        x265_log(p, X265_LOG_DEBUG,
+        x265_log(X265_LOG_DEBUG,
                  "Creating only %d worker threads beyond specified numbers with --pools (if specified) to prevent asymmetry in pools; may not use all HW contexts\n", threadsPerPool[numNumaNodes]);
     }
 
@@ -387,7 +387,7 @@ ThreadPool* ThreadPool::allocThreadPools(x265_param* p, int& numPools, bool isTh
     for (int i = 0; i < numNumaNodes + 1; i++)
     {
         if (bNumaSupport)
-            x265_log(p, X265_LOG_DEBUG, "NUMA node %d may use %d logical cores\n", i, cpusPerNode[i]);
+            x265_log(X265_LOG_DEBUG, "NUMA node %d may use %d logical cores\n", i, cpusPerNode[i]);
         if (threadsPerPool[i])
         {
             numPools += (threadsPerPool[i] + MAX_POOL_THREADS - 1) / MAX_POOL_THREADS;
@@ -398,12 +398,9 @@ ThreadPool* ThreadPool::allocThreadPools(x265_param* p, int& numPools, bool isTh
     {
         if (!numPools)
         {
-            x265_log(p, X265_LOG_DEBUG, "No pool thread available. Deciding frame-threads based on detected CPU threads\n");
+            x265_log(X265_LOG_DEBUG, "No pool thread available. Deciding frame-threads based on detected CPU threads\n");
             totalNumThreads = ThreadPool::getCpuCount(); // auto-detect frame threads
         }
-
-        if (!p->frameNumThreads)
-            ThreadPool::getFrameThreadsCount(p, totalNumThreads);
     }
     
     if (!numPools)
@@ -411,7 +408,7 @@ ThreadPool* ThreadPool::allocThreadPools(x265_param* p, int& numPools, bool isTh
 
     if (numPools > p->frameNumThreads)
     {
-        x265_log(p, X265_LOG_DEBUG, "Reducing number of thread pools for frame thread count\n");
+        x265_log(X265_LOG_DEBUG, "Reducing number of thread pools for frame thread count\n");
         numPools = X265_MAX(p->frameNumThreads / 2, 1);
     }
     if (isThreadsReserved)
@@ -448,11 +445,11 @@ ThreadPool* ThreadPool::allocThreadPools(x265_param* p, int& numPools, bool isTh
                 for (int j = 0; j < 64; j++)
                     if ((nodeMaskPerPool[node] >> j) & 1)
                         len += sprintf(nodesstr + len, ",%d", j);
-                x265_log(p, X265_LOG_INFO, "Thread pool %d using %d threads on numa nodes %s\n", i, numThreads, nodesstr + 1);
+                x265_log(X265_LOG_INFO, "Thread pool %d using %d threads on numa nodes %s\n", i, numThreads, nodesstr + 1);
                 delete[] nodesstr;
             }
             else
-                x265_log(p, X265_LOG_INFO, "Thread pool created using %d threads\n", numThreads);
+                x265_log(X265_LOG_INFO, "Thread pool created using %d threads\n", numThreads);
             threadsPerPool[node] -= origNumThreads;
         }
     }
@@ -490,7 +487,7 @@ bool ThreadPool::create(int numThreads, int maxProviders, uint64_t nodeMask)
             m_numaMask = nodemask;
         }
         else
-            x265_log(NULL, X265_LOG_ERROR, "unable to get NUMA node mask for %lx\n", nodeMask);
+            x265_log(X265_LOG_ERROR, "unable to get NUMA node mask for %lx\n", nodeMask);
     }
 #else
     (void)nodeMask;
@@ -573,7 +570,7 @@ void ThreadPool::setThreadNodeAffinity(void *numaMask)
     if (SetThreadGroupAffinity(GetCurrentThread(), affinityPointer, NULL))
         return;
     else
-        x265_log(NULL, X265_LOG_ERROR, "unable to set thread affinity for NUMA node mask\n");
+        x265_log(X265_LOG_ERROR, "unable to set thread affinity for NUMA node mask\n");
 #elif HAVE_LIBNUMA
     if (numa_available() >= 0)
     {
@@ -582,7 +579,7 @@ void ThreadPool::setThreadNodeAffinity(void *numaMask)
         numa_set_localalloc();
         return;
     }
-    x265_log(NULL, X265_LOG_ERROR, "unable to set thread affinity for NUMA node mask\n");
+    x265_log(X265_LOG_ERROR, "unable to set thread affinity for NUMA node mask\n");
 #else
     (void)numaMask;
 #endif
@@ -654,21 +651,21 @@ int ThreadPool::getCpuCount()
 #endif
 }
 
-void ThreadPool::getFrameThreadsCount(x265_param* p, int cpuCount)
-{
-    int rows = (p->sourceHeight + p->maxCUSize - 1) >> g_log2Size[p->maxCUSize];
-    if (!p->bEnableWavefront)
-        p->frameNumThreads = X265_MIN3(cpuCount, (rows + 1) / 2, X265_MAX_FRAME_THREADS);
-    else if (cpuCount >= 32)
-        p->frameNumThreads = (p->sourceHeight > 2000) ? 6 : 5; 
-    else if (cpuCount >= 16)
-        p->frameNumThreads = 4; 
-    else if (cpuCount >= 8)
-        p->frameNumThreads = 3;
-    else if (cpuCount >= 4)
-        p->frameNumThreads = 2;
-    else
-        p->frameNumThreads = 1;
-}
+//void ThreadPool::getFrameThreadsCount(x265_param* p, int cpuCount)
+//{
+//    int rows = (p->sourceHeight + p->maxCUSize - 1) >> g_log2Size[p->maxCUSize];
+//    if (!p->bEnableWavefront)
+//        p->frameNumThreads = X265_MIN3(cpuCount, (rows + 1) / 2, X265_MAX_FRAME_THREADS);
+//    else if (cpuCount >= 32)
+//        p->frameNumThreads = (p->sourceHeight > 2000) ? 6 : 5; 
+//    else if (cpuCount >= 16)
+//        p->frameNumThreads = 4; 
+//    else if (cpuCount >= 8)
+//        p->frameNumThreads = 3;
+//    else if (cpuCount >= 4)
+//        p->frameNumThreads = 2;
+//    else
+//        p->frameNumThreads = 1;
+//}
 
 } // end namespace X265_NS

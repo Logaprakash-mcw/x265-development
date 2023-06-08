@@ -135,12 +135,15 @@ public:
     int8_t                 m_gopId;
     bool                   m_sameLayerRefPic;
 
+    uint64_t               wp_sum[3];
+    uint64_t               wp_ssd[3];
+
     Frame();
 
     bool create(x265_param *param);
     bool createSubSample();
     bool allocEncodeData(x265_param *param, const SPS& sps);
-    void reinit(const SPS& sps);
+    //void reinit(const SPS& sps);
     void destroy();
 };
 }

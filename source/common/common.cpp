@@ -93,19 +93,19 @@ void x265_free(void *ptr)
 
 /* Not a general-purpose function; multiplies input by -1/6 to convert
  * qp to qscale. */
-int x265_exp2fix8(double x)
-{
-    int i = (int)(x * (-64.f / 6.f) + 512.5f);
+//int x265_exp2fix8(double x)
+//{
+//    int i = (int)(x * (-64.f / 6.f) + 512.5f);
+//
+//    if (i < 0) return 0;
+//    if (i > 1023) return 0xffff;
+//    return 0;(x265_exp2_lut[i & 63] + 256) << (i >> 6) >> 8;
+//}
 
-    if (i < 0) return 0;
-    if (i > 1023) return 0xffff;
-    return (x265_exp2_lut[i & 63] + 256) << (i >> 6) >> 8;
-}
-
-void general_log(const x265_param* param, const char* caller, int level, const char* fmt, ...)
+void general_log(const char* caller, int level, const char* fmt, ...)
 {
-    if (param && level > param->logLevel)
-        return;
+    //if (param && level > param->logLevel)
+    //    return;
     const int bufferSize = 4096;
     char buffer[bufferSize];
     int p = 0;
@@ -144,10 +144,8 @@ void general_log(const x265_param* param, const char* caller, int level, const c
 #if _WIN32
 /* For Unicode filenames in Windows we convert UTF-8 strings to UTF-16 and we use _w functions.
  * For other OS we do not make any changes. */
-void general_log_file(const x265_param* param, const char* caller, int level, const char* fmt, ...)
+void general_log_file(const char* caller, int level, const char* fmt, ...)
 {
-    if (param && level > param->logLevel)
-        return;
     const int bufferSize = 4096;
     char buffer[bufferSize];
     int p = 0;
@@ -270,7 +268,7 @@ char* x265_slurp_file(const char *filename)
     FILE *fh = x265_fopen(filename, "rb");
     if (!fh)
     {
-        x265_log_file(NULL, X265_LOG_ERROR, "unable to open file %s\n", filename);
+        x265_log_file(X265_LOG_ERROR, "unable to open file %s\n", filename);
         return NULL;
     }
 
@@ -283,7 +281,7 @@ char* x265_slurp_file(const char *filename)
     buf = X265_MALLOC(char, fSize + 2);
     if (!buf)
     {
-        x265_log(NULL, X265_LOG_ERROR, "unable to allocate memory\n");
+        x265_log(X265_LOG_ERROR, "unable to allocate memory\n");
         goto error;
     }
 
@@ -295,7 +293,7 @@ char* x265_slurp_file(const char *filename)
 
     if (bError)
     {
-        x265_log(NULL, X265_LOG_ERROR, "unable to read the file\n");
+        x265_log(X265_LOG_ERROR, "unable to read the file\n");
         X265_FREE(buf);
         buf = NULL;
     }

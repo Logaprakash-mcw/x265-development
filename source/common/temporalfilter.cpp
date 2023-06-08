@@ -144,7 +144,7 @@ TemporalFilter::TemporalFilter()
     m_numRef = 0;
     m_useSADinME = 1;
 
-    m_range = 2;
+    m_range = 4;
     m_chromaFactor = 0.55;
     m_sigmaMultiplier = 9.0;
     m_sigmaZeroPoint = 10.0;
@@ -158,7 +158,9 @@ void TemporalFilter::init(const x265_param* param)
     m_sourceWidth = param->sourceWidth;
     m_sourceHeight = param->sourceHeight;
     m_internalCsp = param->internalCsp;
-    m_numComponents = (m_internalCsp != X265_CSP_I400) ? MAX_NUM_COMPONENT : 1;
+
+    //HM decoder supports only addition of Film Grains in the Luma
+    m_numComponents = 1; //(m_internalCsp != X265_CSP_I400) ? MAX_NUM_COMPONENT : 1;
 
     m_metld = new MotionEstimatorTLD;
 
@@ -520,11 +522,17 @@ void TemporalFilter::bilateralFilter(Frame* frame,
 
     PicYuv* orgPic = frame->m_fencPic;
 
+    //if (m_numComponents == 1)
+    //{
+    //    orgPic->m_picFil[1] = orgPic->m_picOrg[1];
+    //    orgPic->m_picFil[2] = orgPic->m_picOrg[2];
+    //}
+    //memcpy(orgPic->m_picFilBuf[1], orgPic->m_picBuf[1], orgPic->m_strideC * (orgPic->m_picHeightC + (2 * orgPic->m_chromaMarginY)) * sizeof(pixel));
+    //memcpy(orgPic->m_picFilBuf[2], orgPic->m_picBuf[2], orgPic->m_strideC * (orgPic->m_picHeightC + (2 * orgPic->m_chromaMarginY)) * sizeof(pixel));
     for (int c = 0; c < m_numComponents; c++)
     {
         int height, width;
         pixel *srcPelRow = NULL;
-        pixel *dstPelRow = NULL;
         intptr_t srcStride, correctedPicsStride = 0;
 
         if (!c)
@@ -532,7 +540,6 @@ void TemporalFilter::bilateralFilter(Frame* frame,
             height = orgPic->m_picHeight;
             width = orgPic->m_picWidth;
             srcPelRow = orgPic->m_picOrg[c];
-            dstPelRow = orgPic->m_picFil[c];
             srcStride = orgPic->m_stride;
         }
         else
@@ -543,7 +550,6 @@ void TemporalFilter::bilateralFilter(Frame* frame,
             height = orgPic->m_picHeight >> csy;
             width = orgPic->m_picWidth >> csx;
             srcPelRow = orgPic->m_picOrg[c];
-            dstPelRow = orgPic->m_picFil[c];
             srcStride = (int)orgPic->m_strideC;
         }
 
@@ -555,12 +561,11 @@ void TemporalFilter::bilateralFilter(Frame* frame,
 
         const int blkSize = (!c) ? 8 : 4;
 
-        for (int y = 0; y < height; y++, srcPelRow += srcStride, dstPelRow += srcStride)
+        for (int y = 0; y < height; y++, srcPelRow += srcStride)
         {
             pixel *srcPel = srcPelRow;
-            pixel *dstPel = dstPelRow;
 
-            for (int x = 0; x < width; x++, srcPel++, dstPel++)
+            for (int x = 0; x < width; x++, srcPel++)
             {
                 const int orgVal = (int)*srcPel;
                 double temporalWeightSum = 1.0;
@@ -639,7 +644,7 @@ void TemporalFilter::bilateralFilter(Frame* frame,
                 newVal /= temporalWeightSum;
                 double sampleVal = round(newVal);
                 sampleVal = (sampleVal < 0 ? 0 : (sampleVal > maxSampleValue ? maxSampleValue : sampleVal));
-                *dstPel = (pixel)sampleVal;
+                *srcPel = (pixel)sampleVal;
             }
         }
     }

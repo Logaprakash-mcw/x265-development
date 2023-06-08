@@ -51,11 +51,11 @@ bool WaveFront::init(int numRows)
 
 WaveFront::~WaveFront()
 {
-    x265_free((void*)m_row_to_idx);
-    x265_free((void*)m_idx_to_row);
+    //x265_free((void*)m_row_to_idx);
+    //x265_free((void*)m_idx_to_row);
 
-    x265_free((void*)m_internalDependencyBitmap);
-    x265_free((void*)m_externalDependencyBitmap);
+    //x265_free((void*)m_internalDependencyBitmap);
+    //x265_free((void*)m_externalDependencyBitmap);
 }
 
 void WaveFront::clearEnabledRowMask()
@@ -103,7 +103,8 @@ void WaveFront::findJob(int threadId)
             if (ATOMIC_AND(&m_internalDependencyBitmap[w], ~bit) & bit)
             {
                 /* we cleared the bit, we get to process the row */
-                processRow(w * 32 + id, threadId);
+                //processRow(w * 32 + id, threadId);
+                threadId = threadId;
                 m_helpWanted = true;
                 return; /* check for a higher priority task */
             }

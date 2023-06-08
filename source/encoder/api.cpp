@@ -62,12 +62,6 @@ extern "C" {
 namespace X265_NS {
 #endif
 
-static const char* summaryCSVHeader =
-    "Command, Date/Time, Elapsed Time, FPS, Bitrate, "
-    "Y PSNR, U PSNR, V PSNR, Global PSNR, SSIM, SSIM (dB), "
-    "I count, I ave-QP, I kbps, I-PSNR Y, I-PSNR U, I-PSNR V, I-SSIM (dB), "
-    "P count, P ave-QP, P kbps, P-PSNR Y, P-PSNR U, P-PSNR V, P-SSIM (dB), "
-    "B count, B ave-QP, B kbps, B-PSNR Y, B-PSNR U, B-PSNR V, B-SSIM (dB), ";
 x265_encoder *x265_encoder_open(x265_param *p)
 {
     if (!p)
@@ -83,7 +77,7 @@ x265_encoder *x265_encoder_open(x265_param *p)
     if (X265_DEPTH != 8)
 #endif
     {
-        x265_log(p, X265_LOG_ERROR, "Build error, internal bit depth mismatch\n");
+        x265_log(X265_LOG_ERROR, "Build error, internal bit depth mismatch\n");
         return NULL;
     }
 
@@ -102,8 +96,8 @@ x265_encoder *x265_encoder_open(x265_param *p)
     x265_copy_params(param, p);
     x265_copy_params(latestParam, p);
     x265_copy_params(zoneParam, p);
-    x265_log(param, X265_LOG_INFO, "HEVC encoder version %s\n", PFX(version_str));
-    x265_log(param, X265_LOG_INFO, "build info %s\n", PFX(build_info_str));
+    x265_log(X265_LOG_INFO, "HEVC encoder version %s\n", PFX(version_str));
+    x265_log(X265_LOG_INFO, "build info %s\n", PFX(build_info_str));
 
     encoder = new Encoder;
 
@@ -146,173 +140,13 @@ void x265_encoder_parameters(x265_encoder *enc, x265_param *out)
 }
 
 
-int x265_encoder_encode(x265_encoder *enc, x265_nal **pp_nal, uint32_t *pi_nal, x265_picture *pic_in, x265_picture *pic_out)
+int x265_encoder_encode(x265_encoder *enc, x265_picture *pic_in, x265_picture *pic_out)
 {
     if (!enc)
         return -1;
 
     Encoder *encoder = static_cast<Encoder*>(enc);
     int numEncoded;
-
-#ifdef SVT_HEVC
-    EB_ERRORTYPE return_error;
-    if (encoder->m_param->bEnableSvtHevc)
-    {
-        static unsigned char picSendDone = 0;
-        numEncoded = 0;
-        static int codedNal = 0, eofReached = 0;
-        EB_H265_ENC_CONFIGURATION* svtParam = (EB_H265_ENC_CONFIGURATION*)encoder->m_svtAppData->svtHevcParams;
-        if (pic_in)
-        {
-            if (pic_in->colorSpace == X265_CSP_I420) // SVT-HEVC supports only yuv420p color space
-            {
-                EB_BUFFERHEADERTYPE *inputPtr = encoder->m_svtAppData->inputPictureBuffer;
-
-                if (pic_in->framesize) inputPtr->nFilledLen = (uint32_t)pic_in->framesize;
-                inputPtr->nFlags = 0;
-                inputPtr->pts = pic_in->pts;
-                inputPtr->dts = pic_in->dts;
-                inputPtr->sliceType = EB_INVALID_PICTURE;
-
-                EB_H265_ENC_INPUT *inputData = (EB_H265_ENC_INPUT*) inputPtr->pBuffer;
-                inputData->luma = (unsigned char*) pic_in->planes[0];
-                inputData->cb = (unsigned char*) pic_in->planes[1];
-                inputData->cr = (unsigned char*) pic_in->planes[2];
-
-                inputData->yStride = encoder->m_param->sourceWidth;
-                inputData->cbStride = encoder->m_param->sourceWidth >> 1;
-                inputData->crStride = encoder->m_param->sourceWidth >> 1;
-
-                inputData->lumaExt = NULL;
-                inputData->cbExt = NULL;
-                inputData->crExt = NULL;
-
-                if (pic_in->rpu.payloadSize)
-                {
-                    inputData->dolbyVisionRpu.payload = X265_MALLOC(uint8_t, 1024);
-                    memcpy(inputData->dolbyVisionRpu.payload, pic_in->rpu.payload, pic_in->rpu.payloadSize);
-                    inputData->dolbyVisionRpu.payloadSize = pic_in->rpu.payloadSize;
-                    inputData->dolbyVisionRpu.payloadType = NAL_UNIT_UNSPECIFIED;
-                }
-                else
-                {
-                    inputData->dolbyVisionRpu.payload = NULL;
-                    inputData->dolbyVisionRpu.payloadSize = 0;
-                }
-
-                // Send the picture to the encoder
-                return_error = EbH265EncSendPicture(encoder->m_svtAppData->svtEncoderHandle, inputPtr);
-
-                if (return_error != EB_ErrorNone)
-                {
-                    x265_log(encoder->m_param, X265_LOG_ERROR, "SVT HEVC encoder: Error while encoding \n");
-                    numEncoded = -1;
-                    goto fail;
-                }
-            }
-            else
-            {
-                x265_log(encoder->m_param, X265_LOG_ERROR, "SVT HEVC Encoder accepts only yuv420p input \n");
-                numEncoded = -1;
-                goto fail;
-            }
-        }
-        else if (!picSendDone) //Encoder flush
-        {
-            picSendDone = 1;
-            EB_BUFFERHEADERTYPE inputPtrLast;
-            inputPtrLast.nAllocLen = 0;
-            inputPtrLast.nFilledLen = 0;
-            inputPtrLast.nTickCount = 0;
-            inputPtrLast.pAppPrivate = NULL;
-            inputPtrLast.nFlags = EB_BUFFERFLAG_EOS;
-            inputPtrLast.pBuffer = NULL;
-
-            return_error = EbH265EncSendPicture(encoder->m_svtAppData->svtEncoderHandle, &inputPtrLast);
-            if (return_error != EB_ErrorNone)
-            {
-                x265_log(encoder->m_param, X265_LOG_ERROR, "SVT HEVC encoder: Error while encoding \n");
-                numEncoded = -1;
-                goto fail;
-            }
-        }
-
-        if (eofReached && svtParam->codeEosNal == 0 && !codedNal)
-        {
-            EB_BUFFERHEADERTYPE *outputStreamPtr = 0;
-            return_error = EbH265EncEosNal(encoder->m_svtAppData->svtEncoderHandle, &outputStreamPtr);
-            if (return_error == EB_ErrorMax)
-            {
-                x265_log(encoder->m_param, X265_LOG_ERROR, "SVT HEVC encoder: Error while encoding \n");
-                numEncoded = -1;
-                goto fail;
-            }
-            if (return_error != EB_NoErrorEmptyQueue)
-            {
-                if (outputStreamPtr->pBuffer)
-                {
-                    //Copy data from output packet to NAL
-                    encoder->m_nalList.m_nal[0].payload = outputStreamPtr->pBuffer;
-                    encoder->m_nalList.m_nal[0].sizeBytes = outputStreamPtr->nFilledLen;
-                    encoder->m_svtAppData->byteCount += outputStreamPtr->nFilledLen;
-                    *pp_nal = &encoder->m_nalList.m_nal[0];
-                    *pi_nal = 1;
-                    numEncoded = 0;
-                    codedNal = 1;
-                    return numEncoded;
-                }
-
-                // Release the output buffer
-                EbH265ReleaseOutBuffer(&outputStreamPtr);
-            }
-        }
-        else if (eofReached)
-        {
-            *pi_nal = 0;
-            return numEncoded;
-        }
-
-        //Receive Packet
-        EB_BUFFERHEADERTYPE *outputPtr;
-        return_error = EbH265GetPacket(encoder->m_svtAppData->svtEncoderHandle, &outputPtr, picSendDone);
-        if (return_error == EB_ErrorMax)
-        {
-            x265_log(encoder->m_param, X265_LOG_ERROR, "SVT HEVC encoder: Error while encoding \n");
-            numEncoded = -1;
-            goto fail;
-        }
-
-        if (return_error != EB_NoErrorEmptyQueue)
-        {
-            if (outputPtr->pBuffer)
-            {
-                //Copy data from output packet to NAL
-                encoder->m_nalList.m_nal[0].payload = outputPtr->pBuffer;
-                encoder->m_nalList.m_nal[0].sizeBytes = outputPtr->nFilledLen;
-                encoder->m_svtAppData->byteCount += outputPtr->nFilledLen;
-                encoder->m_svtAppData->outFrameCount++;
-                *pp_nal = &encoder->m_nalList.m_nal[0];
-                *pi_nal = 1;
-                numEncoded = 1;
-            }
-
-            eofReached = outputPtr->nFlags & EB_BUFFERFLAG_EOS;
-
-            // Release the output buffer
-            EbH265ReleaseOutBuffer(&outputPtr);
-        }
-        else if (pi_nal)
-            *pi_nal = 0;
-
-        pic_out = NULL;
-
-fail:
-        if (numEncoded < 0)
-            encoder->m_aborted = true;
-
-        return numEncoded;
-    }
-#endif
 
     // While flushing, we cannot return 0 until the entire stream is flushed
     do
@@ -329,45 +163,6 @@ fail:
     return numEncoded;
 }
 
-#if ENABLE_LIBVMAF
-void x265_vmaf_encoder_log(x265_encoder* enc, int argc, char **argv, x265_param *param, x265_vmaf_data *vmafdata)
-{
-    if (enc)
-    {
-        Encoder *encoder = static_cast<Encoder*>(enc);
-        x265_stats stats;       
-        stats.aggregateVmafScore = x265_calculate_vmafscore(param, vmafdata);
-        if(vmafdata->reference_file)
-            fclose(vmafdata->reference_file);
-        if(vmafdata->distorted_file)
-            fclose(vmafdata->distorted_file);
-        if(vmafdata)
-            x265_free(vmafdata);
-        encoder->fetchStats(&stats, sizeof(stats));
-        int padx = encoder->m_sps.conformanceWindow.rightOffset;
-        int pady = encoder->m_sps.conformanceWindow.bottomOffset;
-        x265_csvlog_encode(encoder->m_param, &stats, padx, pady, argc, argv);
-    }
-}
-#endif
-
-#ifdef SVT_HEVC
-static void svt_print_summary(x265_encoder *enc)
-{
-    Encoder *encoder = static_cast<Encoder*>(enc);
-    double frameRate = 0, bitrate = 0;
-    EB_H265_ENC_CONFIGURATION *svtParam = (EB_H265_ENC_CONFIGURATION*)encoder->m_svtAppData->svtHevcParams;
-    if (svtParam->frameRateNumerator && svtParam->frameRateDenominator && (svtParam->frameRateNumerator != 0 && svtParam->frameRateDenominator != 0))
-    {
-        frameRate = ((double)svtParam->frameRateNumerator) / ((double)svtParam->frameRateDenominator);
-        if(encoder->m_svtAppData->outFrameCount)
-            bitrate = ((double)(encoder->m_svtAppData->byteCount << 3) * frameRate / (encoder->m_svtAppData->outFrameCount * 1000));
-
-        printf("Total Frames\t\tFrame Rate\t\tByte Count\t\tBitrate\n");
-        printf("%12d\t\t%4.2f fps\t\t%10.0f\t\t%5.2f kbps\n", (int32_t)encoder->m_svtAppData->outFrameCount, (double)frameRate, (double)encoder->m_svtAppData->byteCount, bitrate);
-    }
-}
-#endif
 
 void x265_encoder_close(x265_encoder *enc)
 {
@@ -391,24 +186,6 @@ int x265_encoder_intra_refresh(x265_encoder *enc)
     encoder->m_bQueuedIntraRefresh = 1;
     return 0;
 }
-int x265_encoder_ctu_info(x265_encoder *enc, int poc, x265_ctu_info_t** ctu)
-{
-    if (!ctu || !enc)
-        return -1;
-    Encoder* encoder = static_cast<Encoder*>(enc);
-    //encoder->copyCtuInfo(ctu, poc);
-    return 0;
-}
-
-
-//int x265_get_ref_frame_list(x265_encoder *enc, x265_picyuv** l0, x265_picyuv** l1, int sliceType, int poc, int* pocL0, int* pocL1)
-//{
-//    if (!enc)
-//        return -1;
-//
-//    Encoder *encoder = static_cast<Encoder*>(enc);
-//    return encoder->getRefFrameList((PicYuv**)l0, (PicYuv**)l1, sliceType, poc, pocL0, pocL1);
-//}
 
 void x265_cleanup(void)
 {
@@ -433,15 +210,15 @@ void x265_picture_free(x265_picture *p)
     return x265_free(p);
 }
 
-x265_zone *x265_zone_alloc(int zoneCount, int isZoneFile)
-{
-    x265_zone* zone = (x265_zone*)x265_malloc(sizeof(x265_zone) * zoneCount);
-    if (isZoneFile) {
-        for (int i = 0; i < zoneCount; i++)
-            zone[i].zoneParam = (x265_param*)x265_malloc(sizeof(x265_param));
-    }
-    return zone;
-}
+//x265_zone *x265_zone_alloc(int zoneCount, int isZoneFile)
+//{
+//    x265_zone* zone = (x265_zone*)x265_malloc(sizeof(x265_zone) * zoneCount);
+//    if (isZoneFile) {
+//        for (int i = 0; i < zoneCount; i++)
+//            zone[i].zoneParam = (x265_param*)x265_malloc(sizeof(x265_param));
+//    }
+//    return zone;
+//}
 
 static const x265_api libapi =
 {
@@ -449,9 +226,6 @@ static const x265_api libapi =
     X265_BUILD,
     sizeof(x265_param),
     sizeof(x265_picture),
-    sizeof(x265_analysis_data),
-    sizeof(x265_zone),
-    sizeof(x265_stats),
 
     PFX(max_bit_depth),
     PFX(version_str),
@@ -461,29 +235,16 @@ static const x265_api libapi =
     &PARAM_NS::x265_param_free,
     &PARAM_NS::x265_param_default,
     &PARAM_NS::x265_param_parse,
-    &PARAM_NS::x265_scenecut_aware_qp_param_parse,
-    //&PARAM_NS::x265_param_apply_profile,
-    //&PARAM_NS::x265_param_default_preset,
     &x265_picture_alloc,
     &x265_picture_free,
     &x265_picture_init,
     &x265_encoder_open,
     &x265_encoder_parameters,
-    //&x265_encoder_reconfig_zone,
     &x265_encoder_encode,
     &x265_encoder_close,
     &x265_cleanup,
-
-    sizeof(x265_frame_stats),
     &x265_encoder_intra_refresh,
-    &x265_encoder_ctu_info,
     &x265_dither_image,
-//#if ENABLE_LIBVMAF
-//    &x265_calculate_vmafscore,
-//    &x265_calculate_vmaf_framelevelscore,
-//    &x265_vmaf_encoder_log,
-//#endif
-//    &PARAM_NS::x265_zone_param_parse
 };
 
 typedef const x265_api* (*api_get_func)(int bitDepth);
@@ -573,7 +334,7 @@ const x265_api* x265_api_get(int bitDepth)
 
         if (api && bitDepth != api->bit_depth)
         {
-            x265_log(NULL, X265_LOG_WARNING, "%s does not support requested bitDepth %d\n", libname, bitDepth);
+            x265_log(X265_LOG_WARNING, "%s does not support requested bitDepth %d\n", libname, bitDepth);
             return NULL;
         }
 
@@ -668,7 +429,7 @@ const x265_api* x265_api_query(int bitDepth, int apiVersion, int* err)
 
         if (api && bitDepth != api->bit_depth)
         {
-            x265_log(NULL, X265_LOG_WARNING, "%s does not support requested bitDepth %d\n", libname, bitDepth);
+            x265_log( X265_LOG_WARNING, "%s does not support requested bitDepth %d\n", libname, bitDepth);
             if (err) *err = X265_API_QUERY_ERR_WRONG_BITDEPTH;
             return NULL;
         }
@@ -768,358 +529,5 @@ void x265_dither_image(x265_picture* picIn, int picWidth, int picHeight, int16_t
     }
 }
 
-#if ENABLE_LIBVMAF
-/* Read y values of single frame for 8-bit input */
-int read_image_byte(FILE *file, float *buf, int width, int height, int stride)
-{
-    char *byte_ptr = (char *)buf;
-    unsigned char *tmp_buf = 0;
-    int i, j;
-    int ret = 1;
-
-    if (width <= 0 || height <= 0)
-    {
-        goto fail_or_end;
-    }
-
-    if (!(tmp_buf = (unsigned char*)malloc(width)))
-    {
-        goto fail_or_end;
-    }
-
-    for (i = 0; i < height; ++i)
-    {
-        float *row_ptr = (float *)byte_ptr;
-
-        if (fread(tmp_buf, 1, width, file) != (size_t)width)
-        {
-            goto fail_or_end;
-        }
-
-        for (j = 0; j < width; ++j)
-        {
-            row_ptr[j] = tmp_buf[j];
-        }
-
-        byte_ptr += stride;
-    }
-
-    ret = 0;
-
-fail_or_end:
-    free(tmp_buf);
-    return ret;
-}
-/* Read y values of single frame for 10-bit input */
-int read_image_word(FILE *file, float *buf, int width, int height, int stride)
-{
-    char *byte_ptr = (char *)buf;
-    unsigned short *tmp_buf = 0;
-    int i, j;
-    int ret = 1;
-
-    if (width <= 0 || height <= 0)
-    {
-        goto fail_or_end;
-    }
-
-    if (!(tmp_buf = (unsigned short*)malloc(width * 2))) // '*2' to accommodate words
-    {
-        goto fail_or_end;
-    }
-
-    for (i = 0; i < height; ++i)
-    {
-        float *row_ptr = (float *)byte_ptr;
-
-        if (fread(tmp_buf, 2, width, file) != (size_t)width) // '2' for word
-        {
-            goto fail_or_end;
-        }
-
-        for (j = 0; j < width; ++j)
-        {
-            row_ptr[j] = tmp_buf[j] / 4.0; // '/4' to convert from 10 to 8-bit
-        }
-
-        byte_ptr += stride;
-    }
-
-    ret = 0;
-
-fail_or_end:
-    free(tmp_buf);
-    return ret;
-}
-
-int read_frame(float *reference_data, float *distorted_data, float *temp_data, int stride_byte, void *s)
-{
-    x265_vmaf_data *user_data = (x265_vmaf_data *)s;
-    int ret;
-
-    // read reference y
-    if (user_data->internalBitDepth == 8)
-    {
-        ret = read_image_byte(user_data->reference_file, reference_data, user_data->width, user_data->height, stride_byte);
-    }
-    else if (user_data->internalBitDepth == 10)
-    {
-        ret = read_image_word(user_data->reference_file, reference_data, user_data->width, user_data->height, stride_byte);
-    }
-    else
-    {
-        x265_log(NULL, X265_LOG_ERROR, "Invalid bitdepth\n");
-        return 1;
-    }
-    if (ret)
-    {
-        if (feof(user_data->reference_file))
-        {
-            ret = 2; // OK if end of file
-        }
-        return ret;
-    }
-
-    // read distorted y
-    if (user_data->internalBitDepth == 8)
-    {
-        ret = read_image_byte(user_data->distorted_file, distorted_data, user_data->width, user_data->height, stride_byte);
-    }
-    else if (user_data->internalBitDepth == 10)
-    {
-        ret = read_image_word(user_data->distorted_file, distorted_data, user_data->width, user_data->height, stride_byte);
-    }
-    else
-    {
-        x265_log(NULL, X265_LOG_ERROR, "Invalid bitdepth\n");
-        return 1;
-    }
-    if (ret)
-    {
-        if (feof(user_data->distorted_file))
-        {
-            ret = 2; // OK if end of file
-        }
-        return ret;
-    }
-
-    // reference skip u and v
-    if (user_data->internalBitDepth == 8)
-    {
-        if (fread(temp_data, 1, user_data->offset, user_data->reference_file) != (size_t)user_data->offset)
-        {
-            x265_log(NULL, X265_LOG_ERROR, "reference fread to skip u and v failed.\n");
-            goto fail_or_end;
-        }
-    }
-    else if (user_data->internalBitDepth == 10)
-    {
-        if (fread(temp_data, 2, user_data->offset, user_data->reference_file) != (size_t)user_data->offset)
-        {
-            x265_log(NULL, X265_LOG_ERROR, "reference fread to skip u and v failed.\n");
-            goto fail_or_end;
-        }
-    }
-    else
-    {
-        x265_log(NULL, X265_LOG_ERROR, "Invalid format\n");
-        goto fail_or_end;
-    }
-
-    // distorted skip u and v
-    if (user_data->internalBitDepth == 8)
-    {
-        if (fread(temp_data, 1, user_data->offset, user_data->distorted_file) != (size_t)user_data->offset)
-        {
-            x265_log(NULL, X265_LOG_ERROR, "distorted fread to skip u and v failed.\n");
-            goto fail_or_end;
-        }
-    }
-    else if (user_data->internalBitDepth == 10)
-    {
-        if (fread(temp_data, 2, user_data->offset, user_data->distorted_file) != (size_t)user_data->offset)
-        {
-            x265_log(NULL, X265_LOG_ERROR, "distorted fread to skip u and v failed.\n");
-            goto fail_or_end;
-        }
-    }
-    else
-    {
-        x265_log(NULL, X265_LOG_ERROR, "Invalid format\n");
-        goto fail_or_end;
-    }
-
-
-fail_or_end:
-    return ret;
-}
-
-double x265_calculate_vmafscore(x265_param *param, x265_vmaf_data *data)
-{
-    double score;
-
-    data->width = param->sourceWidth;
-    data->height = param->sourceHeight;
-    data->internalBitDepth = param->internalBitDepth;
-
-    if (param->internalCsp == X265_CSP_I420)
-    {
-        if ((param->sourceWidth * param->sourceHeight) % 2 != 0)
-            x265_log(NULL, X265_LOG_ERROR, "Invalid file size\n");
-        data->offset = param->sourceWidth * param->sourceHeight / 2;
-    }
-    else if (param->internalCsp == X265_CSP_I422)
-        data->offset = param->sourceWidth * param->sourceHeight;
-    else if (param->internalCsp == X265_CSP_I444)
-        data->offset = param->sourceWidth * param->sourceHeight * 2;
-    else
-        x265_log(NULL, X265_LOG_ERROR, "Invalid format\n");
-
-    compute_vmaf(&score, vcd->format, data->width, data->height, read_frame, data, vcd->model_path, vcd->log_path, vcd->log_fmt, vcd->disable_clip, vcd->disable_avx, vcd->enable_transform, vcd->phone_model, vcd->psnr, vcd->ssim, vcd->ms_ssim, vcd->pool, vcd->thread, vcd->subsample, vcd->enable_conf_interval);
-
-    return score;
-}
-
-int read_frame_10bit(float *reference_data, float *distorted_data, float *temp_data, int stride, void *s)
-{
-    x265_vmaf_framedata *user_data = (x265_vmaf_framedata *)s;
-
-    PicYuv *reference_frame = (PicYuv *)user_data->reference_frame;
-    PicYuv *distorted_frame = (PicYuv *)user_data->distorted_frame;
-
-    if(!user_data->frame_set) {
-
-        int reference_stride = reference_frame->m_stride;
-        int distorted_stride = distorted_frame->m_stride;
-
-        const uint16_t *reference_ptr = (const uint16_t *)reference_frame->m_picOrg[0];
-        const uint16_t *distorted_ptr = (const uint16_t *)distorted_frame->m_picOrg[0];
-
-        temp_data = reference_data;
-
-        int height = user_data->height;
-        int width = user_data->width; 
-
-        int i,j;
-        for (i = 0; i < height; i++) {
-            for ( j = 0; j < width; j++) {
-                temp_data[j] = ((float)reference_ptr[j] / 4.0);
-            }
-            reference_ptr += reference_stride;
-            temp_data += stride / sizeof(*temp_data);
-        }
-
-        temp_data = distorted_data;
-        for (i = 0; i < height; i++) {
-            for (j = 0; j < width; j++) {
-                 temp_data[j] = ((float)distorted_ptr[j] / 4.0);
-            }
-            distorted_ptr += distorted_stride;
-            temp_data += stride / sizeof(*temp_data);
-        }
-
-        user_data->frame_set = 1;
-        return 0;
-    }
-    return 2;
-}
-
-int read_frame_8bit(float *reference_data, float *distorted_data, float *temp_data, int stride, void *s)
-{
-    x265_vmaf_framedata *user_data = (x265_vmaf_framedata *)s;
-
-    PicYuv *reference_frame = (PicYuv *)user_data->reference_frame;
-    PicYuv *distorted_frame = (PicYuv *)user_data->distorted_frame;
-
-    if(!user_data->frame_set) {
-
-        int reference_stride = reference_frame->m_stride;
-        int distorted_stride = distorted_frame->m_stride;
-
-        const uint8_t *reference_ptr = (const uint8_t *)reference_frame->m_picOrg[0]; 
-        const uint8_t *distorted_ptr = (const uint8_t *)distorted_frame->m_picOrg[0];
-
-        temp_data = reference_data;
-
-        int height = user_data->height;
-        int width = user_data->width; 
-
-        int i,j;
-        for (i = 0; i < height; i++) {
-            for ( j = 0; j < width; j++) {
-                temp_data[j] = (float)reference_ptr[j];
-            }
-            reference_ptr += reference_stride;
-            temp_data += stride / sizeof(*temp_data);
-        }
-
-        temp_data = distorted_data;
-        for (i = 0; i < height; i++) {
-            for (j = 0; j < width; j++) {
-                 temp_data[j] = (float)distorted_ptr[j];
-            }
-            distorted_ptr += distorted_stride;
-            temp_data += stride / sizeof(*temp_data);
-        }
-
-        user_data->frame_set = 1;
-        return 0;
-    }
-    return 2;
-}
-
-double x265_calculate_vmaf_framelevelscore(x265_vmaf_framedata *vmafframedata)
-{
-    double score; 
-    int (*read_frame)(float *reference_data, float *distorted_data, float *temp_data,
-                      int stride, void *s);
-    if (vmafframedata->internalBitDepth == 8)
-        read_frame = read_frame_8bit;
-    else
-        read_frame = read_frame_10bit;
-    compute_vmaf(&score, vcd->format, vmafframedata->width, vmafframedata->height, read_frame, vmafframedata, vcd->model_path, vcd->log_path, vcd->log_fmt, vcd->disable_clip, vcd->disable_avx, vcd->enable_transform, vcd->phone_model, vcd->psnr, vcd->ssim, vcd->ms_ssim, vcd->pool, vcd->thread, vcd->subsample, vcd->enable_conf_interval);
-
-    return score;
-}
-#endif
-
 } /* end namespace or extern "C" */
 
-namespace X265_NS {
-#ifdef SVT_HEVC
-
-void svt_initialise_app_context(x265_encoder *enc)
-{
-    Encoder *encoder = static_cast<Encoder*>(enc);
-
-    //Initialise Application Context
-    encoder->m_svtAppData = (SvtAppContext*)x265_malloc(sizeof(SvtAppContext));
-    encoder->m_svtAppData->svtHevcParams = (EB_H265_ENC_CONFIGURATION*)x265_malloc(sizeof(EB_H265_ENC_CONFIGURATION));
-    encoder->m_svtAppData->byteCount = 0;
-    encoder->m_svtAppData->outFrameCount = 0;
-}
-
-int svt_initialise_input_buffer(x265_encoder *enc)
-{
-    Encoder *encoder = static_cast<Encoder*>(enc);
-
-    //Initialise Input Buffer
-    encoder->m_svtAppData->inputPictureBuffer = (EB_BUFFERHEADERTYPE*)x265_malloc(sizeof(EB_BUFFERHEADERTYPE));
-    EB_BUFFERHEADERTYPE *inputPtr = encoder->m_svtAppData->inputPictureBuffer;
-    inputPtr->pBuffer = (unsigned char*)x265_malloc(sizeof(EB_H265_ENC_INPUT));
-
-    EB_H265_ENC_INPUT *inputData = (EB_H265_ENC_INPUT*)inputPtr->pBuffer;
-    inputData->dolbyVisionRpu.payload = NULL;
-    inputData->dolbyVisionRpu.payloadSize = 0;
-
-
-    if (!inputPtr->pBuffer)
-        return 0;
-
-    inputPtr->nSize = sizeof(EB_BUFFERHEADERTYPE);
-    inputPtr->pAppPrivate = NULL;
-    return 1;
-}
-#endif // ifdef SVT_HEVC
-
-} // end namespace X265_NS

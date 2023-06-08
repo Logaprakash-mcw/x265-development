@@ -41,10 +41,15 @@ public:
 
     pixel*   m_picBuf[3];  // full allocated buffers, including margins
     pixel*   m_picOrg[3];  // pointers to plane starts
+    pixel*   m_picFilBuf[3];  // full allocated buffers, including margins
     pixel*   m_picFil[3];  // pointers to plane starts
+    int16_t*   m_picDifBuf[3];  // full allocated buffers, including margins
+    int16_t*   m_picDif[3];  // pointers to plane starts
 
     uint32_t m_picWidth;
     uint32_t m_picHeight;
+    uint32_t m_picWidthC;
+    uint32_t m_picHeightC;
     intptr_t m_stride;
     intptr_t m_strideC;
 
@@ -86,6 +91,8 @@ public:
 
     void  copyFromPicture(const x265_picture&, const x265_param& param, int padx, int pady);
     void  copyFromFrame(PicYuv* source);
+
+    void subtract(PicYuv* source);
 
     intptr_t getChromaAddrOffset(uint32_t ctuAddr, uint32_t absPartIdx) const { return m_cuOffsetC[ctuAddr] + m_buOffsetC[absPartIdx]; }
 

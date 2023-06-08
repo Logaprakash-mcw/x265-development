@@ -130,15 +130,12 @@ public:
     Frame*      m_refFrameList[2][MAX_NUM_REF + 1];
     PicYuv*     m_refReconPicList[2][MAX_NUM_REF + 1];
     MotionReference (*m_mref)[MAX_NUM_REF + 1];
-
-    NalUnitType m_nalUnitType;
     int         m_sliceQp;
     int         m_chromaQpOffset[2];
     int         m_poc;
     int         m_lastIDR;
     int         m_rpsIdx;
 
-    uint32_t    m_colRefIdx;       // never modified
 
     int         m_numRefIdx[2];
     int         m_refPOCList[2][MAX_NUM_REF + 1];
@@ -146,14 +143,9 @@ public:
     uint32_t    m_maxNumMergeCand; // use param
     uint32_t    m_endCUAddr;
 
-    bool        m_bCheckLDC;       // TODO: is this necessary?
-    bool        m_sLFaseFlag;      // loop filter boundary flag
-    bool        m_colFromL0Flag;   // collocated picture from List0 or List1 flag
-    int         m_bUseSao;
-
     int         m_iPPSQpMinus26;
     int         numRefIdxDefault[2];
-    int         m_iNumRPSInSPS;
+
     const x265_param *m_param;
     int         m_fieldNum;
     Frame*      m_mcstfRefFrameList[2][MAX_MCSTF_TEMPORAL_WINDOW_LENGTH];
@@ -161,7 +153,6 @@ public:
     Slice()
     {
         m_lastIDR = 0;
-        m_sLFaseFlag = true;
         m_numRefIdx[0] = m_numRefIdx[1] = 0;
         memset(m_refFrameList, 0, sizeof(m_refFrameList));
         memset(m_refReconPicList, 0, sizeof(m_refReconPicList));
