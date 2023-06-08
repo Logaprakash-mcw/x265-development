@@ -104,8 +104,8 @@ void x265_free(void *ptr)
 
 void general_log(const char* caller, int level, const char* fmt, ...)
 {
-    //if (param && level > param->logLevel)
-    //    return;
+    if (level > 2)
+        return;
     const int bufferSize = 4096;
     char buffer[bufferSize];
     int p = 0;
@@ -146,6 +146,8 @@ void general_log(const char* caller, int level, const char* fmt, ...)
  * For other OS we do not make any changes. */
 void general_log_file(const char* caller, int level, const char* fmt, ...)
 {
+    if (level > 2)
+        return;
     const int bufferSize = 4096;
     char buffer[bufferSize];
     int p = 0;

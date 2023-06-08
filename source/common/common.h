@@ -371,7 +371,7 @@ FILE*    x265_fopen(const char* fileName, const char* mode);
 int      x265_unlink(const char* fileName);
 int      x265_rename(const char* oldName, const char* newName);
 #else
-#define  general_log_file(caller, level, fmt, ...) general_log( caller, level, fmt)
+#define  general_log_file(caller, level, fmt, ...) general_log( caller, level, fmt, __VA_ARGS__)
 #define  x265_fopen(fileName, mode) fopen(fileName, mode)
 #define  x265_unlink(fileName) unlink(fileName)
 #define  x265_rename(oldName, newName) rename(oldName, newName)
