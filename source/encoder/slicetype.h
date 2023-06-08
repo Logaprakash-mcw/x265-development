@@ -67,7 +67,6 @@ class Lookahead;
 #else
 #define EDGE_THRESHOLD 255.0
 #endif
-#define PI 3.14159265
 
 /* Thread local data for lookahead tasks */
 struct LookaheadTLD
@@ -79,13 +78,6 @@ struct LookaheadTLD
     int             ncu;
     int             paddedLines;
 
-#if DETAILED_CU_STATS
-    int64_t         batchElapsedTime;
-    int64_t         coopSliceElapsedTime;
-    uint64_t        countBatches;
-    uint64_t        countCoopSlices;
-#endif
-
     LookaheadTLD()
     {
         me.init(X265_CSP_I400);
@@ -93,13 +85,6 @@ struct LookaheadTLD
         for (int i = 0; i < 4; i++)
             wbuffer[i] = NULL;
         widthInCU = heightInCU = ncu = paddedLines = 0;
-
-#if DETAILED_CU_STATS
-        batchElapsedTime = 0;
-        coopSliceElapsedTime = 0;
-        countBatches = 0;
-        countCoopSlices = 0;
-#endif
     }
 
     void init(int w, int h, int n)
@@ -163,13 +148,6 @@ public:
     int           m_numPools;
     bool          m_extendGopBoundary;
     double        m_frameVariance[X265_BFRAME_MAX + 4];
-    bool          m_isFadeIn;
-    uint64_t      m_fadeCount;
-    int           m_fadeStart;
-
-    uint32_t    **m_accHistDiffRunningAvgCb;
-    uint32_t    **m_accHistDiffRunningAvgCr;
-    uint32_t    **m_accHistDiffRunningAvg;
 
     bool          m_resetRunningAvg;
     uint32_t      m_segmentCountThreshold;
@@ -214,6 +192,5 @@ protected:
     PreLookaheadGroup& operator=(const PreLookaheadGroup&);
 };
 
-bool computeEdge(pixel* edgePic, pixel* refPic, pixel* edgeTheta, intptr_t stride, int height, int width, bool bcalcTheta, pixel whitePixel = EDGE_THRESHOLD);
 }
 #endif // ifndef X265_SLICETYPE_H

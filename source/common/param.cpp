@@ -139,7 +139,7 @@ void x265_param_default(x265_param* param)
     param->bLowPassDct = 0;
     param->temporalFilterStrength = 0.95;
     /* Film grain characteristics model filename */
-    param->filmGrain = "model.bin";
+    param->filmGrain = (char *)"model.bin";
 }
 
 static int x265_atobool(const char* str, bool& bError)

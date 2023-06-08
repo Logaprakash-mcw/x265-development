@@ -2,19 +2,26 @@
 
 using namespace X265_NS;
 
-const int Canny::m_gx[3][3]{ { -1, 0, 1 }, { -2, 0, 2 }, { -1, 0, 1 } };
-const int Canny::m_gy[3][3]{ { -1, -2, -1 }, { 0, 0, 0 }, { 1, 2, 1 } };
+const int Canny::m_gx[3][3] = { { -1, 0, 1 }, { -2, 0, 2 }, { -1, 0, 1 } };
+const int Canny::m_gy[3][3] = { { -1, -2, -1 }, { 0, 0, 0 }, { 1, 2, 1 } };
 
-const int Canny::m_gauss5x5[5][5]{ { 2, 4, 5, 4, 2 },
-                                 { 4, 9, 12, 9, 4 },
-                                 { 5, 12, 15, 12, 5 },
-                                 { 4, 9, 12, 9, 4 },
-                                 { 2, 4, 5, 4, 2 } };
+const int Canny::m_gauss5x5[5][5] = { { 2, 4, 5, 4, 2 },
+                                    { 4, 9, 12, 9, 4 },
+                                    { 5, 12, 15, 12, 5 },
+                                    { 4, 9, 12, 9, 4 },
+                                    { 2, 4, 5, 4, 2 } };
 
 Canny::Canny()
 {
   // init();
     m_param = NULL;
+    m_convWidthG = 5;
+    m_convHeightG = 5;
+    m_convWidthS = 3;
+    m_convHeightS = 3;
+    m_lowThresholdRatio = 0.1;
+    m_highThresholdRatio = 3;
+
 }
 
 Canny::~Canny()
@@ -91,9 +98,9 @@ void Canny::gradient(PicYuv *buff1, PicYuv *buff2, unsigned int width, unsigned 
     }
 
     // magnitude
-    for (int i = 0; i < width; i++)
+    for (int64_t i = 0; i < width; i++)
     {
-        for (int j = 0; j < height; j++)
+        for (int64_t j = 0; j < height; j++)
         {
             int id      = j * stride + i;
             pixel tmp   = (pixel)((abs(tmp1Y[id]) + abs(tmp2Y[id])) / 2);
@@ -102,9 +109,9 @@ void Canny::gradient(PicYuv *buff1, PicYuv *buff2, unsigned int width, unsigned 
     }
 
     // edge direction - quantized edge directions
-    for (int i = 0; i < width; i++)
+    for (int64_t i = 0; i < width; i++)
     {
-        for (int j = 0; j < height; j++)
+        for (int64_t j = 0; j < height; j++)
         {
             int id       = j * stride + i;
             double theta = (atan2(tmp1Y[id], tmp2Y[id]) * 180) / PI;
@@ -140,9 +147,9 @@ void Canny::suppressNonMax(PicYuv *buff1, PicYuv *buff2, unsigned int width, uns
     pixel *orientation  = buff2->m_picOrg[compID];
     int stride = !compID ? buff1->m_stride : buff1->m_strideC;
     //int width = buff1->m_picWidth, height = buff1->m_picHeight;
-    for (int i = 0; i < width; i++)
+    for (int64_t i = 0; i < width; i++)
     {
-        for (int j = 0; j < height; j++)
+        for (int64_t j = 0; j < height; j++)
         {
             int rowShift = 0, colShift = 0;
             int id       = j * stride + i;
@@ -193,9 +200,9 @@ void Canny::doubleThreshold(PicYuv *buff, unsigned int width, unsigned int heigh
 
     pixel *src          = buff->m_picOrg[compID];
     int stride          = !compID ? buff->m_stride : buff->m_strideC;
-    for (int i = 0; i < width; i++)
+    for (int64_t i = 0; i < width; i++)
     {
-        for (int j = 0; j < height; j++)
+        for (int64_t j = 0; j < height; j++)
         {
             highThreshold = std::max<pixel>(highThreshold, src[j * stride + i]);
         }
@@ -206,9 +213,9 @@ void Canny::doubleThreshold(PicYuv *buff, unsigned int width, unsigned int heigh
     highThreshold = x265_clip3(0, (1 << bitDepth) - 1, m_highThresholdRatio * lowThreshold);   // Canny recommended a upper:lower ratio between 2:1 and 3:1.
 
     // strong, week, supressed
-    for (int i = 0; i < width; i++)
+    for (int64_t i = 0; i < width; i++)
     {
-        for (int j = 0; j < height; j++)
+        for (int64_t j = 0; j < height; j++)
         {
             int id = j * stride + i;
             if (src[id] > highThreshold)
@@ -236,20 +243,20 @@ void Canny::edgeTracking(PicYuv *buff, unsigned int width, unsigned int height, 
     pixel *src          = buff->m_picOrg[compID];
     int stride          = !compID ? buff->m_stride : buff->m_strideC;
 
-    for (int i = 0; i < width; i++)
+    for (int64_t i = 0; i < width; i++)
     {
-        for (int j = 0; j < height; j++)
+        for (int64_t j = 0; j < height; j++)
         {
             int id = j * stride + i;
             if (src[id] == weekPel)
             {
                 bool strong = false;
 
-                for (int x = 0; x < windowWidth; x++)
+                for (int64_t x = 0; x < windowWidth; x++)
                 {
-                    for (int y = 0; y < windowHeight; y++)
+                    for (int64_t y = 0; y < windowHeight; y++)
                     {
-                        int idW = (y - windowHeight / 2 + j) * stride + (x - windowWidth / 2 + i);
+                        int64_t idW = (y - windowHeight / 2 + j) * stride + (x - windowWidth / 2 + i);
                         if (src[idW] == strongPel)
                         {
                             strong = true;
@@ -310,6 +317,7 @@ void Canny::detect_edges(PicYuv *orig, PicYuv *dest, unsigned int uiBitDepth, ui
 // ====================================================================================================================
 Morph::Morph()
 {
+    m_kernelSize = 3;
   // init();
 }
 
@@ -343,14 +351,14 @@ int Morph::dilation(PicYuv *buff, unsigned int bitDepth, uint8_t compID, int num
     pixel* src = buff->m_picOrg[compID];
     extendPicBorder(src, stride, width, height, padding, padding);
 
-    for (int i = 0; i < width; i++)
+    for (int64_t i = 0; i < width; i++)
     {
-        for (int j = 0; j < height; j++)
+        for (int64_t j = 0; j < height; j++)
         {
             bool strong = false;
-            for (int x = 0; x < windowSize; x++)
+            for (int64_t x = 0; x < windowSize; x++)
             {
-                for (int y = 0; y < windowSize; y++)
+                for (int64_t y = 0; y < windowSize; y++)
                 {
                     int xx = x - windowSize / 2 + i;
                     int yy = y - windowSize / 2 + j;
@@ -398,14 +406,14 @@ int Morph::erosion(PicYuv *buff, unsigned int bitDepth, uint8_t compID, int numI
 
     extendPicBorder(src, stride, width, height, padding, padding);
 
-    for (int i = 0; i < width; i++)
+    for (int64_t i = 0; i < width; i++)
     {
-        for (int j = 0; j < height; j++)
+        for (int64_t j = 0; j < height; j++)
         {
             bool week = false;
-            for (int x = 0; x < windowSize; x++)
+            for (int64_t x = 0; x < windowSize; x++)
             {
-                for (int y = 0; y < windowSize; y++)
+                for (int64_t y = 0; y < windowSize; y++)
                 {
                     if (src[(x - windowSize / 2 + i) + (y - windowSize / 2 + j) * stride] == 0)
                     {
@@ -418,12 +426,10 @@ int Morph::erosion(PicYuv *buff, unsigned int bitDepth, uint8_t compID, int numI
             {
                 tmpBuf.m_picOrg[compID][i + j * stride] = 0;
             }
-            int id = j * stride + i;
         }
     }
 
     buff->copyFromFrame(&tmpBuf);
-    //memcpy(buff->m_picOrg[compID], tmpBuf.m_picOrg[compID], height * stride * sizeof(pixel));
     tmpBuf.destroy();
 
     iter++;
@@ -444,7 +450,7 @@ void FGAnalyser::init(x265_param* m_param)
         m_compModel[i].bPresentFlag           = !i;
         m_compModel[i].numModelValues        = 1;
         m_compModel[i].m_filmGrainNumIntensityIntervalMinus1 = 0;
-        m_compModel[i].intensityValues = (struct FilmGrainCharacteristics::CompModelIntensityValues *)malloc(sizeof(FilmGrainCharacteristics::CompModelIntensityValues) * MAX_NUM_INTENSITIES);
+        m_compModel[i].intensityValues = (FilmGrainCharacteristics::CompModelIntensityValues *)malloc(sizeof(FilmGrainCharacteristics::CompModelIntensityValues) * MAX_NUM_INTENSITIES);
         for (int j = 0; j < MAX_NUM_INTENSITIES; j++)
         {
             m_compModel[i].intensityValues[j].intensityIntervalLowerBound = 10;
@@ -453,7 +459,7 @@ void FGAnalyser::init(x265_param* m_param)
             for (int k = 0; k < m_compModel[i].numModelValues; k++)
             {
             // half intensity for chroma. Provided value is default value, manually tuned.
-                m_compModel[i].intensityValues[j].compModelValue[k] = i == 0 ? 26 : 13;
+                m_compModel[i].intensityValues[j].compModelValue[k] = (i == 0 ? 26 : 13);
             }
         }
     }
@@ -461,8 +467,6 @@ void FGAnalyser::init(x265_param* m_param)
     // initialize picture parameters and create buffers
     inputChroma     = m_param->internalCsp;
     m_bitDepthsIn   = m_param->internalBitDepth;
-
-    int margin = m_edgeDetector.m_convWidthG / 2;   // set margin for padding for filtering
 
     if (!m_originalBuf)
     {
@@ -538,17 +542,17 @@ void FGAnalyser::upsample(const PicYuv &input, PicYuv &output, uint8_t compID, c
   int outputStride       = (!compID ? output.m_stride : output.m_strideC);
 
   pixel *dst = output.m_picOrg[compID];
-  for (int i = 0; i < inputWidth; i++)
+  for (int64_t i = 0; i < inputWidth; i++)
   {
-    for (int j = 0; j < inputHeight; j++)
+    for (int64_t j = 0; j < inputHeight; j++)
     {
       pixel currentPel = input.m_picOrg[compID][j * inputStride + i];
 
-      for (int x = 0; x < factor; x++)
+      for (int64_t x = 0; x < factor; x++)
       {
-        for (int y = 0; y < factor; y++)
+        for (int64_t y = 0; y < factor; y++)
         {
-            int64_t id = (j * factor + y) * outputStride + (i * factor + x);
+            int id = (j * factor + y) * outputStride + (i * factor + x);
             dst[id] = currentPel;
         }
       }
@@ -565,20 +569,18 @@ void FGAnalyser::combineMasks(PicYuv &buff1, PicYuv &buff2, uint8_t compID)
 {
     int width   = (!compID) ? buff1.m_picWidth : buff1.m_picWidthC;
     int height  = (!compID) ? buff1.m_picHeight : buff1.m_picHeightC;
-    int stride  = (!compID ? buff1.m_stride : buff1.m_strideC);
+    int64_t stride  = (!compID ? buff1.m_stride : buff1.m_strideC);
 
 
     pixel *dst = buff1.m_picOrg[compID];
     pixel *src = buff2.m_picOrg[compID];
 
-    for (int i = 0; i < width; i++)
+    for (int64_t i = 0; i < width; i++)
     {
-        for (int j = 0; j < height; j++)
+        for (int64_t j = 0; j < height; j++)
         {
             int64_t id = j * stride + i;
             dst[id] = (dst[id] | src[id]);
-            if(dst[id] > 1023)
-                printf("");
         }
     }
 }
@@ -587,7 +589,6 @@ void FGAnalyser::findMask()
 {
 
     int      bitDepth   = m_workingBuf->m_param->internalBitDepth;
-    unsigned padding    = m_edgeDetector.m_convWidthG / 2;   // for filtering
 
     // create tmp buffs
     PicYuv *workingBufSubsampled2 = new PicYuv;
@@ -666,29 +667,22 @@ void FGAnalyser::findMask()
     maskUpsampled->destroy();
 
     delete workingBufSubsampled2;
-    workingBufSubsampled2 = nullptr;
+    workingBufSubsampled2 = NULL;
     delete maskSubsampled2;
-    maskSubsampled2 = nullptr;
+    maskSubsampled2 = NULL;
     delete workingBufSubsampled4;
-    workingBufSubsampled4 = nullptr;
+    workingBufSubsampled4 = NULL;
     delete maskSubsampled4;
-    maskSubsampled4 = nullptr;
+    maskSubsampled4 = NULL;
     delete maskUpsampled;
-    maskUpsampled = nullptr;
+    maskUpsampled = NULL;
 }
 
 inline void subtract(int16_t* dest, pixel* src1, pixel* src2, int height, int width, int stride)
 {
-    int64_t count = 0;
-    for(int i = 0; i< height; i++)
-        for(int j = 0; j < width; j++)
-        {
+    for(int64_t i = 0; i< height; i++)
+        for(int64_t j = 0; j < width; j++)
            dest[i * stride + j] = src1[i * stride + j] - src2[i * stride + j];
-           if(dest[i * stride + j] == 0)
-               printf("Total Zeros in a frame = %ld", ++count);
-           if(dest[i * stride + j] < 0)
-               printf("");
-        }
 }
 
 void FGAnalyser::estimate_grain_parameters()
@@ -716,10 +710,10 @@ void FGAnalyser::estimate_grain_parameters()
     //HM decoder supports only addition of Film Grains in the Luma
     for (int compID = 0; compID < m_numComponents; compID++)
     {   // loop over components
-        unsigned int width       = (!compID ? m_workingBuf->m_picWidth : m_workingBuf->m_picWidthC);   // Width of current frame
-        unsigned int height      = (!compID ? m_workingBuf->m_picHeight : m_workingBuf->m_picHeightC);   // Height of current frame
+        int width       = (!compID ? m_workingBuf->m_picWidth : m_workingBuf->m_picWidthC);   // Width of current frame
+        int height      = (!compID ? m_workingBuf->m_picHeight : m_workingBuf->m_picHeightC);   // Height of current frame
         int stride               = (!compID ? m_workingBuf->m_stride : m_workingBuf->m_strideC);   // Height of current frame
-        unsigned int windowSize  = DATA_BASE_SIZE;                      // Size for Film Grain block
+        int windowSize  = DATA_BASE_SIZE;                      // Size for Film Grain block
         int          bitDepth     = m_workingBuf->m_param->internalBitDepth;
         int          detect_edges = 0;
         int          mean         = 0;
@@ -729,42 +723,10 @@ void FGAnalyser::estimate_grain_parameters()
         std::vector<int>       vec_var;
         std::vector<PelMatrix> squared_dct_grain_block_list;
 
-        //std::ofstream out;
-        //out.open ("example.csv");
-
-        //for(int i = 0; i < width; i++)
-        //{
-        //    for(int j = 0; j < height; j++)
-        //    {
-        //        // out << j << "," << i << "," << m_maskBuf->m_picOrg[compID][j * stride + i] << "\n";
-        //        if(m_maskBuf->m_picOrg[compID][j * stride + i] == 53247)
-        //            printf("\n\n");
-        //    }
-        //}
-        //out.close();
-        //exit(-1);
-        //std::ofstream out;
-        //out.open ("example.csv");
-
         for (int i = 0; i <= width - windowSize; i += windowSize)
         {   // loop over windowSize x windowSize blocks
             for (int j = 0; j <= height - windowSize; j += windowSize)
             {
-                    //if( i == 1088 && j == 1984)
-                    //{
-                    //      for (int x = 0; x < windowSize; x++)
-                    //      {
-                    //        for (int y = 0; y < windowSize; y++)
-                    //        {
-                    //            int stride = !compID ? m_maskBuf->m_stride : m_maskBuf->m_strideC;
-                    //            int idx = (j + y) * stride + (i + x);
-                    //            out << j + y << "," << i + x << "," << m_maskBuf->m_picOrg[compID][idx] << "\n";
-                    //        }
-                    //      }
-                    //}
-                            //if(m_maskBuf->m_picOrg[compID][j * stride + i] == 53247)
-                            //    printf("\n\n");
-
                 detect_edges = count_edges(m_maskBuf, windowSize, compID, i, j);   // for flat region without edges
 
                 if (detect_edges)   // selection of uniform, flat and low-complexity area; extend to other features, e.g., variance.
@@ -797,8 +759,6 @@ void FGAnalyser::estimate_grain_parameters()
                 }
             }
         }
-        //out.close();
-        //exit(-1);
         // calculate film grain parameters
         estimate_cutoff_freq(squared_dct_grain_block_list, compID);
         estimate_scaling_factors(vec_mean, vec_var, bitDepth, compID);
@@ -806,7 +766,7 @@ void FGAnalyser::estimate_grain_parameters()
 
     tmpBuff->destroy();
     delete tmpBuff;
-    tmpBuff = nullptr;
+    tmpBuff = NULL;
 }
 
 // find compModelValue[0] - different scaling based on the pixel intensity
@@ -866,9 +826,9 @@ void FGAnalyser::estimate_cutoff_freq(const std::vector<PelMatrix> &blocks, uint
   {
     for (int y = 0; y < DATA_BASE_SIZE; y++)
     {
-      for (const auto &dct_grain_block: blocks)
+      for (int z = 0; z < num_blocks; z++)
       {
-        mean_squared_dct_grain[x][y] += dct_grain_block[x][y];
+        mean_squared_dct_grain[x][y] += blocks[z][x][y];
       }
       mean_squared_dct_grain[x][y] /= num_blocks;
 
@@ -930,7 +890,7 @@ int FGAnalyser::cutoff_frequency(std::vector<double> &mean)
   // Regularize the curve to suppress peaks
   mean.push_back(mean.back());
   mean.insert(mean.begin(), mean.front());
-  for (int j = 1; j < DATA_BASE_SIZE + 1; j++)
+  for (int64_t j = 1; j < DATA_BASE_SIZE + 1; j++)
   {
     sum[j - 1] = (m_tapFilter[0] * mean[j - 1] + m_tapFilter[1] * mean[j] + m_tapFilter[2] * mean[j + 1]) / m_normTap;
   }
@@ -945,7 +905,7 @@ int FGAnalyser::cutoff_frequency(std::vector<double> &mean)
   // find final cut-off frequency
   std::vector<int> intersectionPointList;
 
-  for (int x = 0; x < DATA_BASE_SIZE - 1; x++)
+  for (int64_t x = 0; x < DATA_BASE_SIZE - 1; x++)
   {
     if ((target < sum[x] && target >= sum[x + 1]) || (target > sum[x] && target <= sum[x + 1]))
     {   // there is intersection
@@ -962,7 +922,7 @@ int FGAnalyser::cutoff_frequency(std::vector<double> &mean)
     }
   }
 
-  int size = (int) intersectionPointList.size();
+  int64_t size = (int64_t) intersectionPointList.size();
 
   if (size > 0)
   {
@@ -977,7 +937,7 @@ int FGAnalyser::cutoff_frequency(std::vector<double> &mean)
 // DCT-2 64x64 as defined in VVC
 void FGAnalyser::block_transform(int16_t *buff, std::vector<PelMatrix> &squared_dct_grain_block_list, int offsetX, int offsetY, unsigned int bitDepth, int stride)
 {
-  unsigned int     windowSize       = DATA_BASE_SIZE;               // Size for Film Grain block
+  int windowSize        = DATA_BASE_SIZE;               // Size for Film Grain block
   int max_dynamic_range = (1 << (bitDepth + 6)) - 1;   // Dynamic range after DCT transform for 64x64 block
   int min_dynamic_range = -((1 << (bitDepth + 6)) - 1);
   int sum;
@@ -1125,7 +1085,7 @@ bool FGAnalyser::fit_function(std::vector<int> &data_x, std::vector<int> &data_y
     }
   }
 
-  for (int cnt = 0; cnt < data_x.size(); cnt++)
+  for (unsigned int cnt = 0; cnt < data_x.size(); cnt++)
   {
     if (second_pass)
     {
@@ -1160,19 +1120,19 @@ bool FGAnalyser::fit_function(std::vector<int> &data_x, std::vector<int> &data_y
   }
 
   // There needs to be at least ORDER+1 points to fit the function
-  if (tmp_data_x.size() < (order + 1))
+  if ((int)tmp_data_x.size() < (order + 1))
   {
     return false;   // if there is no enough blocks to estimate film grain parameters, default or previously estimated
                     // parameters are used
   }
 
-  for (i = 0; i < tmp_data_x.size(); i++) // remove single points before extending and fitting
+  for (i = 0; i < (int)tmp_data_x.size(); i++) // remove single points before extending and fitting
   {
     int check = 0;
     for (j = -WINDOW; j <= WINDOW; j++)
     {
       int idx = i + j;
-      if (idx >= 0 && idx < tmp_data_x.size() && j != 0)
+      if (idx >= 0 && idx < (int)tmp_data_x.size() && j != 0)
       {
         check += abs(tmp_data_x[i] / INTERVAL_SIZE - tmp_data_x[idx] / INTERVAL_SIZE) <= WINDOW ? 1 : 0;
       }
@@ -1195,7 +1155,7 @@ bool FGAnalyser::fit_function(std::vector<int> &data_x, std::vector<int> &data_y
   xmax = tmp_data_x[0];
   ymin = tmp_data_y[0];
   ymax = tmp_data_y[0];
-  for (i = 0; i < tmp_data_x.size(); i++)
+  for (i = 0; i < (int)tmp_data_x.size(); i++)
   {
     if (tmp_data_x[i] < xmin)
     {
@@ -1443,7 +1403,7 @@ bool FGAnalyser::fit_function(std::vector<int> &data_x, std::vector<int> &data_y
   for (i = (int) xmin; i <= (int) xmax; i++)
   {
     double val = coeffs[0];
-    for (j = 1; j < coeffs.size(); j++)
+    for (j = 1; j < (int)coeffs.size(); j++)
     {
       val += (coeffs[j] * ldpow(i, j));
     }
@@ -1467,7 +1427,7 @@ void FGAnalyser::avg_scaling_vec(std::vector<double> &scalingVec, uint8_t compID
   int xmax = (int) scalingVec.back();
   scalingVec.pop_back();
 
-  static std::vector<std::vector<double>> scalingVecAvg(MAX_NUM_COMPONENT, std::vector<double>((int)(1<<bitDepth)));
+  static std::vector<std::vector<double> > scalingVecAvg(MAX_NUM_COMPONENT, std::vector<double>((int)(1<<bitDepth)));
   static bool                isFirstScalingEst[MAX_NUM_COMPONENT] = { true, true, true };
 
   if (isFirstScalingEst[compID])
@@ -1481,11 +1441,11 @@ void FGAnalyser::avg_scaling_vec(std::vector<double> &scalingVec, uint8_t compID
   }
   else
   {
-    for (int i = 0; i < scalingVec.size(); i++)
+    for (unsigned int i = 0; i < scalingVec.size(); i++)
     {
       scalingVecAvg[compID][i + xmin] += scalingVec[i];
     }
-    for (int i = 0; i < scalingVecAvg[compID].size(); i++)
+    for (unsigned int i = 0; i < scalingVecAvg[compID].size(); i++)
     {
       scalingVecAvg[compID][i] /= 2;
     }
@@ -1493,7 +1453,7 @@ void FGAnalyser::avg_scaling_vec(std::vector<double> &scalingVec, uint8_t compID
 
   // re-init scaling vec and add new min and max to be used in other functions
   int index = 0;
-  for (; index < scalingVecAvg[compID].size(); index++)
+  for (; index < (int)scalingVecAvg[compID].size(); index++)
   {
     if (scalingVecAvg[compID][index])
     {
@@ -1546,7 +1506,7 @@ bool FGAnalyser::lloyd_max(std::vector<double> &scalingVec, std::vector<int> &qu
 
   ymin = scalingVec[0];
   ymax = scalingVec[0];
-  for (int i = 0; i < scalingVec.size(); i++)
+  for (int i = 0; i < (int)scalingVec.size(); i++)
   {
     if (scalingVec[i] < ymin)
     {
@@ -1582,7 +1542,7 @@ bool FGAnalyser::lloyd_max(std::vector<double> &scalingVec, std::vector<int> &qu
   // quantizer initialization
   quantize(scalingVec, tmpVec, distortion, partition, codebook);
 
-  double tolerance2 = std::numeric_limits<double>::epsilon() * ymax;
+  double tolerance2 = DBL_EPSILON * ymax;
   if (distortion > tolerance2)
   {
     rel_distor = abs(distortion - last_distor) / distortion;
@@ -1600,7 +1560,7 @@ bool FGAnalyser::lloyd_max(std::vector<double> &scalingVec, std::vector<int> &qu
       int    count = 0;
       double sum   = 0.0;
 
-      for (int j = 0; j < tmpVec.size(); j++)
+      for (unsigned int j = 0; j < tmpVec.size(); j++)
       {
         if (codebook[i] == tmpVec[j])
         {
@@ -1619,7 +1579,7 @@ bool FGAnalyser::lloyd_max(std::vector<double> &scalingVec, std::vector<int> &qu
         count = 0;
         if (i == 0)
         {
-          for (int j = 0; j < tmpVec.size(); j++)
+          for (unsigned int j = 0; j < tmpVec.size(); j++)
           {
             if (scalingVec[j] <= partition[i])
             {
@@ -1638,7 +1598,7 @@ bool FGAnalyser::lloyd_max(std::vector<double> &scalingVec, std::vector<int> &qu
         }
         else if (i == numQuantizedLevels - 1)
         {
-          for (int j = 0; j < tmpVec.size(); j++)
+          for (unsigned int j = 0; j < tmpVec.size(); j++)
           {
             if (scalingVec[j] >= partition[i - 1])
             {
@@ -1657,7 +1617,7 @@ bool FGAnalyser::lloyd_max(std::vector<double> &scalingVec, std::vector<int> &qu
         }
         else
         {
-          for (int j = 0; j < tmpVec.size(); j++)
+          for (unsigned int j = 0; j < tmpVec.size(); j++)
           {
             if (scalingVec[j] >= partition[i - 1] && scalingVec[j] <= partition[i])
             {
@@ -1680,7 +1640,7 @@ bool FGAnalyser::lloyd_max(std::vector<double> &scalingVec, std::vector<int> &qu
     // compute and sort partition
     for (int i = 0; i < numQuantizedLevels - 1; i++)
     {
-      partition[i] = (codebook[i] + codebook[i + 1]) / 2;
+      partition[i] = (codebook[i] + codebook[i + 1]) / 2.0;
     }
     std::sort(partition.begin(), partition.end());
 
@@ -1700,7 +1660,7 @@ bool FGAnalyser::lloyd_max(std::vector<double> &scalingVec, std::vector<int> &qu
 
   // fill the final quantized vector
   quantizedVec.resize((int) (1 << bitDepth), 0);
-  for (int i = 0; i < tmpVec.size(); i++)
+  for (unsigned int i = 0; i < tmpVec.size(); i++)
   {
     quantizedVec[i + xmin] = x265_clip3(0, MAX_STANDARD_DEVIATION << (bitDepth - BIT_DEPTH_8), (int) (tmpVec[i] + .5));
   }
@@ -1717,9 +1677,9 @@ void FGAnalyser::quantize(std::vector<double> &scalingVec, std::vector<double> &
   distortion = 0.0;
 
   // quantize input vector
-  for (int i = 0; i < scalingVec.size(); i++)
+  for (unsigned int i = 0; i < scalingVec.size(); i++)
   {
-    for (int j = 0; j < partition.size(); j++)
+    for (unsigned int j = 0; j < partition.size(); j++)
     {
       quantizedVec[i] =
         quantizedVec[i] + (scalingVec[i] > partition[j]);   // partition need to be sorted in acceding order
@@ -1728,7 +1688,7 @@ void FGAnalyser::quantize(std::vector<double> &scalingVec, std::vector<double> &
   }
 
   // compute distortion - mse
-  for (int i = 0; i < scalingVec.size(); i++)
+  for (unsigned int i = 0; i < scalingVec.size(); i++)
   {
     distortion += ((scalingVec[i] - quantizedVec[i]) * (scalingVec[i] - quantizedVec[i]));
   }
@@ -1738,7 +1698,7 @@ void FGAnalyser::quantize(std::vector<double> &scalingVec, std::vector<double> &
 // Set correctlly SEI parameters based on the quantized curve
 void FGAnalyser::setEstimatedParameters(std::vector<int> &quantizedVec, unsigned int bitDepth, uint8_t compID)
 {
-  std::vector<std::vector<int>> finalIntervalsandScalingFactors(3);   // lower_bound, upper_bound, scaling_factor
+  std::vector<std::vector<int> > finalIntervalsandScalingFactors(3);   // lower_bound, upper_bound, scaling_factor
 
   int cutoff_horizontal = m_compModel[compID].intensityValues[0].compModelValue[1];
   int cutoff_vertical   = m_compModel[compID].intensityValues[0].compModelValue[2];
@@ -1747,7 +1707,7 @@ void FGAnalyser::setEstimatedParameters(std::vector<int> &quantizedVec, unsigned
   define_intervals_and_scalings(finalIntervalsandScalingFactors, quantizedVec, bitDepth);
 
   // merge small intervals with left or right interval
-  for (int i = 0; i < finalIntervalsandScalingFactors[2].size(); i++)
+  for (unsigned int i = 0; i < finalIntervalsandScalingFactors[2].size(); i++)
   {
     int tmp1 = finalIntervalsandScalingFactors[1][i] - finalIntervalsandScalingFactors[0][i];
 
@@ -1811,7 +1771,7 @@ void FGAnalyser::setEstimatedParameters(std::vector<int> &quantizedVec, unsigned
   // set final interval boundaries and scaling factors. check if some interval has scaling factor 0, and do not encode
   // them within SEI.
   int j = 0;
-  for (int i = 0; i < finalIntervalsandScalingFactors[2].size(); i++)
+  for (unsigned int i = 0; i < finalIntervalsandScalingFactors[2].size(); i++)
   {
     if (finalIntervalsandScalingFactors[2][i] != 0)
     {
@@ -1840,11 +1800,11 @@ long double FGAnalyser::ldpow(long double n, unsigned p)
 }
 
 // find bounds of intensity intervals and scaling factors for each interval
-void FGAnalyser::define_intervals_and_scalings(std::vector<std::vector<int>> &parameters, std::vector<int> &quantizedVec, int bitDepth)
+void FGAnalyser::define_intervals_and_scalings(std::vector<std::vector<int> > &parameters, std::vector<int> &quantizedVec, int bitDepth)
 {
   parameters[0].push_back(0);
   parameters[2].push_back(quantizedVec[0]);
-  for (int i = 0; i < quantizedVec.size() - 1; i++)
+  for (unsigned int i = 0; i < quantizedVec.size() - 1; i++)
   {
     if (quantizedVec[i] != quantizedVec[i + 1])
     {
@@ -1857,9 +1817,9 @@ void FGAnalyser::define_intervals_and_scalings(std::vector<std::vector<int>> &pa
 }
 
 // scale everything to 8-bit ranges as supported by SEI message
-void FGAnalyser::scale_down(std::vector<std::vector<int>> &parameters, int bitDepth)
+void FGAnalyser::scale_down(std::vector<std::vector<int> > &parameters, int bitDepth)
 {
-  for (int i = 0; i < parameters[2].size(); i++)
+  for (unsigned int i = 0; i < parameters[2].size(); i++)
   {
     parameters[0][i] >>= (bitDepth - BIT_DEPTH_8);
     parameters[1][i] >>= (bitDepth - BIT_DEPTH_8);
@@ -1869,22 +1829,22 @@ void FGAnalyser::scale_down(std::vector<std::vector<int>> &parameters, int bitDe
 }
 
 // check if intervals are properly set after scaling to 8-bit representation
-void FGAnalyser::confirm_intervals(std::vector<std::vector<int>> &parameters)
+void FGAnalyser::confirm_intervals(std::vector<std::vector<int> > &parameters)
 {
   std::vector<int> tmp;
-  for (int i = 0; i < parameters[2].size(); i++)
+  for (unsigned int i = 0; i < parameters[2].size(); i++)
   {
     tmp.push_back(parameters[0][i]);
     tmp.push_back(parameters[1][i]);
   }
-  for (int i = 0; i < tmp.size() - 1; i++)
+  for (unsigned int i = 0; i < tmp.size() - 1; i++)
   {
     if (tmp[i] == tmp[i + 1])
     {
       tmp[i + 1]++;
     }
   }
-  for (int i = 0; i < parameters[2].size(); i++)
+  for (unsigned int i = 0; i < parameters[2].size(); i++)
   {
     parameters[0][i] = tmp[2 * i];
     parameters[1][i] = tmp[2 * i + 1];
@@ -1897,7 +1857,7 @@ void FGAnalyser::extend_points(std::vector<int> &data_x, std::vector<int> &data_
   int xmax = data_x[0];
   int ymin = data_y[0];
   int ymax = data_y[0];
-  for (int i = 0; i < data_x.size(); i++)
+  for (unsigned int i = 0; i < data_x.size(); i++)
   {
     if (data_x[i] < xmin)
     {
@@ -1934,7 +1894,7 @@ void FGAnalyser::extend_points(std::vector<int> &data_x, std::vector<int> &data_
     data_y.push_back(ymax);
     num_extra_point_right--;
   }
-  for (int i = 0; i < data_x.size(); i++)
+  for (unsigned int i = 0; i < data_x.size(); i++)
   {
     if (data_x[i] < MIN_INTENSITY || data_x[i] > MAX_INTENSITY)
     {
@@ -1956,26 +1916,6 @@ void FGAnalyser::set_film_grain_parameters()
     filmgrain.m_blendingModeId = 2;
     filmgrain.m_log2ScaleFactor = m_log2ScaleFactor;
     memcpy(filmgrain.m_compModel, m_compModel, sizeof(m_compModel));
-    //filmgrain.m_compModel = m_compModel;
-    //fwrite((char* )&filmgrain.m_compModel[1].bPresentFlag, sizeof(bool), 1, fout);
-    //fwrite((char* )&filmgrain.m_compModel[2].bPresentFlag, sizeof(bool), 1, fout);
-    //for (int i = 0; i < 3; i++)
-    //{
-    //    if (filmgrain.m_compModel[i].bPresentFlag)
-    //    {
-    //        fwrite((char* )&filmgrain.m_compModel[i].m_filmGrainNumIntensityIntervalMinus1, sizeof(unsigned char), 1, fout);
-    //        fwrite((char* )&filmgrain.m_compModel[i].numModelValues, sizeof(unsigned char), 1, fout);
-    //        for (int j = 0; j <= filmgrain.m_compModel[i].m_filmGrainNumIntensityIntervalMinus1; j++)
-    //        {
-    //            fwrite((char* )&filmgrain.m_compModel[i].intensityValues[j].intensityIntervalLowerBound, sizeof(unsigned char), 1, fout);// min intensity
-    //            fwrite((char* )&filmgrain.m_compModel[i].intensityValues[j].intensityIntervalUpperBound, sizeof(unsigned char), 1, fout);// max intensity
-    //            for (int k = 0; k < filmgrain.m_compModel[i].numModelValues; k++)
-    //            {
-    //                fwrite((char* )&filmgrain.m_compModel[i].intensityValues[j].compModelValue[k], sizeof(int), 1, fout);// compModelValue
-    //            }
-    //        }
-    //    }
-    //}
 }
 
 void FGAnalyser::write_film_grain_parameters()
@@ -2013,22 +1953,22 @@ void FGAnalyser::write_film_grain_parameters()
 // delete picture buffers
 void FGAnalyser::destroy()
 {
-  if (m_originalBuf != nullptr)
+  if (m_originalBuf != NULL)
   {
     m_originalBuf->destroy();
     delete m_originalBuf;
-    m_originalBuf = nullptr;
+    m_originalBuf = NULL;
   }
-  if (m_workingBuf != nullptr)
+  if (m_workingBuf != NULL)
   {
     m_workingBuf->destroy();
     delete m_workingBuf;
-    m_workingBuf = nullptr;
+    m_workingBuf = NULL;
   }
-  if (m_maskBuf != nullptr)
+  if (m_maskBuf != NULL)
   {
     m_maskBuf->destroy();
     delete m_maskBuf;
-    m_maskBuf = nullptr;
+    m_maskBuf = NULL;
   }
 }
