@@ -1188,7 +1188,7 @@ bool FGAnalyser::fit_function(std::vector<int> &data_x, std::vector<int> &data_y
 
   extend_points(tmp_data_x, tmp_data_y, bitDepth);   // find the most left and the most right point, and extend edges
 
-  X265_CHECK(tmp_data_x.size() > MAXPAIRS, "Maximum dataset size exceeded.");
+  X265_CHECK(tmp_data_x.size() <= MAXPAIRS, "Maximum dataset size exceeded.");
 
   // fitting the function starts here
   xmin = tmp_data_x[0];
@@ -1525,7 +1525,7 @@ void FGAnalyser::avg_scaling_vec(std::vector<double> &scalingVec, uint8_t compID
 // Lloyd Max quantizer
 bool FGAnalyser::lloyd_max(std::vector<double> &scalingVec, std::vector<int> &quantizedVec, double &distortion, int numQuantizedLevels, int bitDepth)
 {
-  X265_CHECK(scalingVec.size() <= 0, "Empty training dataset.");
+  X265_CHECK(scalingVec.size() > 0, "Empty training dataset.");
 
   int xmin = (int) scalingVec.back();
   scalingVec.pop_back();
@@ -1710,7 +1710,7 @@ bool FGAnalyser::lloyd_max(std::vector<double> &scalingVec, std::vector<int> &qu
 
 void FGAnalyser::quantize(std::vector<double> &scalingVec, std::vector<double> &quantizedVec, double &distortion, std::vector<double> partition, std::vector<double> codebook)
 {
-  X265_CHECK(partition.size() <= 0 || codebook.size() <= 0, "Check partitions and codebook.");
+  X265_CHECK(partition.size() > 0 || codebook.size() > 0, "Check partitions and codebook.");
 
   // reset previous quantizedVec to 0 and distortion to 0
   std::fill(quantizedVec.begin(), quantizedVec.end(), 0.0);
@@ -1823,7 +1823,7 @@ void FGAnalyser::setEstimatedParameters(std::vector<int> &quantizedVec, unsigned
       j++;
     }
   }
-  X265_CHECK(j != m_compModel[compID].m_filmGrainNumIntensityIntervalMinus1, "Check film grain intensity levels");
+  X265_CHECK(j == m_compModel[compID].m_filmGrainNumIntensityIntervalMinus1, "Check film grain intensity levels");
 }
 
 long double FGAnalyser::ldpow(long double n, unsigned p)
