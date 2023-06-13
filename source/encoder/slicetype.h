@@ -34,7 +34,6 @@
 namespace X265_NS {
 // private namespace
 
-struct Lowres;
 class Frame;
 class Lookahead;
 
@@ -97,14 +96,6 @@ struct LookaheadTLD
     ~LookaheadTLD() { X265_FREE(wbuffer[0]); }
 
 
-
-    uint32_t calcVariance(pixel* src, intptr_t stride, intptr_t blockOffset, uint32_t plane);
-
-protected:
-
-    uint32_t acEnergyCu(Frame* curFrame, uint32_t blockX, uint32_t blockY, int csp, uint32_t qgSize);
-    uint32_t edgeDensityCu(Frame* curFrame, uint32_t &avgAngle, uint32_t blockX, uint32_t blockY, uint32_t qgSize);
-
 };
 
 class Lookahead : public JobProvider
@@ -118,41 +109,17 @@ public:
     Event         m_outputSignal;
     LookaheadTLD* m_tld;
     x265_param*   m_param;
-    Lowres*       m_lastNonB;
     int*          m_scratch;         // temp buffer for cutree propagate
 
     /* pre-lookahead */
     int           m_fullQueueSize;
-    int           m_lastKeyframe;
-    int           m_8x8Width;
-    int           m_8x8Height;
-    int           m_8x8Blocks;
-    int           m_cuCount;
-    int           m_numCoopSlices;
-    int           m_numRowsPerSlice;
     int           m_inputCount;
-    double        m_cuTreeStrength;
-
-    /* HME */
-    int           m_4x4Width;
-    int           m_4x4Height;
 
     bool          m_isActive;
     bool          m_sliceTypeBusy;
-    bool          m_bAdaptiveQuant;
     bool          m_outputSignalRequired;
-    bool          m_bBatchMotionSearch;
-    bool          m_bBatchFrameCosts;
     bool          m_filled;
-    bool          m_isSceneTransition;
     int           m_numPools;
-    bool          m_extendGopBoundary;
-    double        m_frameVariance[X265_BFRAME_MAX + 4];
-
-    bool          m_resetRunningAvg;
-    uint32_t      m_segmentCountThreshold;
-
-    int8_t                  m_gopId;
 
     Lookahead(x265_param *param, ThreadPool *pool);
 
@@ -160,19 +127,14 @@ public:
     void    destroy();
     void    stopJobs();
 
-    //void    addPicture(Frame&, int sliceType);
     void    addPicture(Frame& curFrame);
-    void    checkLookaheadQueue(int &frameCnt);
     void    flush();
     Frame*  getDecidedPicture();
-
-    void    setLookaheadQueue();
 
 protected:
 
     void    findJob(int workerThreadID);
     void    slicetypeDecide();
-
 
 };
 

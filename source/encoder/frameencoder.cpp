@@ -139,10 +139,7 @@ void FrameEncoder::compressFrame()
     m_frameEncTF->m_QP = m_param->qp; // Keep qp is constant
     m_frameEncTF->bilateralFilter(m_frame, m_mcstfRefList, m_param->temporalFilterStrength);
 
-    //m_fg->initBufs(original, m_frame->m_fencPic);
-
     m_fg->initBufs(original, m_frame->m_fencPic);
-
     m_fg->estimate_grain_parameters();
 
     //Reset the MCSTF context in Frame Encoder and Frame

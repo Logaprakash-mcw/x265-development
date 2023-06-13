@@ -39,17 +39,9 @@ PicYuv::PicYuv()
     m_picDifBuf[1] = NULL;
     m_picDifBuf[2] = NULL;
 
-    m_picFilBuf[0] = NULL;
-    m_picFilBuf[1] = NULL;
-    m_picFilBuf[2] = NULL;
-
     m_picDif[0] = NULL;
     m_picDif[1] = NULL;
     m_picDif[2] = NULL;
-
-    m_picFil[0] = NULL;
-    m_picFil[1] = NULL;
-    m_picFil[2] = NULL;
 
     m_picOrg[0] = NULL;
     m_picOrg[1] = NULL;
@@ -123,10 +115,8 @@ bool PicYuv::create(x265_param* param, bool picAlloc, pixel *pixelbuf)
         if (picAlloc)
         {
             CHECKED_MALLOC(m_picBuf[0], pixel, m_stride * (maxHeight + (m_lumaMarginY * 2)));
-            CHECKED_MALLOC(m_picFilBuf[0], pixel, m_stride * (maxHeight + (m_lumaMarginY * 2)));
             CHECKED_MALLOC(m_picDifBuf[0], int16_t, m_stride * (maxHeight + (m_lumaMarginY * 2)));
             m_picOrg[0] = m_picBuf[0] + m_lumaMarginY * m_stride + m_lumaMarginX;
-            m_picFil[0] = m_picFilBuf[0] + m_lumaMarginY * m_stride + m_lumaMarginX;
             m_picDif[0] = m_picDifBuf[0] + m_lumaMarginY * m_stride + m_lumaMarginX;
         }
     }
@@ -140,15 +130,11 @@ bool PicYuv::create(x265_param* param, bool picAlloc, pixel *pixelbuf)
         {
             CHECKED_MALLOC(m_picBuf[1], pixel, m_strideC * ((maxHeight >> m_vChromaShift) + (m_chromaMarginY * 2)));
             CHECKED_MALLOC(m_picBuf[2], pixel, m_strideC * ((maxHeight >> m_vChromaShift) + (m_chromaMarginY * 2)));
-            CHECKED_MALLOC(m_picFilBuf[1], pixel, m_strideC * ((maxHeight >> m_vChromaShift) + (m_chromaMarginY * 2)));
-            CHECKED_MALLOC(m_picFilBuf[2], pixel, m_strideC * ((maxHeight >> m_vChromaShift) + (m_chromaMarginY * 2)));
             CHECKED_MALLOC(m_picDifBuf[1], int16_t, m_strideC * ((maxHeight >> m_vChromaShift) + (m_chromaMarginY * 2)));
             CHECKED_MALLOC(m_picDifBuf[2], int16_t, m_strideC * ((maxHeight >> m_vChromaShift) + (m_chromaMarginY * 2)));
 
             m_picOrg[1] = m_picBuf[1] + m_chromaMarginY * m_strideC + m_chromaMarginX;
             m_picOrg[2] = m_picBuf[2] + m_chromaMarginY * m_strideC + m_chromaMarginX;
-            m_picFil[1] = m_picFilBuf[1] + m_chromaMarginY * m_strideC + m_chromaMarginX;
-            m_picFil[2] = m_picFilBuf[2] + m_chromaMarginY * m_strideC + m_chromaMarginX;
             m_picDif[1] = m_picDifBuf[1] + m_chromaMarginY * m_strideC + m_chromaMarginX;
             m_picDif[2] = m_picDifBuf[2] + m_chromaMarginY * m_strideC + m_chromaMarginX;
 
@@ -172,10 +158,8 @@ void PicYuv::copyFromFrame(PicYuv* source)
 
     int maxHeight = numCuInHeight * m_param->maxCUSize;
     memcpy(m_picBuf[0], source->m_picBuf[0], sizeof(pixel) * m_stride * (maxHeight + (m_lumaMarginY * 2)));
-    memcpy(m_picFilBuf[0], source->m_picFilBuf[0], sizeof(pixel) * m_stride * (maxHeight + (m_lumaMarginY * 2)));
     memcpy(m_picDifBuf[0], source->m_picDifBuf[0], sizeof(int16_t) * m_stride * (maxHeight + (m_lumaMarginY * 2)));
     m_picOrg[0] = m_picBuf[0] + m_lumaMarginY * m_stride + m_lumaMarginX;
-    m_picFil[0] = m_picFilBuf[0] + m_lumaMarginY * m_stride + m_lumaMarginX;
     m_picDif[0] = m_picDifBuf[0] + m_lumaMarginY * m_stride + m_lumaMarginX;
 
     if (m_picCsp != X265_CSP_I400)
@@ -183,17 +167,11 @@ void PicYuv::copyFromFrame(PicYuv* source)
         memcpy(m_picBuf[1], source->m_picBuf[1], sizeof(pixel) * m_strideC * ((maxHeight >> m_vChromaShift) + (m_chromaMarginY * 2)));
         memcpy(m_picBuf[2], source->m_picBuf[2], sizeof(pixel) * m_strideC * ((maxHeight >> m_vChromaShift) + (m_chromaMarginY * 2)));
 
-        memcpy(m_picFilBuf[1], source->m_picFilBuf[1], sizeof(pixel) * m_strideC * ((maxHeight >> m_vChromaShift) + (m_chromaMarginY * 2)));
-        memcpy(m_picFilBuf[2], source->m_picFilBuf[2], sizeof(pixel) * m_strideC * ((maxHeight >> m_vChromaShift) + (m_chromaMarginY * 2)));
-
         memcpy(m_picDifBuf[1], source->m_picDifBuf[1], sizeof(int16_t) * m_strideC * ((maxHeight >> m_vChromaShift) + (m_chromaMarginY * 2)));
         memcpy(m_picDifBuf[2], source->m_picDifBuf[2], sizeof(int16_t) * m_strideC * ((maxHeight >> m_vChromaShift) + (m_chromaMarginY * 2)));
 
         m_picOrg[1] = m_picBuf[1] + m_chromaMarginY * m_strideC + m_chromaMarginX;
         m_picOrg[2] = m_picBuf[2] + m_chromaMarginY * m_strideC + m_chromaMarginX;
-
-        m_picFil[1] = m_picFilBuf[1] + m_chromaMarginY * m_strideC + m_chromaMarginX;
-        m_picFil[2] = m_picFilBuf[2] + m_chromaMarginY * m_strideC + m_chromaMarginX;
 
         m_picDif[1] = m_picDifBuf[1] + m_chromaMarginY * m_strideC + m_chromaMarginX;
         m_picDif[2] = m_picDifBuf[2] + m_chromaMarginY * m_strideC + m_chromaMarginX;
@@ -202,8 +180,6 @@ void PicYuv::copyFromFrame(PicYuv* source)
     {
         m_picBuf[1] = m_picBuf[2] = NULL;
         m_picOrg[1] = m_picOrg[2] = NULL;
-        m_picFilBuf[1] = m_picFilBuf[2] = NULL;
-        m_picFil[1] = m_picFil[2] = NULL;
         m_picDifBuf[1] = m_picDifBuf[2] = NULL;
         m_picDif[1] = m_picDif[2] = NULL;
     }
@@ -314,9 +290,6 @@ void PicYuv::destroy()
     X265_FREE(m_picBuf[0]);
     X265_FREE(m_picBuf[1]);
     X265_FREE(m_picBuf[2]);
-    X265_FREE(m_picFilBuf[0]);
-    X265_FREE(m_picFilBuf[1]);
-    X265_FREE(m_picFilBuf[2]);
     X265_FREE(m_picDifBuf[0]);
     X265_FREE(m_picDifBuf[1]);
     X265_FREE(m_picDifBuf[2]);

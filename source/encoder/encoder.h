@@ -30,9 +30,6 @@
 #include "x265.h"
 #include "framedata.h"
 #include "temporalfilter.h"
-#ifdef ENABLE_HDR10_PLUS
-    #include "dynamicHDR10/hdr10plus.h"
-#endif
 struct x265_encoder {};
 namespace X265_NS {
 // private namespace

@@ -130,14 +130,14 @@ private:
 class Morph
 {
 public:
-  Morph();
-  ~Morph();
+    Morph();
+    ~Morph();
 
-  int dilation  (PicYuv* buff, unsigned int bitDepth, uint8_t compID, int numIter, int iter = 0);
-  int erosion   (PicYuv* buff, unsigned int bitDepth, uint8_t compID, int numIter, int iter = 0);
+    int dilation  (PicYuv* buff, unsigned int bitDepth, uint8_t compID, int numIter, int iter = 0);
+    int erosion   (PicYuv* buff, unsigned int bitDepth, uint8_t compID, int numIter, int iter = 0);
 
 private:
-  unsigned int m_kernelSize; // Dilation and erosion kernel size
+    unsigned int m_kernelSize; // Dilation and erosion kernel size
 };
 
 

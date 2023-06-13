@@ -93,9 +93,6 @@ namespace X265_NS {
 x265_param *x265_param_alloc()
 {
     x265_param* param = (x265_param*)x265_malloc(sizeof(x265_param));
-#ifdef SVT_HEVC
-    param->svtHevcParam = (EB_H265_ENC_CONFIGURATION*)x265_malloc(sizeof(EB_H265_ENC_CONFIGURATION));
-#endif
     return param;
 }
 
@@ -164,47 +161,7 @@ static int parseName(const char* arg, const char* const* names, bool& bError)
 
     return x265_atoi(arg, bError);
 }
-///* internal versions of string-to-int with additional error checking */
-//#undef atoi
-//#undef atof
-//#define atoi(str) x265_atoi(str, bError)
-//#define atof(str) x265_atof(str, bError)
-//#define atobool(str) (x265_atobool(str, bError))
-//
-//int x265_scenecut_aware_qp_param_parse(x265_param* p, const char* name, const char* value)
-//{
-//    bool bError = false;
-//    char nameBuf[64];
-//    if (!name)
-//        return X265_PARAM_BAD_NAME;
-//    // skip -- prefix if provided
-//    if (name[0] == '-' && name[1] == '-')
-//        name += 2;
-//    // s/_/-/g
-//    if (strlen(name) + 1 < sizeof(nameBuf) && strchr(name, '_'))
-//    {
-//        char *c;
-//        strcpy(nameBuf, name);
-//        while ((c = strchr(nameBuf, '_')) != 0)
-//            *c = '-';
-//        name = nameBuf;
-//    }
-//    if (!value)
-//        value = "true";
-//    else if (value[0] == '=')
-//        value++;
-//#define OPT(STR) else if (!strcmp(name, STR))
-//    if (0);
-//    else
-//        return X265_PARAM_BAD_NAME;
-//#undef OPT
-//    return bError ? X265_PARAM_BAD_VALUE : 0;
-//}
-//
-//
-///* internal versions of string-to-int with additional error checking */
-//#undef atoi
-//#undef atof
+
 #define atoi(str) x265_atoi(str, bError)
 #define atof(str) x265_atof(str, bError)
 #define atobool(str) (bNameWasBool = true, x265_atobool(str, bError))
@@ -257,18 +214,6 @@ int x265_param_parse(x265_param* p, const char* name, const char* value)
 #endif
 #define OPT(STR) else if (!strcmp(name, STR))
 #define OPT2(STR1, STR2) else if (!strcmp(name, STR1) || !strcmp(name, STR2))
-
-#ifdef SVT_HEVC
-    if (p->bEnableSvtHevc)
-    {
-        if(svt_param_parse(p, name, value))
-        {
-            x265_log(p, X265_LOG_ERROR, "Error while parsing params \n");
-            bError = true;
-        }
-        return bError ? X265_PARAM_BAD_VALUE : 0;
-    }
-#endif
 
     if (0) ;
     OPT("asm")
@@ -496,22 +441,6 @@ int x265_check_params(x265_param* param)
 
     return check_failed;
 }
-//
-//static void appendtool(char* buf, size_t size, const char* toolstr)
-//{
-//    static const int overhead = (int)strlen("x265 [info]: tools: ");
-//
-//    if (strlen(buf) + strlen(toolstr) + overhead >= size)
-//    {
-//        x265_log(X265_LOG_INFO, "tools:%s\n", buf);
-//        sprintf(buf, " %s", toolstr);
-//    }
-//    else
-//    {
-//        strcat(buf, " ");
-//        strcat(buf, toolstr);
-//    }
-//}
 
 void x265_print_params(x265_param* param)
 {

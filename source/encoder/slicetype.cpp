@@ -41,114 +41,18 @@
 
 using namespace X265_NS;
 
-namespace {
-
-uint32_t acEnergyVarHist(uint64_t sum_ssd, int shift)
-{
-    uint32_t sum = (uint32_t)sum_ssd;
-    uint32_t ssd = (uint32_t)(sum_ssd >> 32);
-
-    return ssd - ((uint64_t)sum * sum >> shift);
-}
-
-/* Compute variance to derive AC energy of each block */
-inline uint32_t acEnergyVar(Frame *curFrame, uint64_t sum_ssd, int shift, int plane)
-{
-    uint32_t sum = (uint32_t)sum_ssd;
-    uint32_t ssd = (uint32_t)(sum_ssd >> 32);
-
-    curFrame->wp_sum[plane] += sum;
-    curFrame->wp_ssd[plane] += ssd;
-    return ssd - ((uint64_t)sum * sum >> shift);
-}
-
-/* Find the energy of each block in Y/Cb/Cr plane */
-inline uint32_t acEnergyPlane(Frame *curFrame, pixel* src, intptr_t srcStride, int plane, int colorFormat, uint32_t qgSize)
-{
-    if ((colorFormat != X265_CSP_I444) && plane)
-    {
-        if (qgSize == 8)
-        {
-            ALIGN_VAR_4(pixel, pix[4 * 4]);
-            primitives.cu[BLOCK_4x4].copy_pp(pix, 4, src, srcStride);
-            return acEnergyVar(curFrame, primitives.cu[BLOCK_4x4].var(pix, 4), 4, plane);
-        }
-        else
-        {
-            ALIGN_VAR_8(pixel, pix[8 * 8]);
-            primitives.cu[BLOCK_8x8].copy_pp(pix, 8, src, srcStride);
-            return acEnergyVar(curFrame, primitives.cu[BLOCK_8x8].var(pix, 8), 6, plane);
-        }
-    }
-    else
-    {
-        if (qgSize == 8)
-            return acEnergyVar(curFrame, primitives.cu[BLOCK_8x8].var(src, srcStride), 6, plane);
-        else
-            return acEnergyVar(curFrame, primitives.cu[BLOCK_16x16].var(src, srcStride), 8, plane);
-    }
-}
-
-} // end anonymous namespace
-
 namespace X265_NS {
-
-/* Find the total AC energy of each block in all planes */
-uint32_t LookaheadTLD::acEnergyCu(Frame* curFrame, uint32_t blockX, uint32_t blockY, int csp, uint32_t qgSize)
-{
-    intptr_t stride = curFrame->m_fencPic->m_stride;
-    intptr_t cStride = curFrame->m_fencPic->m_strideC;
-    intptr_t blockOffsetLuma = blockX + (blockY * stride);
-    int hShift = CHROMA_H_SHIFT(csp);
-    int vShift = CHROMA_V_SHIFT(csp);
-    intptr_t blockOffsetChroma = (blockX >> hShift) + ((blockY >> vShift) * cStride);
-
-    uint32_t var;
-
-    var  = acEnergyPlane(curFrame, curFrame->m_fencPic->m_picOrg[0] + blockOffsetLuma, stride, 0, csp, qgSize);
-    if (csp != X265_CSP_I400 && curFrame->m_fencPic->m_picCsp != X265_CSP_I400)
-    {
-        var += acEnergyPlane(curFrame, curFrame->m_fencPic->m_picOrg[1] + blockOffsetChroma, cStride, 1, csp, qgSize);
-        var += acEnergyPlane(curFrame, curFrame->m_fencPic->m_picOrg[2] + blockOffsetChroma, cStride, 2, csp, qgSize);
-    }
-    x265_emms();
-    return var;
-}
 
 Lookahead::Lookahead(x265_param *param, ThreadPool* pool)
 {
     m_param = param;
     m_pool  = pool;
-
     m_tld      = NULL;
     m_filled   = false;
     m_outputSignalRequired = false;
     m_isActive = true;
     m_inputCount = 0;
-    m_extendGopBoundary = false;
-    //m_8x8Height = ((m_param->sourceHeight / 2) + X265_LOWRES_CU_SIZE - 1) >> X265_LOWRES_CU_BITS;
-    //m_8x8Width = ((m_param->sourceWidth / 2) + X265_LOWRES_CU_SIZE - 1) >> X265_LOWRES_CU_BITS;
-    //m_4x4Height = ((m_param->sourceHeight / 4) + X265_LOWRES_CU_SIZE - 1) >> X265_LOWRES_CU_BITS;
-    //m_4x4Width = ((m_param->sourceWidth / 4) + X265_LOWRES_CU_SIZE - 1) >> X265_LOWRES_CU_BITS;
-    //m_cuCount = m_8x8Width * m_8x8Height;
-    //m_8x8Blocks = m_8x8Width > 2 && m_8x8Height > 2 ? (m_cuCount + 4 - 2 * (m_8x8Width + m_8x8Height)) : m_cuCount;
-
-
     m_sliceTypeBusy = false;
-
-
-    /* It is also beneficial to pre-calculate all possible frame cost estimates
-     * using worker threads bonded to the worker thread running
-     * slicetypeDecide(). This creates bframes * bframes jobs which take less
-     * time than the motion search batches but there are many of them. This may
-     * do much unnecessary work, some frame cost estimates are not needed, so if
-     * the thread pool is small we disable this feature after the initial burst
-     * of work */
-    //m_bBatchFrameCosts = m_bBatchMotionSearch;
-
-
-    m_resetRunningAvg = true;
-
 }
 
 
@@ -287,21 +191,6 @@ Frame* Lookahead::getDecidedPicture()
         return NULL;
 }
 
-
-uint32_t LookaheadTLD::calcVariance(pixel* inpSrc, intptr_t stride, intptr_t blockOffset, uint32_t plane)
-{
-    pixel* src = inpSrc + blockOffset;
-
-    uint32_t var;
-    if (!plane)
-        var = acEnergyVarHist(primitives.cu[BLOCK_8x8].var(src, stride), 6);
-    else
-        var = acEnergyVarHist(primitives.cu[BLOCK_4x4].var(src, stride), 4);
-
-    x265_emms();
-    return var;
-}
-
 void PreLookaheadGroup::processTasks(int workerThreadID)
 {
     if (workerThreadID < 0)
@@ -326,9 +215,9 @@ void PreLookaheadGroup::processTasks(int workerThreadID)
 void Lookahead::slicetypeDecide()
 {
     PreLookaheadGroup pre(*this);
-    Lowres* frames[X265_LOOKAHEAD_MAX + 1 + 4];
+   // Lowres* frames[X265_LOOKAHEAD_MAX + 1 + 4];
     Frame*  list[1 + 4];
-    memset(frames, 0, sizeof(frames));
+   // memset(frames, 0, sizeof(frames));
     memset(list, 0, sizeof(list));
 
     {
