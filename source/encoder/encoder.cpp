@@ -32,7 +32,6 @@
 #include "framedata.h"
 #include "picyuv.h"
 
-#include "bitcost.h"
 #include "encoder.h"
 #include "slicetype.h"
 #include "frameencoder.h"
@@ -42,13 +41,6 @@
 #if _MSC_VER
 #pragma warning(disable: 4996) // POSIX functions are just fine, thanks
 #endif
-
-/* Threshold for motion vection, based on expermental result.
- * TODO: come up an algorithm for adoptive threshold */
-#define MVTHRESHOLD (10*10)
-#define PU_2Nx2N 1
-#define MAX_CHROMA_QP_OFFSET 12
-#define CONF_OFFSET_BYTES (2 * sizeof(int))
 
 using namespace X265_NS;
 
@@ -62,7 +54,6 @@ Encoder::Encoder()
     m_curEncoder = 0;
 
     m_lookahead = NULL;
-    m_rateControl = NULL;
     m_dpb = NULL;
     m_exportedPic = NULL;
     m_numDelayedPic = 0;
@@ -177,6 +168,7 @@ void Encoder::create()
         m_frameEncoder[i]->start();
         m_frameEncoder[i]->m_done.wait(); /* wait for thread to initialize */
     }
+
     if (!m_lookahead->create())
         m_aborted = true;
 
@@ -268,26 +260,6 @@ void Encoder::copyPicture(x265_picture *dest, const x265_picture *src)
     memcpy(dest->planes[0], src->planes[0], src->framesize * sizeof(char));
     dest->planes[1] = (char*)dest->planes[0] + src->stride[0] * src->height;
     dest->planes[2] = (char*)dest->planes[1] + src->stride[1] * (src->height >> x265_cli_csps[src->colorSpace].height[1]);
-}
-
-bool Encoder::isFilterThisframe(uint8_t sliceTypeConfig, int curSliceType)
-{
-    uint8_t newSliceType = 0;
-    switch (curSliceType)
-    {
-    case 1: newSliceType |= 1 << 0;
-        break;
-    case 2: newSliceType |= 1 << 0;
-        break;
-    case 3: newSliceType |= 1 << 1;
-        break;
-    case 4: newSliceType |= 1 << 2;
-        break;
-    case 5: newSliceType |= 1 << 3;
-        break;
-    default: return 0;
-    }
-    return ((sliceTypeConfig & newSliceType) != 0);
 }
 
 inline int enqueueRefFrame(FrameEncoder* curframeEncoder, Frame* iterFrame, Frame* curFrame, bool isPreFiltered, int16_t i)

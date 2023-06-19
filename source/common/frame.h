@@ -36,43 +36,6 @@ class FrameData;
 class PicYuv;
 struct SPS;
 
-#define IS_REFERENCED(frame) (frame->m_lowres.sliceType != X265_TYPE_B)
-
-/* Ratecontrol statistics */
-struct RcStats
-{
-    double   qpaRc;
-    double   qpAq;
-    double   qRceq;
-    double   qpNoVbv;
-    double   newQScale;
-    double   iCuCount;
-    double   pCuCount;
-    double   skipCuCount;
-    double   qScale;
-    double   cumulativePQp;
-    double   cumulativePNorm;
-    double   lastQScaleFor[3];
-    int      mvBits;
-    int      miscBits;
-    int      coeffBits;
-    int      poc;
-    int      encodeOrder;
-    int      sliceType;
-    int      keptAsRef;
-    double   wantedBitsWindow;
-    double   cplxrSum;
-    double   shortTermCplxSum;
-    double   shortTermCplxCount;
-    int64_t  totalBits;
-    int64_t  encodedBits;
-    double   coeff[4];
-    double   count[4];
-    double   offset[4];
-    double   bufferFillFinal;
-    int64_t  currentSatd;
-};
-
 class Frame
 {
 public:

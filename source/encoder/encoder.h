@@ -101,15 +101,8 @@ struct AdaptiveFrameDuplication
 class FrameEncoder;
 class DPB;
 class Lookahead;
-class RateControl;
 class ThreadPool;
 class FrameData;
-
-#define MAX_SCENECUT_THRESHOLD 1.0
-#define SCENECUT_STRENGTH_FACTOR 2.0
-#define MIN_EDGE_FACTOR 0.5
-#define MAX_EDGE_FACTOR 1.5
-#define SCENECUT_CHROMA_FACTOR 10.0
 
 class Encoder : public x265_encoder
 {
@@ -133,7 +126,6 @@ public:
     Frame*             m_exportedPic;
     x265_param*        m_param;
     x265_param*        m_latestParam;     // Holds latest param during a reconfigure
-    RateControl*       m_rateControl;
     Lookahead*         m_lookahead;
 
     bool               m_externalFlush;
@@ -156,9 +148,10 @@ public:
 
     ThreadSafeInteger* zoneReadCount;
     ThreadSafeInteger* zoneWriteCount;
+
     /* Film grain model file */
     FILE* m_filmGrainIn;
-    OrigPicBuffer*          m_origPicBuffer;
+    OrigPicBuffer* m_origPicBuffer;
 
     Encoder();
     ~Encoder(){};
@@ -171,12 +164,8 @@ public:
 
     void configure(x265_param *param);
 
-
-    //double ComputePSNR(x265_picture *firstPic, x265_picture *secPic, x265_param *param);
-
     void copyPicture(x265_picture *dest, const x265_picture *src);
 
-    bool isFilterThisframe(uint8_t sliceTypeConfig, int curSliceType);
     bool generateMcstfRef(Frame* frameEnc, FrameEncoder* currEncoder);
 
 
