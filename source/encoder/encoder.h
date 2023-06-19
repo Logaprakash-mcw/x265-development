@@ -128,8 +128,6 @@ public:
     x265_param*        m_latestParam;     // Holds latest param during a reconfigure
     Lookahead*         m_lookahead;
 
-    bool               m_externalFlush;
-
     SPS                m_sps;
     Window             m_conformanceWindow;
 

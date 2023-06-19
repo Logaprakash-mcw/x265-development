@@ -401,8 +401,10 @@ ThreadPool* ThreadPool::allocThreadPools(x265_param* p, int& numPools, bool isTh
             x265_log(X265_LOG_DEBUG, "No pool thread available. Deciding frame-threads based on detected CPU threads\n");
             totalNumThreads = ThreadPool::getCpuCount(); // auto-detect frame threads
         }
+        if (!p->frameNumThreads)
+            ThreadPool::getFrameThreadsCount(p, totalNumThreads);
     }
-    
+
     if (!numPools)
         return NULL;
 
@@ -651,21 +653,21 @@ int ThreadPool::getCpuCount()
 #endif
 }
 
-//void ThreadPool::getFrameThreadsCount(x265_param* p, int cpuCount)
-//{
-//    int rows = (p->sourceHeight + p->maxCUSize - 1) >> g_log2Size[p->maxCUSize];
-//    if (!p->bEnableWavefront)
-//        p->frameNumThreads = X265_MIN3(cpuCount, (rows + 1) / 2, X265_MAX_FRAME_THREADS);
-//    else if (cpuCount >= 32)
-//        p->frameNumThreads = (p->sourceHeight > 2000) ? 6 : 5; 
-//    else if (cpuCount >= 16)
-//        p->frameNumThreads = 4; 
-//    else if (cpuCount >= 8)
-//        p->frameNumThreads = 3;
-//    else if (cpuCount >= 4)
-//        p->frameNumThreads = 2;
-//    else
-//        p->frameNumThreads = 1;
-//}
+void ThreadPool::getFrameThreadsCount(x265_param* p, int cpuCount)
+{
+    int rows = (p->sourceHeight + p->maxCUSize - 1) >> g_log2Size[p->maxCUSize];
+    if (!p->bEnableWavefront)
+        p->frameNumThreads = X265_MIN3(cpuCount, (rows + 1) / 2, X265_MAX_FRAME_THREADS);
+    else if (cpuCount >= 32)
+        p->frameNumThreads = (p->sourceHeight > 2000) ? 6 : 5;
+    else if (cpuCount >= 16)
+        p->frameNumThreads = 4;
+    else if (cpuCount >= 8)
+        p->frameNumThreads = 3;
+    else if (cpuCount >= 4)
+        p->frameNumThreads = 2;
+    else
+        p->frameNumThreads = 1;
+}
 
 } // end namespace X265_NS

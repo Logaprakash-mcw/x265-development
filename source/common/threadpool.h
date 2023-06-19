@@ -105,6 +105,7 @@ public:
     static ThreadPool* allocThreadPools(x265_param* p, int& numPools, bool isThreadsReserved);
     static int  getCpuCount();
     static int  getNumaNodeCount();
+    static void getFrameThreadsCount(x265_param* p,int cpuCount);
 
 };
 

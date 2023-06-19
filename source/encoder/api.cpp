@@ -153,9 +153,7 @@ int x265_encoder_encode(x265_encoder *enc, x265_picture *pic_in, x265_picture *p
     {
         numEncoded = encoder->encode(pic_in, pic_out);
     }
-    while ((numEncoded == 0 && !pic_in && encoder->m_numDelayedPic && !encoder->m_latestParam->forceFlush) && !encoder->m_externalFlush);
-    if (numEncoded)
-        encoder->m_externalFlush = false;
+    while (numEncoded == 0 && !pic_in && encoder->m_numDelayedPic);
 
     if (numEncoded < 0)
         encoder->m_aborted = true;

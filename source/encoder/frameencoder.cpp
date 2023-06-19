@@ -111,7 +111,6 @@ bool FrameEncoder::startCompressFrame(Frame* curFrame)
 void FrameEncoder::threadMain()
 {
     THREAD_NAME("Frame", m_jpId);
-
     m_done.trigger();     /* signal that thread is initialized */
     m_enable.wait();      /* Encoder::encode() triggers this event */
 

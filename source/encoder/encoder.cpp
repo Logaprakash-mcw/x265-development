@@ -106,6 +106,17 @@ void Encoder::create()
     m_numPools = 0;
     if (allowPools)
         m_threadPool = ThreadPool::allocThreadPools(p, m_numPools, 0);
+    else
+    {
+        if (!p->frameNumThreads)
+        {
+            // auto-detect frame threads
+            int cpuCount = ThreadPool::getCpuCount();
+            ThreadPool::getFrameThreadsCount(p, cpuCount);
+        }
+    }
+
+    x265_log(X265_LOG_INFO, "frame threads       : %d\n", p->frameNumThreads);
 
     for (int i = 0; i < m_param->frameNumThreads; i++)
     {

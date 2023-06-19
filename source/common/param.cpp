@@ -108,7 +108,7 @@ void x265_param_default(x265_param* param)
     /* Applying default values to all elements in the param structure */
     param->cpuid = X265_NS::cpu_detect(false);
     param->bEnableWavefront = 1;
-    param->frameNumThreads = 1;
+    param->frameNumThreads = 0;
 
     /* Source specifications */
     param->internalBitDepth = X265_DEPTH;
@@ -127,7 +127,6 @@ void x265_param_default(x265_param* param)
 
     param->bUseAnalysisFile = 1;
     param->csvfpt = NULL;
-    param->forceFlush = 0;
     param->bDisableLookahead = 1;
     param->bCopyPicToFrame = 1;
     param->qp = 30;
@@ -258,7 +257,7 @@ int x265_param_parse(x265_param* p, const char* name, const char* value)
             }
         }
     }
-    OPT("frame-threads") p->frameNumThreads = 1;
+    OPT("frame-threads") p->frameNumThreads = atoi(value);
 
 
     OPT("input-res") bError |= sscanf(value, "%dx%d", &p->sourceWidth, &p->sourceHeight) != 2;
@@ -410,8 +409,8 @@ int x265_check_params(x265_param* param)
     CHECK(param->fpsNum == 0 || param->fpsDenom == 0,
           "Frame rate numerator and denominator must be specified");
 
-    CHECK(param->frameNumThreads != 1,
-          "FrameThreads should always be 1");
+    //CHECK(param->frameNumThreads != 1,
+    //      "FrameThreads should always be 1");
 
 
     CHECK(tuQTMaxLog2Size > maxLog2CUSize,
@@ -438,6 +437,8 @@ int x265_check_params(x265_param* param)
           "Picture height must be an integer multiple of the specified chroma subsampling");
     CHECK(!param->filmGrain,
           "Filename to dump the film grain characteristics must be specified");
+    CHECK(param->frameNumThreads < 0 || param->frameNumThreads > X265_MAX_FRAME_THREADS,
+          "frameNumThreads (--frame-threads) must be [0 .. X265_MAX_FRAME_THREADS)");
 
     return check_failed;
 }
@@ -517,7 +518,6 @@ void x265_copy_params(x265_param* dst, x265_param* src)
     dst->num4x4Partitions = src->num4x4Partitions;
 
     dst->bUseAnalysisFile = src->bUseAnalysisFile;
-    dst->forceFlush = src->forceFlush;
     dst->bDisableLookahead = src->bDisableLookahead;
     dst->bLowPassDct = src->bLowPassDct;
     dst->filmGrain = src->filmGrain;
