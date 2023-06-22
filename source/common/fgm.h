@@ -151,7 +151,7 @@ public:
         m_bitDepths = 8;
         inputChroma = X265_CSP_I420;
         param = NULL;
-        fout = NULL;
+        //fout = NULL;
         m_normTap = 4.0;
         m_tapFilter[0] = 1;
         m_tapFilter[1] = 2;
@@ -162,14 +162,15 @@ public:
     };
     ~FGAnalyser(){};
 
-    FILE*       fout;
+    //FILE*       fout;
     x265_param* param;
     void init(x265_param* m_param);
     void destroy();
     void initBufs(PicYuv* original, PicYuv* pic);
     void estimate_grain_parameters();
     void set_film_grain_parameters();
-    void write_film_grain_parameters();
+    x265_FilmGrainCharacteristics* get_film_grain_parameters();
+    x265_FilmGrainCharacteristics filmgrain;
 
     int                                     getLog2scaleFactor()  { return m_log2ScaleFactor; };
   //FilmGrainCharacteristics::CompModel  getCompModel(int idx) { return m_compModel[idx];  };
@@ -182,7 +183,7 @@ private:
     int         inputChroma;
     uint8_t     m_bitDepths;
     uint8_t     m_numComponents;
-    FilmGrainCharacteristics filmgrain;
+    
   //bool          m_doAnalysis[MAX_NUM_COMPONENT] = { false, false, false };
 
     Canny    m_edgeDetector;
@@ -194,7 +195,7 @@ private:
 
   //// fg model parameters
     int                                    m_log2ScaleFactor;
-    FilmGrainCharacteristics::CompModel m_compModel[MAX_NUM_COMPONENT];
+    x265_FilmGrainCharacteristics::CompModel m_compModel[MAX_NUM_COMPONENT];
 
     PicYuv *m_originalBuf = NULL;
     PicYuv *m_workingBuf  = NULL;

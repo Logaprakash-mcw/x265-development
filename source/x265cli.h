@@ -117,6 +117,8 @@ static const struct option long_options[] =
         uint32_t saveLevel;
         uint32_t numRefs;
 
+        FILE* fgChar;
+
         /* in microseconds */
         static const int UPDATE_INTERVAL = 250000;
         CLIOptions()
@@ -148,11 +150,13 @@ static const struct option long_options[] =
             saveLevel = 0;
             numRefs = 0;
             argCnt = 0;
+            fgChar = NULL;
         }
 
         void destroy();
         void printStatus(uint32_t frameNum);
         bool parse(int argc, char **argv);
+        void writeFG(x265_FilmGrainCharacteristics* filmgrain);
         //bool parseZoneParam(int argc, char **argv, x265_param* globalParam, int zonefileCount);
     };
 #ifdef __cplusplus

@@ -456,7 +456,7 @@ void FGAnalyser::init(x265_param* m_param)
         m_compModel[i].bPresentFlag           = !i;
         m_compModel[i].numModelValues        = 1;
         m_compModel[i].m_filmGrainNumIntensityIntervalMinus1 = 0;
-        m_compModel[i].intensityValues = (FilmGrainCharacteristics::CompModelIntensityValues *)malloc(sizeof(FilmGrainCharacteristics::CompModelIntensityValues) * MAX_NUM_INTENSITIES);
+        m_compModel[i].intensityValues = (x265_FilmGrainCharacteristics::CompModelIntensityValues *)malloc(sizeof(x265_FilmGrainCharacteristics::CompModelIntensityValues) * MAX_NUM_INTENSITIES);
         for (int j = 0; j < MAX_NUM_INTENSITIES; j++)
         {
             m_compModel[i].intensityValues[j].intensityIntervalLowerBound = 10;
@@ -829,6 +829,9 @@ void FGAnalyser::estimate_cutoff_freq(const std::vector<PelMatrix> &blocks, uint
     std::vector<double> vec_mean_dct_grain_row(DATA_BASE_SIZE, 0.0);
     std::vector<double> vec_mean_dct_grain_col(DATA_BASE_SIZE, 0.0);
     static bool     isFirstCutoffEst[MAX_NUM_COMPONENT] = {true, true, true };
+    static int      compModelValue_1 = 0;
+    static int      compModelValue_2 = 0;
+
 
     int num_blocks = (int) blocks.size();
     if (num_blocks < MIN_BLOCKS_FOR_CUTOFF_ESTIMATION)   // if there is no enough 64 x 64 blocks to estimate cut-off freq, 
@@ -879,12 +882,14 @@ void FGAnalyser::estimate_cutoff_freq(const std::vector<PelMatrix> &blocks, uint
         {
             m_compModel[compID].intensityValues[0].compModelValue[1] = cutoff_horizontal;
             m_compModel[compID].intensityValues[0].compModelValue[2] = cutoff_vertical;
+            compModelValue_1                                         = cutoff_horizontal;
+            compModelValue_2                                         = cutoff_vertical;
             isFirstCutoffEst[compID]                                 = false;
         }
         else
         {
-            m_compModel[compID].intensityValues[0].compModelValue[1] = (m_compModel[compID].intensityValues[0].compModelValue[1] + cutoff_horizontal + 1) / 2;
-            m_compModel[compID].intensityValues[0].compModelValue[2] = (m_compModel[compID].intensityValues[0].compModelValue[2] + cutoff_vertical + 1) / 2;
+            m_compModel[compID].intensityValues[0].compModelValue[1] = (compModelValue_1 + cutoff_horizontal + 1) / 2;
+            m_compModel[compID].intensityValues[0].compModelValue[2] = (compModelValue_2 + cutoff_vertical + 1) / 2;
         }
 
         if (m_compModel[compID].intensityValues[0].compModelValue[1] != 8 || m_compModel[compID].intensityValues[0].compModelValue[2] != 8)   // default is 8
@@ -1934,39 +1939,15 @@ void FGAnalyser::set_film_grain_parameters()
     filmgrain.m_separateColourDescriptionPresentFlag = 0; // Always set to 0
     filmgrain.m_blendingModeId = 0;
     filmgrain.m_log2ScaleFactor = m_log2ScaleFactor;
-    memcpy(filmgrain.m_compModel, m_compModel, sizeof(m_compModel));
+    filmgrain.m_compModel[0] = &m_compModel[0];
+    filmgrain.m_compModel[1] = &m_compModel[1];
+    filmgrain.m_compModel[2] = &m_compModel[2];
+    //memcpy(filmgrain.m_compModel, m_compModel, sizeof(m_compModel));
 }
 
-void FGAnalyser::write_film_grain_parameters()
+x265_FilmGrainCharacteristics* FGAnalyser::get_film_grain_parameters()
 {
-
-    /* Write to the model file */
-    fwrite((char* )&filmgrain.m_filmGrainCharacteristicsCancelFlag, sizeof(bool), 1, fout);
-    fwrite((char* )&filmgrain.m_filmGrainCharacteristicsPersistenceFlag, sizeof(bool), 1, fout);
-    fwrite((char* )&filmgrain.m_filmGrainModelId, sizeof(unsigned char), 1, fout);
-    fwrite((char* )&filmgrain.m_separateColourDescriptionPresentFlag, sizeof(bool), 1, fout); // Always set to 0
-    fwrite((char* )&filmgrain.m_blendingModeId, sizeof(unsigned char), 1, fout);
-    fwrite((char* )&filmgrain.m_log2ScaleFactor, sizeof(unsigned char), 1, fout);
-    fwrite((char* )&filmgrain.m_compModel[0].bPresentFlag, sizeof(bool), 1, fout);
-    fwrite((char* )&filmgrain.m_compModel[1].bPresentFlag, sizeof(bool), 1, fout);
-    fwrite((char* )&filmgrain.m_compModel[2].bPresentFlag, sizeof(bool), 1, fout);
-    for (int i = 0; i < 3; i++)
-    {
-        if (filmgrain.m_compModel[i].bPresentFlag)
-        {
-            fwrite((char* )&filmgrain.m_compModel[i].m_filmGrainNumIntensityIntervalMinus1, sizeof(unsigned char), 1, fout);
-            fwrite((char* )&filmgrain.m_compModel[i].numModelValues, sizeof(unsigned char), 1, fout);
-            for (int j = 0; j <= filmgrain.m_compModel[i].m_filmGrainNumIntensityIntervalMinus1; j++)
-            {
-                fwrite((char* )&filmgrain.m_compModel[i].intensityValues[j].intensityIntervalLowerBound, sizeof(unsigned char), 1, fout);// min intensity
-                fwrite((char* )&filmgrain.m_compModel[i].intensityValues[j].intensityIntervalUpperBound, sizeof(unsigned char), 1, fout);// max intensity
-                for (int k = 0; k < filmgrain.m_compModel[i].numModelValues; k++)
-                {
-                    fwrite((char* )&filmgrain.m_compModel[i].intensityValues[j].compModelValue[k], sizeof(int), 1, fout);// compModelValue
-                }
-            }
-        }
-    }
+    return &filmgrain;
 }
 
 // delete picture buffers

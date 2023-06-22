@@ -148,7 +148,7 @@ public:
     ThreadSafeInteger* zoneWriteCount;
 
     /* Film grain model file */
-    FILE* m_filmGrainIn;
+    //FILE* m_filmGrainIn;
     OrigPicBuffer* m_origPicBuffer;
 
     Encoder();

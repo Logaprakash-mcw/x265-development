@@ -163,6 +163,14 @@ namespace X265_NS {
             m_ret = 2;
             return -1;
         }
+        if (m_param->filmGrain)
+        {
+            m_cliopt.fgChar = x265_fopen(m_param->filmGrain, "wb");
+            if (!m_cliopt.fgChar)
+            {
+                x265_log_file(NULL, X265_LOG_ERROR, "Failed to open film grain characteristics binary file %s\n", m_param->filmGrain);
+            }
+        }
 
         /* get the encoder parameters post-initialization */
         m_cliopt.api->encoder_parameters(m_encoder, m_param);
@@ -298,7 +306,10 @@ namespace X265_NS {
                     outFrameCount += numEncoded;
 
                     if (numEncoded && pic_recon && m_cliopt.recon)
+                    {
                         m_cliopt.recon->writePicture(pic_out);
+                        m_cliopt.writeFG(pic_out.m_fg);
+                    }
                     m_cliopt.printStatus(outFrameCount);
                 }
             }
@@ -316,7 +327,10 @@ namespace X265_NS {
                 outFrameCount += numEncoded;
 
                 if (numEncoded && pic_recon && m_cliopt.recon)
+                {
                     m_cliopt.recon->writePicture(pic_out);
+                    m_cliopt.writeFG(pic_out.m_fg);
+                }
 
                 m_cliopt.printStatus(outFrameCount);
 

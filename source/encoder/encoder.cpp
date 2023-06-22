@@ -157,14 +157,14 @@ void Encoder::create()
 
     int numRows = (m_param->sourceHeight + m_param->maxCUSize - 1) / m_param->maxCUSize;
     int numCols = (m_param->sourceWidth  + m_param->maxCUSize - 1) / m_param->maxCUSize;
-    if (m_param->filmGrain)
-    {
-        m_filmGrainIn = x265_fopen(m_param->filmGrain, "wb");
-        if (!m_filmGrainIn)
-        {
-            x265_log_file(NULL, X265_LOG_ERROR, "Failed to open film grain characteristics binary file %s\n", m_param->filmGrain);
-        }
-    }
+    //if (m_param->filmGrain)
+    //{
+    //    m_filmGrainIn = x265_fopen(m_param->filmGrain, "wb");
+    //    if (!m_filmGrainIn)
+    //    {
+    //        x265_log_file(NULL, X265_LOG_ERROR, "Failed to open film grain characteristics binary file %s\n", m_param->filmGrain);
+    //    }
+    //}
     for (int i = 0; i < m_param->frameNumThreads; i++)
     {
         if (!m_frameEncoder[i]->init(this, numRows, numCols))
@@ -215,8 +215,8 @@ void Encoder::stopJobs()
 
 void Encoder::destroy()
 {
-    if (m_filmGrainIn)
-        x265_fclose(m_filmGrainIn);
+    //if (m_filmGrainIn)
+    //    x265_fclose(m_filmGrainIn);
     if (m_exportedPic)
     {
         ATOMIC_DEC(&m_exportedPic->m_countRefEncoders);
@@ -350,6 +350,7 @@ bool Encoder::generateMcstfRef(Frame* frameEnc, FrameEncoder* currEncoder)
  * returns 0 if no frames are currently available for output
  *         1 if frame was output, m_nalList contains access unit
  *         negative on malloc error or abort */
+
 int Encoder::encode(const x265_picture* pic_in, x265_picture* pic_out)
 {
 #if CHECKED_BUILD || _DEBUG
@@ -537,6 +538,7 @@ int Encoder::encode(const x265_picture* pic_in, x265_picture* pic_out)
                     pic_out->planes[2] = recpic->m_picOrg[2];
                     pic_out->stride[2] = (int)(recpic->m_strideC * sizeof(pixel));
                 }
+                pic_out->m_fg = recpic->m_fgChar;
             }
 
             if (m_aborted)

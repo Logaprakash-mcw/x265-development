@@ -124,6 +124,40 @@ typedef struct x265_sei
     x265_sei_payload *payloads;
 } x265_sei;
 
+
+typedef struct x265_FilmGrainCharacteristics
+{
+    struct CompModelIntensityValues
+    {
+        uint8_t intensityIntervalLowerBound;
+        uint8_t intensityIntervalUpperBound;
+        int*    compModelValue;
+    };
+
+    struct CompModel
+    {
+        bool    bPresentFlag;
+        uint8_t numModelValues;
+        uint8_t m_filmGrainNumIntensityIntervalMinus1;
+        CompModelIntensityValues* intensityValues;
+    };
+
+    CompModel   *m_compModel[3];
+    bool        m_filmGrainCharacteristicsPersistenceFlag;
+    bool        m_filmGrainCharacteristicsCancelFlag;
+    bool        m_separateColourDescriptionPresentFlag;
+    bool        m_filmGrainFullRangeFlag;
+    uint8_t     m_filmGrainModelId;
+    uint8_t     m_blendingModeId;
+    uint8_t     m_log2ScaleFactor;
+    uint8_t     m_filmGrainBitDepthLumaMinus8;
+    uint8_t     m_filmGrainBitDepthChromaMinus8;
+    uint8_t     m_filmGrainColourPrimaries;
+    uint8_t     m_filmGrainTransferCharacteristics;
+    uint8_t     m_filmGrainMatrixCoeffs;
+
+}x265_FilmGrainCharacteristics;
+
 /* Used to pass pictures into the encoder, and to get picture data back out of
  * the encoder.  The input and output semantics are different */
 typedef struct x265_picture
@@ -165,6 +199,8 @@ typedef struct x265_picture
     int    height;
 
     int    width;
+
+    x265_FilmGrainCharacteristics* m_fg;
 } x265_picture;
 
 typedef enum

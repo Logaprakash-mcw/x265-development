@@ -100,6 +100,9 @@ namespace X265_NS {
         if (qpfile)
             fclose(qpfile);
         qpfile = NULL;
+        if (fgChar)
+            fclose(fgChar);
+        fgChar = NULL;
         if (zoneFile)
             fclose(zoneFile);
         zoneFile = NULL;
@@ -121,16 +124,16 @@ namespace X265_NS {
 
         int64_t elapsed = time - startTime;
         double fps = elapsed > 0 ? frameNum * 1000000. / elapsed : 0;
-        float bitrate = 0.008f * totalbytes * (param->fpsNum / param->fpsDenom) / ((float)frameNum);
+        //float bitrate = 0.008f * totalbytes * (param->fpsNum / param->fpsDenom) / ((float)frameNum);
         if (framesToBeEncoded)
         {
             int eta = (int)(elapsed * (framesToBeEncoded - frameNum) / ((int64_t)frameNum * 1000000));
-            sprintf(buf, "x265 [%.1f%%] %d/%d frames, %.2f fps, %.2f kb/s, eta %d:%02d:%02d",
-                100. * frameNum / param->totalFrames, frameNum, param->totalFrames, fps, bitrate,
+            sprintf(buf, "x265 [%.1f%%] %d/%d frames, %.2f fps, eta %d:%02d:%02d",
+                100. * frameNum / param->totalFrames, frameNum, param->totalFrames, fps, 
                 eta / 3600, (eta / 60) % 60, eta % 60);
         }
         else
-            sprintf(buf, "x265 %d frames: %.2f fps, %.2f kb/s", frameNum, fps, bitrate);
+            sprintf(buf, "x265 %d frames: %.2f fps", frameNum, fps);
 
         fprintf(stderr, "%s  \r", buf + 5);
         SetConsoleTitle(buf);
@@ -138,6 +141,36 @@ namespace X265_NS {
         prevUpdateTime = time;
     }
 
+    void CLIOptions::writeFG(x265_FilmGrainCharacteristics* filmgrain)
+    {
+        /* Write to the model file */
+        fwrite((char* )&filmgrain->m_filmGrainCharacteristicsCancelFlag, sizeof(bool), 1, fgChar);
+        fwrite((char* )&filmgrain->m_filmGrainCharacteristicsPersistenceFlag, sizeof(bool), 1, fgChar);
+        fwrite((char* )&filmgrain->m_filmGrainModelId, sizeof(unsigned char), 1, fgChar);
+        fwrite((char* )&filmgrain->m_separateColourDescriptionPresentFlag, sizeof(bool), 1, fgChar); // Always set to 0
+        fwrite((char* )&filmgrain->m_blendingModeId, sizeof(unsigned char), 1, fgChar);
+        fwrite((char* )&filmgrain->m_log2ScaleFactor, sizeof(unsigned char), 1, fgChar);
+        fwrite((char* )&filmgrain->m_compModel[0]->bPresentFlag, sizeof(bool), 1, fgChar);
+        fwrite((char* )&filmgrain->m_compModel[1]->bPresentFlag, sizeof(bool), 1, fgChar);
+        fwrite((char* )&filmgrain->m_compModel[2]->bPresentFlag, sizeof(bool), 1, fgChar);
+        for (int i = 0; i < 3; i++)
+        {
+            if (filmgrain->m_compModel[i]->bPresentFlag)
+            {
+                fwrite((char* )&filmgrain->m_compModel[i]->m_filmGrainNumIntensityIntervalMinus1, sizeof(unsigned char), 1, fgChar);
+                fwrite((char* )&filmgrain->m_compModel[i]->numModelValues, sizeof(unsigned char), 1, fgChar);
+                for (int j = 0; j <= filmgrain->m_compModel[i]->m_filmGrainNumIntensityIntervalMinus1; j++)
+                {
+                    fwrite((char* )&filmgrain->m_compModel[i]->intensityValues[j].intensityIntervalLowerBound, sizeof(unsigned char), 1, fgChar);// min intensity
+                    fwrite((char* )&filmgrain->m_compModel[i]->intensityValues[j].intensityIntervalUpperBound, sizeof(unsigned char), 1, fgChar);// max intensity
+                    for (int k = 0; k < filmgrain->m_compModel[i]->numModelValues; k++)
+                    {
+                        fwrite((char* )&filmgrain->m_compModel[i]->intensityValues[j].compModelValue[k], sizeof(int), 1, fgChar);// compModelValue
+                    }
+                }
+            }
+        }
+    }
     //bool CLIOptions::parseZoneParam(int argc, char **argv, x265_param* globalParam, int zonefileCount)
     //{
     //    bool bError = false;

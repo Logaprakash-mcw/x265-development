@@ -92,7 +92,7 @@ bool FrameEncoder::init(Encoder *top, int numRows, int numCols)
     if(m_fg)
     {
         m_fg->init(m_param);
-        m_fg->fout = this->m_top->m_filmGrainIn;
+        //m_fg->fout = this->m_top->m_filmgrainin;
     }
 
     return ok;
@@ -152,8 +152,10 @@ void FrameEncoder::compressFrame()
     }
 
     m_fg->set_film_grain_parameters();
-    if (m_top->m_filmGrainIn)
-        m_fg->write_film_grain_parameters();
+    //if (m_top->m_filmGrainIn)
+    //    m_fg->write_film_grain_parameters();
+
+    m_frame->m_fencPic->m_fgChar = &m_fg->filmgrain;
     m_endCompressTime = m_endFrameTime = x265_mdate();
 }
 

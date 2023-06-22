@@ -78,6 +78,8 @@ public:
     double  m_vmafScore;
     x265_param *m_param;
 
+    x265_FilmGrainCharacteristics* m_fgChar;
+
     PicYuv();
 
     bool  create(x265_param* param, bool picAlloc = true, pixel *pixelbuf = NULL);
