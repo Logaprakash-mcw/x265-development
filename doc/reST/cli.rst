@@ -2710,6 +2710,10 @@ Bitstream options
 
     Refers to the film grain model characteristics for signal enhancement information transmission
 
+.. option:: --aom-film-grain <filename>
+
+	Refers to the AOM film grain model characteristics
+
     **CLI_ONLY**
 
 DCT Approximations

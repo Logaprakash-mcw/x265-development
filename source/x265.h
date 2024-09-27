@@ -2258,6 +2258,9 @@ typedef struct x265_param
     /* Film Grain Characteristic file */
     char* filmGrain;
 
+    /* Aom Film Grain Characteristic file */
+    char* aomFilmGrain;
+
     /*Motion compensated temporal filter*/
     int      bEnableTemporalFilter;
     double   temporalFilterStrength;

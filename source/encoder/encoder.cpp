@@ -143,6 +143,7 @@ Encoder::Encoder()
     m_analysisFileIn = NULL;
     m_analysisFileOut = NULL;
     m_filmGrainIn = NULL;
+    m_aomFilmGrainIn = NULL;
     m_naluFile = NULL;
     m_offsetEmergency = NULL;
     m_iFrameNum = 0;
@@ -530,6 +531,14 @@ void Encoder::create()
         if (!m_filmGrainIn)
         {
             x265_log_file(NULL, X265_LOG_ERROR, "Failed to open film grain characteristics binary file %s\n", m_param->filmGrain);
+        }
+    }
+    if (m_param->aomFilmGrain)
+    {
+        m_aomFilmGrainIn = x265_fopen(m_param->aomFilmGrain, "rb");
+        if (!m_aomFilmGrainIn)
+        {
+            x265_log_file(NULL, X265_LOG_ERROR, "Failed to open Aom film grain characteristics binary file %s\n", m_param->aomFilmGrain);
         }
     }
 
@@ -977,6 +986,8 @@ void Encoder::destroy()
         fclose(m_naluFile);
     if (m_filmGrainIn)
         x265_fclose(m_filmGrainIn);
+    if (m_aomFilmGrainIn)
+        x265_fclose(m_aomFilmGrainIn);
 
 #ifdef SVT_HEVC
     X265_FREE(m_svtAppData);

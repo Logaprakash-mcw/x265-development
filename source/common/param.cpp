@@ -396,6 +396,7 @@ void x265_param_default(x265_param* param)
 #endif
     /* Film grain characteristics model filename */
     param->filmGrain = NULL;
+    param->aomFilmGrain = NULL;
     param->bEnableSBRC = 0;
 }
 
@@ -1433,6 +1434,7 @@ int x265_param_parse(x265_param* p, const char* name, const char* value)
         OPT("eos") p->bEnableEndOfSequence = atobool(value);
         /* Film grain characterstics model filename */
         OPT("film-grain") p->filmGrain = (char* )value;
+        OPT("aom-film-grain") p->aomFilmGrain = (char*)value;
         OPT("mcstf") p->bEnableTemporalFilter = atobool(value);
         OPT("sbrc") p->bEnableSBRC = atobool(value);
         else
@@ -2333,6 +2335,8 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     BOOL(p->bliveVBV2pass, "vbv-live-multi-pass");
     if (p->filmGrain)
         s += sprintf(s, " film-grain=%s", p->filmGrain); // Film grain characteristics model filename
+    if (p->aomFilmGrain)
+        s += sprintf(s, " aom-film-grain=%s", p->aomFilmGrain);
     BOOL(p->bEnableTemporalFilter, "mcstf");
     BOOL(p->bEnableSBRC, "sbrc");
 #undef BOOL
@@ -2862,6 +2866,9 @@ void x265_copy_params(x265_param* dst, x265_param* src)
     /* Film grain */
     if (src->filmGrain)
         dst->filmGrain = src->filmGrain;
+    /* Aom Film grain*/
+    if (src->aomFilmGrain)
+        dst->aomFilmGrain = src->aomFilmGrain;
     dst->bEnableSBRC = src->bEnableSBRC;
 }
 
