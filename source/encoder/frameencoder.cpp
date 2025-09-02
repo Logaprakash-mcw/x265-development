@@ -81,8 +81,6 @@ bool FrameEncoder::init(Encoder *top, int numRows, int numCols)
 
     bool ok = !!m_numRows;
 
-
-
     m_frameEncTF = new TemporalFilter();
     if (m_frameEncTF)
         m_frameEncTF->init(m_param);
@@ -103,7 +101,6 @@ bool FrameEncoder::init(Encoder *top, int numRows, int numCols)
 /* Generate a complete list of unique geom sets for the current picture dimensions */
 bool FrameEncoder::startCompressFrame(Frame* curFrame)
 {
-
     m_frame = curFrame;
     curFrame->m_encData->m_frameEncoderID = m_jpId;
     curFrame->m_encData->m_jobProvider = this;

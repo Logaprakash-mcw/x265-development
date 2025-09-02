@@ -29,7 +29,6 @@
 #include "wavefront.h"
 #include "frame.h"
 #include "picyuv.h"
-#include "md5.h"
 #include "temporalfilter.h"
 #include "fgm.h"
 

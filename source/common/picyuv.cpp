@@ -496,7 +496,7 @@ void PicYuv::subtract(PicYuv* source)
 }
 
 namespace X265_NS {
-
+#if 0
 template<uint32_t OUTPUT_BITDEPTH_DIV8>
 static void md5_block(MD5Context& md5, const pixel* plane, uint32_t n)
 {
@@ -536,7 +536,7 @@ static void md5_plane(MD5Context& md5, const pixel* plane, uint32_t width, uint3
         md5_block<OUTPUT_BITDEPTH_DIV8>(md5, &plane[y * stride + width_less_modN], width_modN);
     }
 }
-
+#endif
 void updateCRC(const pixel* plane, uint32_t& crcVal, uint32_t height, uint32_t width, intptr_t stride)
 {
     uint32_t crcMsb;
@@ -611,6 +611,7 @@ void checksumFinish(uint32_t checksum, uint8_t digest[16])
     digest[3] =  checksum        & 0xff;
 }
 
+#if 0
 void updateMD5Plane(MD5Context& md5, const pixel* plane, uint32_t width, uint32_t height, intptr_t stride)
 {
     /* choose an md5_plane packing function based on the system bitdepth */
@@ -620,4 +621,5 @@ void updateMD5Plane(MD5Context& md5, const pixel* plane, uint32_t width, uint32_
 
     md5_plane_func(md5, plane, width, height, stride);
 }
+#endif
 }

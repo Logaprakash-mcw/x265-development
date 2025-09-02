@@ -26,7 +26,6 @@
 
 #include "common.h"
 #include "slice.h"
-#include "md5.h"
 
 namespace X265_NS {
 // private namespace

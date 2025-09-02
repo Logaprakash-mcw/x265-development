@@ -155,7 +155,6 @@ add_library(common OBJECT
     threading.cpp threading.h
     threadpool.cpp threadpool.h
     wavefront.h wavefront.cpp
-    md5.cpp md5.h
     yuv.cpp yuv.h
     shortyuv.cpp shortyuv.h
     picyuv.cpp picyuv.h

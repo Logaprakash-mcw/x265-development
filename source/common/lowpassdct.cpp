@@ -20,7 +20,7 @@
  * This program is also available under a commercial proprietary license.
  * For more information, contact us at license @ x265.com.
  *****************************************************************************/
-
+#if 1
 #include "common.h"
 #include "primitives.h"
 
@@ -68,14 +68,16 @@ static void lowPassDct16_c(const int16_t* src, int16_t* dst, intptr_t srcStride)
     int32_t totalSum = 0;
     int16_t sum = 0;
     for (int i = 0; i < 8; i++)
-        for (int j =0; j < 8; j++)
+    {
+        for (int j = 0; j < 8; j++)
         {
-            sum = src[2*i*srcStride + 2*j] + src[2*i*srcStride + 2*j + 1]
-                    + src[(2*i+1)*srcStride + 2*j] + src[(2*i+1)*srcStride + 2*j + 1];
-            avgBlock[i*8 + j] = sum >> 2;
+            sum = src[2 * i*srcStride + 2 * j] + src[2 * i*srcStride + 2 * j + 1]
+                + src[(2 * i + 1)*srcStride + 2 * j] + src[(2 * i + 1)*srcStride + 2 * j + 1];
+            avgBlock[i * 8 + j] = sum >> 2;
 
             totalSum += sum;
         }
+    }
 
     (*s_dct8x8)(avgBlock, coef, 8);
     memset(dst, 0, 256 * sizeof(int16_t));
@@ -93,14 +95,16 @@ static void lowPassDct32_c(const int16_t* src, int16_t* dst, intptr_t srcStride)
     int32_t totalSum = 0;
     int16_t sum = 0;
     for (int i = 0; i < 16; i++)
-        for (int j =0; j < 16; j++)
+    {
+        for (int j = 0; j < 16; j++)
         {
-            sum = src[2*i*srcStride + 2*j] + src[2*i*srcStride + 2*j + 1]
-                    + src[(2*i+1)*srcStride + 2*j] + src[(2*i+1)*srcStride + 2*j + 1];
-            avgBlock[i*16 + j] = sum >> 2;
+            sum = src[2 * i*srcStride + 2 * j] + src[2 * i*srcStride + 2 * j + 1]
+                + src[(2 * i + 1)*srcStride + 2 * j] + src[(2 * i + 1)*srcStride + 2 * j + 1];
+            avgBlock[i * 16 + j] = sum >> 2;
 
             totalSum += sum;
         }
+    }
 
     (*s_dct16x16)(avgBlock, coef, 16);
     memset(dst, 0, 1024 * sizeof(int16_t));
@@ -125,3 +129,5 @@ void setupLowPassPrimitives_c(EncoderPrimitives& p)
     p.cu[BLOCK_32x32].lowpass_dct = lowPassDct32_c;
 }
 }
+#endif
+

@@ -25,7 +25,6 @@
 #define X265_PICYUV_H
 
 #include "common.h"
-#include "md5.h"
 #include "x265.h"
 struct x265_picyuv {};
 
@@ -121,7 +120,7 @@ void updateChecksum(const pixel* plane, uint32_t& checksumVal, uint32_t height, 
 void updateCRC(const pixel* plane, uint32_t& crcVal, uint32_t height, uint32_t width, intptr_t stride);
 void crcFinish(uint32_t & crc, uint8_t digest[16]);
 void checksumFinish(uint32_t checksum, uint8_t digest[16]);
-void updateMD5Plane(MD5Context& md5, const pixel* plane, uint32_t width, uint32_t height, intptr_t stride);
+//void updateMD5Plane(MD5Context& md5, const pixel* plane, uint32_t width, uint32_t height, intptr_t stride);
 }
 
 #endif // ifndef X265_PICYUV_H
