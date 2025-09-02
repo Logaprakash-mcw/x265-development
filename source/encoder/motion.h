@@ -26,7 +26,6 @@
 #define X265_MOTIONESTIMATE_H
 
 #include "primitives.h"
-#include "reference.h"
 #include "mv.h"
 #include "bitcost.h"
 #include "yuv.h"
@@ -94,23 +93,6 @@ public:
                chromaSatd(refYuv.getCrAddr(puPartIdx), refYuv.m_csize, fencPUYuv.m_buf[2], fencPUYuv.m_csize);
     }
 
-    void refineMV(ReferencePlanes* ref, const MV& mvmin, const MV& mvmax, const MV& qmvp, MV& outQMv);
-    int motionEstimate(ReferencePlanes* ref, const MV & mvmin, const MV & mvmax, const MV & qmvp, int numCandidates, const MV * mvc, int merange, MV & outQMv, uint32_t maxSlices, pixel *srcReferencePlane = 0);
-
-    int subpelCompare(ReferencePlanes* ref, const MV &qmv, pixelcmp_t);
-
-protected:
-
-    inline void StarPatternSearch(ReferencePlanes *ref,
-                                  const MV &       mvmin,
-                                  const MV &       mvmax,
-                                  MV &             bmv,
-                                  int &            bcost,
-                                  int &            bPointNr,
-                                  int &            bDistance,
-                                  int              earlyExitIters,
-                                  int              merange,
-                                  int              hme);
 };
 }
 

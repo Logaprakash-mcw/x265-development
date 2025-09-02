@@ -40,7 +40,3 @@ ReconFile* ReconFile::open(const char *fname, int width, int height, uint32_t bi
         return new YUVOutput(fname, width, height, bitdepth, csp);
 }
 
-OutputFile* OutputFile::open(const char *fname, InputFileInfo& inputInfo)
-{
-    return new RAWOutput(fname, inputInfo);
-}

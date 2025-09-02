@@ -295,7 +295,7 @@ ThreadPool* ThreadPool::allocThreadPools(x265_param* p, int& numPools, bool isTh
     cpusPerNode[0] = getCpuCount();
 #endif
 
-    if (bNumaSupport && p->logLevel >= X265_LOG_DEBUG)
+    if (bNumaSupport)
     for (int i = 0; i < numNumaNodes; i++)
         x265_log(p, X265_LOG_DEBUG, "detected NUMA node %d with %d logical cores\n", i, cpusPerNode[i]);
     /* limit threads based on param->numaPools
@@ -427,19 +427,14 @@ ThreadPool* ThreadPool::allocThreadPools(x265_param* p, int& numPools, bool isTh
                 node++;
             int numThreads = X265_MIN(MAX_POOL_THREADS, threadsPerPool[node]);
             int origNumThreads = numThreads;
-            if (i == 0 && p->lookaheadThreads > numThreads / 2)
-            {
-                p->lookaheadThreads = numThreads / 2;
-                x265_log(p, X265_LOG_DEBUG, "Setting lookahead threads to a maximum of half the total number of threads\n");
-            }
             if (isThreadsReserved)
             {
-                numThreads = p->lookaheadThreads;
+                numThreads = 0;
                 maxProviders = 1;
             }
 
             else if (i == 0)
-                numThreads -= p->lookaheadThreads;
+                numThreads -= 0;
             if (!pools[i].create(numThreads, maxProviders, nodeMaskPerPool[node]))
             {
                 X265_FREE(pools);

@@ -84,7 +84,7 @@ cextern pb_32
 cextern pb_64
 cextern hmul_16p
 cextern trans8_shuf
-cextern_naked private_prefix %+ _entropyStateBits
+;cextern_naked private_prefix %+ _entropyStateBits
 cextern pb_movemask
 cextern pw_exp2_0_15
 
@@ -8426,314 +8426,314 @@ cglobal findPosFirstLast, 3,3,4
 ;while(scanPosSigOff >= 0);
 ; sum &= 0xFFFFFF
 
-%if ARCH_X86_64
-; uint32_t costCoeffNxN(uint16_t *scan, coeff_t *coeff, intptr_t trSize, uint16_t *absCoeff, uint8_t *tabSigCtx, uint16_t scanFlagMask, uint8_t *baseCtx, int offset, int scanPosSigOff, int subPosBase)
-INIT_XMM sse4
-cglobal costCoeffNxN, 6,11,6
-    add         r2d, r2d
+;%if ARCH_X86_64
+; ; uint32_t costCoeffNxN(uint16_t *scan, coeff_t *coeff, intptr_t trSize, uint16_t *absCoeff, uint8_t *tabSigCtx, uint16_t scanFlagMask, uint8_t *baseCtx, int offset, int scanPosSigOff, int subPosBase)
+; INIT_XMM sse4
+; cglobal costCoeffNxN, 6,11,6
+    ; add         r2d, r2d
 
-    ; abs(coeff)
-    movh        m1, [r1]
-    movhps      m1, [r1 + r2]
-    movh        m2, [r1 + r2 * 2]
-    lea         r2, [r2 * 3]
-    movhps      m2, [r1 + r2]
-    pabsw       m1, m1
-    pabsw       m2, m2
-    ; r[1-2] free here
+    ; ; abs(coeff)
+    ; movh        m1, [r1]
+    ; movhps      m1, [r1 + r2]
+    ; movh        m2, [r1 + r2 * 2]
+    ; lea         r2, [r2 * 3]
+    ; movhps      m2, [r1 + r2]
+    ; pabsw       m1, m1
+    ; pabsw       m2, m2
+    ; ; r[1-2] free here
 
-    ; WARNING: beyond-bound read here!
-    ; loading scan table
-    mov         r2d, r8m
-    xor         r2d, 15
-    movu        m0, [r0 + r2 * 2]
-    movu        m3, [r0 + r2 * 2 + mmsize]
-    packuswb    m0, m3
-    pxor        m0, [pb_15]
-    xchg        r2d, r8m
-    ; r[0-1] free here
+    ; ; WARNING: beyond-bound read here!
+    ; ; loading scan table
+    ; mov         r2d, r8m
+    ; xor         r2d, 15
+    ; movu        m0, [r0 + r2 * 2]
+    ; movu        m3, [r0 + r2 * 2 + mmsize]
+    ; packuswb    m0, m3
+    ; pxor        m0, [pb_15]
+    ; xchg        r2d, r8m
+    ; ; r[0-1] free here
 
-    ; reorder coeff
-    mova        m3, [deinterleave_shuf]
-    pshufb      m1, m3
-    pshufb      m2, m3
-    punpcklqdq  m3, m1, m2
-    punpckhqdq  m1, m2
-    pshufb      m3, m0
-    pshufb      m1, m0
-    punpcklbw   m2, m3, m1
-    punpckhbw   m3, m1
-    ; r[0-1], m[1] free here
+    ; ; reorder coeff
+    ; mova        m3, [deinterleave_shuf]
+    ; pshufb      m1, m3
+    ; pshufb      m2, m3
+    ; punpcklqdq  m3, m1, m2
+    ; punpckhqdq  m1, m2
+    ; pshufb      m3, m0
+    ; pshufb      m1, m0
+    ; punpcklbw   m2, m3, m1
+    ; punpckhbw   m3, m1
+    ; ; r[0-1], m[1] free here
 
-    ; loading tabSigCtx (+offset)
-    mova        m1, [r4]
-    pshufb      m1, m0
-    movd        m4, r7m
-    pxor        m5, m5
-    pshufb      m4, m5
-    paddb       m1, m4
+    ; ; loading tabSigCtx (+offset)
+    ; mova        m1, [r4]
+    ; pshufb      m1, m0
+    ; movd        m4, r7m
+    ; pxor        m5, m5
+    ; pshufb      m4, m5
+    ; paddb       m1, m4
 
-    ; register mapping
-    ; m0 - Zigzag
-    ; m1 - sigCtx
-    ; {m3,m2} - abs(coeff)
-    ; r0 - x265_entropyStateBits
-    ; r1 - baseCtx
-    ; r2 - scanPosSigOff
-    ; r3 - absCoeff
-    ; r4 - nonZero
-    ; r5 - scanFlagMask
-    ; r6 - sum
-    lea         r0, [private_prefix %+ _entropyStateBits]
-    mov         r1, r6mp
-    xor         r6d, r6d
-    xor         r4d, r4d
-    xor         r8d, r8d
+    ; ; register mapping
+    ; ; m0 - Zigzag
+    ; ; m1 - sigCtx
+    ; ; {m3,m2} - abs(coeff)
+    ; ; r0 - x265_entropyStateBits
+    ; ; r1 - baseCtx
+    ; ; r2 - scanPosSigOff
+    ; ; r3 - absCoeff
+    ; ; r4 - nonZero
+    ; ; r5 - scanFlagMask
+    ; ; r6 - sum
+    ; lea         r0, [private_prefix %+ _entropyStateBits]
+    ; mov         r1, r6mp
+    ; xor         r6d, r6d
+    ; xor         r4d, r4d
+    ; xor         r8d, r8d
 
-    test        r2d, r2d
-    jz         .idx_zero
+    ; test        r2d, r2d
+    ; jz         .idx_zero
 
-.loop:
-;   {
-;        const uint32_t cnt = tabSigCtx[blkPos] + offset + posOffset;
-;        ctxSig = cnt & posZeroMask;
-;        const uint32_t mstate = baseCtx[ctxSig];
-;        const uint32_t mps = mstate & 1;
-;        const uint32_t stateBits = x265_entropyStateBits[mstate ^ sig];
-;        uint32_t nextState = (stateBits >> 24) + mps;
-;        if ((mstate ^ sig) == 1)
-;            nextState = sig;
-;        baseCtx[ctxSig] = (uint8_t)nextState;
-;        sum += stateBits;
-;    }
-;    absCoeff[numNonZero] = tmpCoeff[blkPos];
-;    numNonZero += sig;
-;    scanPosSigOff--;
+; .loop:
+; ;   {
+; ;        const uint32_t cnt = tabSigCtx[blkPos] + offset + posOffset;
+; ;        ctxSig = cnt & posZeroMask;
+; ;        const uint32_t mstate = baseCtx[ctxSig];
+; ;        const uint32_t mps = mstate & 1;
+; ;        const uint32_t stateBits = x265_entropyStateBits[mstate ^ sig];
+; ;        uint32_t nextState = (stateBits >> 24) + mps;
+; ;        if ((mstate ^ sig) == 1)
+; ;            nextState = sig;
+; ;        baseCtx[ctxSig] = (uint8_t)nextState;
+; ;        sum += stateBits;
+; ;    }
+; ;    absCoeff[numNonZero] = tmpCoeff[blkPos];
+; ;    numNonZero += sig;
+; ;    scanPosSigOff--;
 
-    pextrw      [r3 + r4 * 2], m2, 0            ; absCoeff[numNonZero] = tmpCoeff[blkPos]
-    shr         r5d, 1
-    setc        r8b                             ; r8 = sig
-    add         r4d, r8d                        ; numNonZero += sig
-    palignr     m4, m3, m2, 2
-    psrldq      m3, 2
-    mova        m2, m4
-    movd        r7d, m1                         ; r7 = ctxSig
-    movzx       r7d, r7b
-    psrldq      m1, 1
-    movzx       r9d, byte [r1 + r7]             ; mstate = baseCtx[ctxSig]
-    mov         r10d, r9d
-    and         r10d, 1                         ; mps = mstate & 1
-    xor         r9d, r8d                        ; r9 = mstate ^ sig
-    add         r6d, [r0 + r9 * 4]              ; sum += x265_entropyStateBits[mstate ^ sig]
-    add         r10b, byte [r0 + r9 * 4 + 3]    ; nextState = (stateBits >> 24) + mps
-    cmp         r9b, 1
-    cmove       r10d, r8d
-    mov    byte [r1 + r7], r10b
+    ; pextrw      [r3 + r4 * 2], m2, 0            ; absCoeff[numNonZero] = tmpCoeff[blkPos]
+    ; shr         r5d, 1
+    ; setc        r8b                             ; r8 = sig
+    ; add         r4d, r8d                        ; numNonZero += sig
+    ; palignr     m4, m3, m2, 2
+    ; psrldq      m3, 2
+    ; mova        m2, m4
+    ; movd        r7d, m1                         ; r7 = ctxSig
+    ; movzx       r7d, r7b
+    ; psrldq      m1, 1
+    ; movzx       r9d, byte [r1 + r7]             ; mstate = baseCtx[ctxSig]
+    ; mov         r10d, r9d
+    ; and         r10d, 1                         ; mps = mstate & 1
+    ; xor         r9d, r8d                        ; r9 = mstate ^ sig
+    ; add         r6d, [r0 + r9 * 4]              ; sum += x265_entropyStateBits[mstate ^ sig]
+    ; add         r10b, byte [r0 + r9 * 4 + 3]    ; nextState = (stateBits >> 24) + mps
+    ; cmp         r9b, 1
+    ; cmove       r10d, r8d
+    ; mov    byte [r1 + r7], r10b
 
-    dec         r2d
-    jg         .loop
+    ; dec         r2d
+    ; jg         .loop
 
-.idx_zero:
-    pextrw      [r3 + r4 * 2], m2, 0            ; absCoeff[numNonZero] = tmpCoeff[blkPos]
-    add         r4b, r8m
-    xor         r2d, r2d
-    cmp    word r9m, 0
-    sete        r2b
-    add         r4b, r2b
-    jz         .exit
+; .idx_zero:
+    ; pextrw      [r3 + r4 * 2], m2, 0            ; absCoeff[numNonZero] = tmpCoeff[blkPos]
+    ; add         r4b, r8m
+    ; xor         r2d, r2d
+    ; cmp    word r9m, 0
+    ; sete        r2b
+    ; add         r4b, r2b
+    ; jz         .exit
 
-    dec         r2b
-    movd        r3d, m1
-    and         r2d, r3d
+    ; dec         r2b
+    ; movd        r3d, m1
+    ; and         r2d, r3d
 
-    movzx       r3d, byte [r1 + r2]             ; mstate = baseCtx[ctxSig]
-    mov         r4d, r5d
-    xor         r5d, r3d                        ; r0 = mstate ^ sig
-    and         r3d, 1                          ; mps = mstate & 1
-    add         r6d, [r0 + r5 * 4]              ; sum += x265_entropyStateBits[mstate ^ sig]
-    add         r3b, [r0 + r5 * 4 + 3]          ; nextState = (stateBits >> 24) + mps
-    cmp         r5b, 1
-    cmove       r3d, r4d
-    mov    byte [r1 + r2], r3b
+    ; movzx       r3d, byte [r1 + r2]             ; mstate = baseCtx[ctxSig]
+    ; mov         r4d, r5d
+    ; xor         r5d, r3d                        ; r0 = mstate ^ sig
+    ; and         r3d, 1                          ; mps = mstate & 1
+    ; add         r6d, [r0 + r5 * 4]              ; sum += x265_entropyStateBits[mstate ^ sig]
+    ; add         r3b, [r0 + r5 * 4 + 3]          ; nextState = (stateBits >> 24) + mps
+    ; cmp         r5b, 1
+    ; cmove       r3d, r4d
+    ; mov    byte [r1 + r2], r3b
 
-.exit:
-%ifnidn eax,r6d
-    mov         eax, r6d
-%endif
-    and         eax, 0xFFFFFF
-    RET
+; .exit:
+; %ifnidn eax,r6d
+    ; mov         eax, r6d
+; %endif
+    ; and         eax, 0xFFFFFF
+    ; RET
 
 
-; uint32_t costCoeffNxN(uint16_t *scan, coeff_t *coeff, intptr_t trSize, uint16_t *absCoeff, uint8_t *tabSigCtx, uint16_t scanFlagMask, uint8_t *baseCtx, int offset, int scanPosSigOff, int subPosBase)
-INIT_YMM avx2,bmi2
-cglobal costCoeffNxN, 6,10,5
-    add             r2d, r2d
+; ; uint32_t costCoeffNxN(uint16_t *scan, coeff_t *coeff, intptr_t trSize, uint16_t *absCoeff, uint8_t *tabSigCtx, uint16_t scanFlagMask, uint8_t *baseCtx, int offset, int scanPosSigOff, int subPosBase)
+; INIT_YMM avx2,bmi2
+; cglobal costCoeffNxN, 6,10,5
+    ; add             r2d, r2d
 
-    ; abs(coeff)
-    movq            xm1, [r1]
-    movhps          xm1, [r1 + r2]
-    movq            xm2, [r1 + r2 * 2]
-    lea             r2, [r2 * 3]
-    movhps          xm2, [r1 + r2]
-    vinserti128     m1, m1, xm2, 1
-    pabsw           m1, m1
-    ; r[1-2] free here
+    ; ; abs(coeff)
+    ; movq            xm1, [r1]
+    ; movhps          xm1, [r1 + r2]
+    ; movq            xm2, [r1 + r2 * 2]
+    ; lea             r2, [r2 * 3]
+    ; movhps          xm2, [r1 + r2]
+    ; vinserti128     m1, m1, xm2, 1
+    ; pabsw           m1, m1
+    ; ; r[1-2] free here
 
-    ; loading tabSigCtx
-    mova            xm2, [r4]
-    ; r[4] free here
+    ; ; loading tabSigCtx
+    ; mova            xm2, [r4]
+    ; ; r[4] free here
 
-    ; WARNING: beyond-bound read here!
-    ; loading scan table
-    mov             r2d, r8m
-    bzhi            r4d, r5d, r2d                   ; clear non-scan mask bits
-    mov             r6d, r2d
-    xor             r2d, 15
-    movu            m0, [r0 + r2 * 2]
-    packuswb        m0, m0
-    pxor            m0, [pb_15]
-    vpermq          m0, m0, q3120
-    add             r4d, r2d                        ; r4d = (scanPosSigOff == 15) -> (numNonZero == 0)
-    mov             r2d, r6d
+    ; ; WARNING: beyond-bound read here!
+    ; ; loading scan table
+    ; mov             r2d, r8m
+    ; bzhi            r4d, r5d, r2d                   ; clear non-scan mask bits
+    ; mov             r6d, r2d
+    ; xor             r2d, 15
+    ; movu            m0, [r0 + r2 * 2]
+    ; packuswb        m0, m0
+    ; pxor            m0, [pb_15]
+    ; vpermq          m0, m0, q3120
+    ; add             r4d, r2d                        ; r4d = (scanPosSigOff == 15) -> (numNonZero == 0)
+    ; mov             r2d, r6d
 
-    ; reorder tabSigCtx (+offset)
-    pshufb          xm2, xm0
-    vpbroadcastb    xm3, r7m
-    paddb           xm2, xm3
-    ; r[0-1] free here
+    ; ; reorder tabSigCtx (+offset)
+    ; pshufb          xm2, xm0
+    ; vpbroadcastb    xm3, r7m
+    ; paddb           xm2, xm3
+    ; ; r[0-1] free here
 
-    ; reorder coeff
-    pshufb          m1, [deinterleave_shuf]
-    vpermq          m1, m1, q3120
-    pshufb          m1, m0
-    vpermq          m1, m1, q3120
-    pshufb          m1, [interleave_shuf]
-    ; r[0-1], m[2-3] free here
+    ; ; reorder coeff
+    ; pshufb          m1, [deinterleave_shuf]
+    ; vpermq          m1, m1, q3120
+    ; pshufb          m1, m0
+    ; vpermq          m1, m1, q3120
+    ; pshufb          m1, [interleave_shuf]
+    ; ; r[0-1], m[2-3] free here
 
-    ; sig mask
-    pxor            xm3, xm3
-    movd            xm4, r5d
-    vpbroadcastw    m4, xm4
-    pandn           m4, m4, [pw_exp2_0_15]
-    pcmpeqw         m4, m3
+    ; ; sig mask
+    ; pxor            xm3, xm3
+    ; movd            xm4, r5d
+    ; vpbroadcastw    m4, xm4
+    ; pandn           m4, m4, [pw_exp2_0_15]
+    ; pcmpeqw         m4, m3
 
-    ; absCoeff[numNonZero] = tmpCoeff[blkPos]
-    ; [0-3]
-    movq            r0, xm4
-    movq            r1, xm1
-    pext            r6, r1, r0
-    mov       qword [r3], r6
-    popcnt          r0, r0
-    shr             r0, 3
-    add             r3, r0
+    ; ; absCoeff[numNonZero] = tmpCoeff[blkPos]
+    ; ; [0-3]
+    ; movq            r0, xm4
+    ; movq            r1, xm1
+    ; pext            r6, r1, r0
+    ; mov       qword [r3], r6
+    ; popcnt          r0, r0
+    ; shr             r0, 3
+    ; add             r3, r0
 
-    ; [4-7]
-    pextrq          r0, xm4, 1
-    pextrq          r1, xm1, 1
-    pext            r6, r1, r0
-    mov       qword [r3], r6
-    popcnt          r0, r0
-    shr             r0, 3
-    add             r3, r0
+    ; ; [4-7]
+    ; pextrq          r0, xm4, 1
+    ; pextrq          r1, xm1, 1
+    ; pext            r6, r1, r0
+    ; mov       qword [r3], r6
+    ; popcnt          r0, r0
+    ; shr             r0, 3
+    ; add             r3, r0
 
-    ; [8-B]
-    vextracti128    xm4, m4, 1
-    movq            r0, xm4
-    vextracti128    xm1, m1, 1
-    movq            r1, xm1
-    pext            r6, r1, r0
-    mov       qword [r3], r6
-    popcnt          r0, r0
-    shr             r0, 3
-    add             r3, r0
+    ; ; [8-B]
+    ; vextracti128    xm4, m4, 1
+    ; movq            r0, xm4
+    ; vextracti128    xm1, m1, 1
+    ; movq            r1, xm1
+    ; pext            r6, r1, r0
+    ; mov       qword [r3], r6
+    ; popcnt          r0, r0
+    ; shr             r0, 3
+    ; add             r3, r0
 
-    ; [C-F]
-    pextrq          r0, xm4, 1
-    pextrq          r1, xm1, 1
-    pext            r6, r1, r0
-    mov       qword [r3], r6
-    ; r[0-1,3] free here
+    ; ; [C-F]
+    ; pextrq          r0, xm4, 1
+    ; pextrq          r1, xm1, 1
+    ; pext            r6, r1, r0
+    ; mov       qword [r3], r6
+    ; ; r[0-1,3] free here
 
-    ; register mapping
-    ; m0 - Zigzag
-    ; m1 - sigCtx
-    ; r0 - x265_entropyStateBits
-    ; r1 - baseCtx
-    ; r2 - scanPosSigOff
-    ; r5 - scanFlagMask
-    ; r6 - sum
-    ; {r3,r4} - ctxSig[15-0]
-    ; r8m - (numNonZero != 0) || (subPosBase == 0)
-    lea             r0, [private_prefix %+ _entropyStateBits]
-    mov             r1, r6mp
-    xor             r6d, r6d
-    xor             r8d, r8d
+    ; ; register mapping
+    ; ; m0 - Zigzag
+    ; ; m1 - sigCtx
+    ; ; r0 - x265_entropyStateBits
+    ; ; r1 - baseCtx
+    ; ; r2 - scanPosSigOff
+    ; ; r5 - scanFlagMask
+    ; ; r6 - sum
+    ; ; {r3,r4} - ctxSig[15-0]
+    ; ; r8m - (numNonZero != 0) || (subPosBase == 0)
+    ; lea             r0, [private_prefix %+ _entropyStateBits]
+    ; mov             r1, r6mp
+    ; xor             r6d, r6d
+    ; xor             r8d, r8d
 
-    test            r2d, r2d
-    jz             .idx_zero
+    ; test            r2d, r2d
+    ; jz             .idx_zero
 
-;   {
-;        const uint32_t cnt = tabSigCtx[blkPos] + offset + posOffset;
-;        ctxSig = cnt & posZeroMask;
-;        const uint32_t mstate = baseCtx[ctxSig];
-;        const uint32_t mps = mstate & 1;
-;        const uint32_t stateBits = x265_entropyStateBits[mstate ^ sig];
-;        uint32_t nextState = (stateBits >> 24) + mps;
-;        if ((mstate ^ sig) == 1)
-;            nextState = sig;
-;        baseCtx[ctxSig] = (uint8_t)nextState;
-;        sum += stateBits;
-;    }
-;    absCoeff[numNonZero] = tmpCoeff[blkPos];
-;    numNonZero += sig;
-;    scanPosSigOff--;
-.loop:
-    shr             r5d, 1
-    setc            r8b                             ; r8 = sig
-    movd            r7d, xm2                        ; r7 = ctxSig
-    movzx           r7d, r7b
-    psrldq          xm2, 1
-    movzx           r9d, byte [r1 + r7]             ; mstate = baseCtx[ctxSig]
-    mov             r3d, r9d
-    and             r3b, 1                          ; mps = mstate & 1
-    xor             r9d, r8d                        ; r9 = mstate ^ sig
-    add             r6d, [r0 + r9 * 4]              ; sum += entropyStateBits[mstate ^ sig]
-    add             r3b, byte [r0 + r9 * 4 + 3]     ; nextState = (stateBits >> 24) + mps
-    cmp             r9d, 1
-    cmove           r3d, r8d
-    mov        byte [r1 + r7], r3b
+; ;   {
+; ;        const uint32_t cnt = tabSigCtx[blkPos] + offset + posOffset;
+; ;        ctxSig = cnt & posZeroMask;
+; ;        const uint32_t mstate = baseCtx[ctxSig];
+; ;        const uint32_t mps = mstate & 1;
+; ;        const uint32_t stateBits = x265_entropyStateBits[mstate ^ sig];
+; ;        uint32_t nextState = (stateBits >> 24) + mps;
+; ;        if ((mstate ^ sig) == 1)
+; ;            nextState = sig;
+; ;        baseCtx[ctxSig] = (uint8_t)nextState;
+; ;        sum += stateBits;
+; ;    }
+; ;    absCoeff[numNonZero] = tmpCoeff[blkPos];
+; ;    numNonZero += sig;
+; ;    scanPosSigOff--;
+; .loop:
+    ; shr             r5d, 1
+    ; setc            r8b                             ; r8 = sig
+    ; movd            r7d, xm2                        ; r7 = ctxSig
+    ; movzx           r7d, r7b
+    ; psrldq          xm2, 1
+    ; movzx           r9d, byte [r1 + r7]             ; mstate = baseCtx[ctxSig]
+    ; mov             r3d, r9d
+    ; and             r3b, 1                          ; mps = mstate & 1
+    ; xor             r9d, r8d                        ; r9 = mstate ^ sig
+    ; add             r6d, [r0 + r9 * 4]              ; sum += entropyStateBits[mstate ^ sig]
+    ; add             r3b, byte [r0 + r9 * 4 + 3]     ; nextState = (stateBits >> 24) + mps
+    ; cmp             r9d, 1
+    ; cmove           r3d, r8d
+    ; mov        byte [r1 + r7], r3b
 
-    dec             r2d
-    jg             .loop
+    ; dec             r2d
+    ; jg             .loop
 
-.idx_zero:
-    xor             r2d, r2d
-    cmp        word r9m, 0
-    sete            r2b
-    add             r4d, r2d                        ; (numNonZero != 0) || (subPosBase == 0)
-    jz             .exit
+; .idx_zero:
+    ; xor             r2d, r2d
+    ; cmp        word r9m, 0
+    ; sete            r2b
+    ; add             r4d, r2d                        ; (numNonZero != 0) || (subPosBase == 0)
+    ; jz             .exit
 
-    dec             r2b
-    movd            r3d, xm2
-    and             r2d, r3d
+    ; dec             r2b
+    ; movd            r3d, xm2
+    ; and             r2d, r3d
 
-    movzx           r3d, byte [r1 + r2]             ; mstate = baseCtx[ctxSig]
-    mov             r4d, r5d
-    xor             r5d, r3d                        ; r0 = mstate ^ sig
-    and             r3b, 1                          ; mps = mstate & 1
-    add             r6d, [r0 + r5 * 4]              ; sum += x265_entropyStateBits[mstate ^ sig]
-    add             r3b, [r0 + r5 * 4 + 3]          ; nextState = (stateBits >> 24) + mps
-    cmp             r5b, 1
-    cmove           r3d, r4d
-    mov        byte [r1 + r2], r3b
+    ; movzx           r3d, byte [r1 + r2]             ; mstate = baseCtx[ctxSig]
+    ; mov             r4d, r5d
+    ; xor             r5d, r3d                        ; r0 = mstate ^ sig
+    ; and             r3b, 1                          ; mps = mstate & 1
+    ; add             r6d, [r0 + r5 * 4]              ; sum += x265_entropyStateBits[mstate ^ sig]
+    ; add             r3b, [r0 + r5 * 4 + 3]          ; nextState = (stateBits >> 24) + mps
+    ; cmp             r5b, 1
+    ; cmove           r3d, r4d
+    ; mov        byte [r1 + r2], r3b
 
-.exit:
-%ifnidn eax,r6d
-    mov             eax, r6d
-%endif
-    and             eax, 0xFFFFFF
-    RET
-%endif ; ARCH_X86_64
+; .exit:
+; %ifnidn eax,r6d
+    ; mov             eax, r6d
+; %endif
+    ; and             eax, 0xFFFFFF
+    ; RET
+; %endif ; ARCH_X86_64
 
 
 ;uint32_t goRiceParam = 0;
@@ -8879,99 +8879,99 @@ cglobal costCoeffRemain, 0,7,1
 
 
 ; TODO: we need more register, so I writen code as x64 only, but it is easy to portab to x86 platform
-%if ARCH_X86_64
-INIT_XMM sse2
-cglobal costC1C2Flag, 4,12,2
+; %if ARCH_X86_64
+; INIT_XMM sse2
+; cglobal costC1C2Flag, 4,12,2
 
-    mova        m0, [r0]
-    packsswb    m0, m0
+    ; mova        m0, [r0]
+    ; packsswb    m0, m0
 
-    pcmpgtb     m1, m0, [pb_1]
-    pcmpgtb     m0, [pb_2]
+    ; pcmpgtb     m1, m0, [pb_1]
+    ; pcmpgtb     m0, [pb_2]
 
-    ; get mask for 'X>1'
-    pmovmskb    r0d, m1
-    mov         r11d, r0d
+    ; ; get mask for 'X>1'
+    ; pmovmskb    r0d, m1
+    ; mov         r11d, r0d
 
-    ; clear unavailable coeff flags
-    xor         r6d, r6d
-    bts         r6d, r1d
-    dec         r6d
-    and         r11d, r6d
+    ; ; clear unavailable coeff flags
+    ; xor         r6d, r6d
+    ; bts         r6d, r1d
+    ; dec         r6d
+    ; and         r11d, r6d
 
-    ; calculate firstC2Idx
-    or          r11d, 0x100                     ; default value setting to 8
-    bsf         r11d, r11d
+    ; ; calculate firstC2Idx
+    ; or          r11d, 0x100                     ; default value setting to 8
+    ; bsf         r11d, r11d
 
-    lea         r5, [private_prefix %+ _entropyStateBits]
-    xor         r6d, r6d
-    mov         r4d, 0xFFFFFFF9
+    ; lea         r5, [private_prefix %+ _entropyStateBits]
+    ; xor         r6d, r6d
+    ; mov         r4d, 0xFFFFFFF9
 
-    ; register mapping
-    ; r4d       - nextC1
-    ; r5        - x265_entropyStateBits
-    ; r6d       - sum
-    ; r[7-10]   - tmp
-    ; r11d      - firstC2Idx (not use in loop)
+    ; ; register mapping
+    ; ; r4d       - nextC1
+    ; ; r5        - x265_entropyStateBits
+    ; ; r6d       - sum
+    ; ; r[7-10]   - tmp
+    ; ; r11d      - firstC2Idx (not use in loop)
 
-    ; process c1 flag
-.loop:
-    ; const uint32_t mstate = baseCtx[ctxSig];
-    ; const uint32_t mps = mstate & 1;
-    ; const uint32_t stateBits = x265_entropyStateBits[mstate ^ sig];
-    ; uint32_t nextState = (stateBits >> 24) + mps;
-    ; if ((mstate ^ sig) == 1)
-    ;     nextState = sig;
-    mov         r10d, r4d                       ; c1
-    and         r10d, 3
-    shr         r4d, 2
+    ; ; process c1 flag
+; .loop:
+    ; ; const uint32_t mstate = baseCtx[ctxSig];
+    ; ; const uint32_t mps = mstate & 1;
+    ; ; const uint32_t stateBits = x265_entropyStateBits[mstate ^ sig];
+    ; ; uint32_t nextState = (stateBits >> 24) + mps;
+    ; ; if ((mstate ^ sig) == 1)
+    ; ;     nextState = sig;
+    ; mov         r10d, r4d                       ; c1
+    ; and         r10d, 3
+    ; shr         r4d, 2
 
-    xor         r7d, r7d
-    shr         r0d, 1
-    cmovc       r4d, r7d                        ; c1 <- 0 when C1Flag=1
-    setc        r7b                             ; symbol1
+    ; xor         r7d, r7d
+    ; shr         r0d, 1
+    ; cmovc       r4d, r7d                        ; c1 <- 0 when C1Flag=1
+    ; setc        r7b                             ; symbol1
 
-    movzx       r8d, byte [r2 + r10]            ; mstate = baseCtx[c1]
-    mov         r9d, r7d                        ; sig = symbol1
-    xor         r7d, r8d                        ; mstate ^ sig
-    and         r8d, 1                          ; mps = mstate & 1
-    add         r6d, [r5 + r7 * 4]              ; sum += x265_entropyStateBits[mstate ^ sig]
-    add         r8b, [r5 + r7 * 4 + 3]          ; nextState = (stateBits >> 24) + mps
-    cmp         r7b, 1                          ; if ((mstate ^ sig) == 1) nextState = sig;
-    cmove       r8d, r9d
-    mov    byte [r2 + r10], r8b
+    ; movzx       r8d, byte [r2 + r10]            ; mstate = baseCtx[c1]
+    ; mov         r9d, r7d                        ; sig = symbol1
+    ; xor         r7d, r8d                        ; mstate ^ sig
+    ; and         r8d, 1                          ; mps = mstate & 1
+    ; add         r6d, [r5 + r7 * 4]              ; sum += x265_entropyStateBits[mstate ^ sig]
+    ; add         r8b, [r5 + r7 * 4 + 3]          ; nextState = (stateBits >> 24) + mps
+    ; cmp         r7b, 1                          ; if ((mstate ^ sig) == 1) nextState = sig;
+    ; cmove       r8d, r9d
+    ; mov    byte [r2 + r10], r8b
 
-    dec         r1d
-    jg         .loop
+    ; dec         r1d
+    ; jg         .loop
 
-    ; check and generate c1 flag
-    shl         r4d, 30
-    jnz        .quit
+    ; ; check and generate c1 flag
+    ; shl         r4d, 30
+    ; jnz        .quit
 
-    ; move to c2 ctx
-    add         r2, r3
+    ; ; move to c2 ctx
+    ; add         r2, r3
 
-    ; process c2 flag
-    pmovmskb    r8d, m0
-    bt          r8d, r11d
-    setc        r7b
+    ; ; process c2 flag
+    ; pmovmskb    r8d, m0
+    ; bt          r8d, r11d
+    ; setc        r7b
 
-    movzx       r8d, byte [r2]                  ; mstate = baseCtx[c1]
-    mov         r1d, r7d                        ; sig = symbol1
-    xor         r7d, r8d                        ; mstate ^ sig
-    and         r8d, 1                          ; mps = mstate & 1
-    add         r6d, [r5 + r7 * 4]              ; sum += x265_entropyStateBits[mstate ^ sig]
-    add         r8b, [r5 + r7 * 4 + 3]          ; nextState = (stateBits >> 24) + mps
-    cmp         r7b, 1                          ; if ((mstate ^ sig) == 1) nextState = sig;
-    cmove       r8d, r1d
-    mov    byte [r2], r8b
+    ; movzx       r8d, byte [r2]                  ; mstate = baseCtx[c1]
+    ; mov         r1d, r7d                        ; sig = symbol1
+    ; xor         r7d, r8d                        ; mstate ^ sig
+    ; and         r8d, 1                          ; mps = mstate & 1
+    ; add         r6d, [r5 + r7 * 4]              ; sum += x265_entropyStateBits[mstate ^ sig]
+    ; add         r8b, [r5 + r7 * 4 + 3]          ; nextState = (stateBits >> 24) + mps
+    ; cmp         r7b, 1                          ; if ((mstate ^ sig) == 1) nextState = sig;
+    ; cmove       r8d, r1d
+    ; mov    byte [r2], r8b
 
-.quit:
-    shrd        r4d, r11d, 4
-%ifnidn r6d,eax
-    mov         eax, r6d
-%endif
-    and         eax, 0x00FFFFFF
-    or          eax, r4d
-    RET
-%endif ; ARCH_X86_64
+; .quit:
+    ; shrd        r4d, r11d, 4
+; %ifnidn r6d,eax
+    ; mov         eax, r6d
+; %endif
+    ; and         eax, 0x00FFFFFF
+    ; or          eax, r4d
+    ; RET
+; %endif ; ARCH_X86_64

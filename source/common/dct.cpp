@@ -754,319 +754,319 @@ static void denoiseDct_c(int16_t* dctCoef, uint32_t* resSum, const uint16_t* off
     }
 }
 
-static int scanPosLast_c(const uint16_t *scan, const coeff_t *coeff, uint16_t *coeffSign, uint16_t *coeffFlag, uint8_t *coeffNum, int numSig, const uint16_t* /*scanCG4x4*/, const int /*trSize*/)
-{
-    memset(coeffNum, 0, MLS_GRP_NUM * sizeof(*coeffNum));
-    memset(coeffFlag, 0, MLS_GRP_NUM * sizeof(*coeffFlag));
-    memset(coeffSign, 0, MLS_GRP_NUM * sizeof(*coeffSign));
+//static int scanPosLast_c(const uint16_t *scan, const coeff_t *coeff, uint16_t *coeffSign, uint16_t *coeffFlag, uint8_t *coeffNum, int numSig, const uint16_t* /*scanCG4x4*/, const int /*trSize*/)
+//{
+//    memset(coeffNum, 0, MLS_GRP_NUM * sizeof(*coeffNum));
+//    memset(coeffFlag, 0, MLS_GRP_NUM * sizeof(*coeffFlag));
+//    memset(coeffSign, 0, MLS_GRP_NUM * sizeof(*coeffSign));
+//
+//    int scanPosLast = 0;
+//    do
+//    {
+//        const uint32_t cgIdx = (uint32_t)scanPosLast >> MLS_CG_SIZE;
+//
+//        const uint32_t posLast = scan[scanPosLast++];
+//
+//        const int curCoeff = coeff[posLast];
+//        const uint32_t isNZCoeff = (curCoeff != 0);
+//        // get L1 sig map
+//        // NOTE: the new algorithm is complicated, so I keep reference code here
+//        //uint32_t posy   = posLast >> log2TrSize;
+//        //uint32_t posx   = posLast - (posy << log2TrSize);
+//        //uint32_t blkIdx0 = ((posy >> MLS_CG_LOG2_SIZE) << codingParameters.log2TrSizeCG) + (posx >> MLS_CG_LOG2_SIZE);
+//        //const uint32_t blkIdx = ((posLast >> (2 * MLS_CG_LOG2_SIZE)) & ~maskPosXY) + ((posLast >> MLS_CG_LOG2_SIZE) & maskPosXY);
+//        //sigCoeffGroupFlag64 |= ((uint64_t)isNZCoeff << blkIdx);
+//        numSig -= isNZCoeff;
+//
+//        // TODO: optimize by instruction BTS
+//        coeffSign[cgIdx] += (uint16_t)(((uint32_t)curCoeff >> 31) << coeffNum[cgIdx]);
+//        coeffFlag[cgIdx] = (coeffFlag[cgIdx] << 1) + (uint16_t)isNZCoeff;
+//        coeffNum[cgIdx] += (uint8_t)isNZCoeff;
+//    }
+//    while (numSig > 0);
+//    return scanPosLast - 1;
+//}
 
-    int scanPosLast = 0;
-    do
-    {
-        const uint32_t cgIdx = (uint32_t)scanPosLast >> MLS_CG_SIZE;
-
-        const uint32_t posLast = scan[scanPosLast++];
-
-        const int curCoeff = coeff[posLast];
-        const uint32_t isNZCoeff = (curCoeff != 0);
-        // get L1 sig map
-        // NOTE: the new algorithm is complicated, so I keep reference code here
-        //uint32_t posy   = posLast >> log2TrSize;
-        //uint32_t posx   = posLast - (posy << log2TrSize);
-        //uint32_t blkIdx0 = ((posy >> MLS_CG_LOG2_SIZE) << codingParameters.log2TrSizeCG) + (posx >> MLS_CG_LOG2_SIZE);
-        //const uint32_t blkIdx = ((posLast >> (2 * MLS_CG_LOG2_SIZE)) & ~maskPosXY) + ((posLast >> MLS_CG_LOG2_SIZE) & maskPosXY);
-        //sigCoeffGroupFlag64 |= ((uint64_t)isNZCoeff << blkIdx);
-        numSig -= isNZCoeff;
-
-        // TODO: optimize by instruction BTS
-        coeffSign[cgIdx] += (uint16_t)(((uint32_t)curCoeff >> 31) << coeffNum[cgIdx]);
-        coeffFlag[cgIdx] = (coeffFlag[cgIdx] << 1) + (uint16_t)isNZCoeff;
-        coeffNum[cgIdx] += (uint8_t)isNZCoeff;
-    }
-    while (numSig > 0);
-    return scanPosLast - 1;
-}
-
-// NOTE: no defined value on lastNZPosInCG & absSumSign when ALL ZEROS block as input
-static uint32_t findPosFirstLast_c(const int16_t *dstCoeff, const intptr_t trSize, const uint16_t scanTbl[16])
-{
-    int n;
-
-    for (n = SCAN_SET_SIZE - 1; n >= 0; n--)
-    {
-        const uint32_t idx = scanTbl[n];
-        const uint32_t idxY = idx / MLS_CG_SIZE;
-        const uint32_t idxX = idx % MLS_CG_SIZE;
-        if (dstCoeff[idxY * trSize + idxX])
-            break;
-    }
-
-    X265_CHECK(n >= -1, "non-zero coeff scan failuare!\n");
-
-    uint32_t lastNZPosInCG = (uint32_t)n;
-
-    for (n = 0; n < SCAN_SET_SIZE; n++)
-    {
-        const uint32_t idx = scanTbl[n];
-        const uint32_t idxY = idx / MLS_CG_SIZE;
-        const uint32_t idxX = idx % MLS_CG_SIZE;
-        if (dstCoeff[idxY * trSize + idxX])
-            break;
-    }
-
-    uint32_t firstNZPosInCG = (uint32_t)n;
-
-    uint32_t absSumSign = 0;
-    for (n = firstNZPosInCG; n <= (int)lastNZPosInCG; n++)
-    {
-        const uint32_t idx = scanTbl[n];
-        const uint32_t idxY = idx / MLS_CG_SIZE;
-        const uint32_t idxX = idx % MLS_CG_SIZE;
-        absSumSign += dstCoeff[idxY * trSize + idxX];
-    }
-
-    // NOTE: when coeff block all ZERO, the lastNZPosInCG is undefined and firstNZPosInCG is 16
-    return ((absSumSign << 31) | (lastNZPosInCG << 8) | firstNZPosInCG);
-}
-
-
-static uint32_t costCoeffNxN_c(const uint16_t *scan, const coeff_t *coeff, intptr_t trSize, uint16_t *absCoeff, const uint8_t *tabSigCtx, uint32_t scanFlagMask, uint8_t *baseCtx, int offset, int scanPosSigOff, int subPosBase)
-{
-    ALIGN_VAR_32(uint16_t, tmpCoeff[SCAN_SET_SIZE]);
-    uint32_t numNonZero = (scanPosSigOff < (SCAN_SET_SIZE - 1) ? 1 : 0);
-    uint32_t sum = 0;
-
-    // correct offset to match assembly
-    absCoeff -= numNonZero;
-
-    for (int i = 0; i < MLS_CG_SIZE; i++)
-    {
-        tmpCoeff[i * MLS_CG_SIZE + 0] = (uint16_t)abs(coeff[i * trSize + 0]);
-        tmpCoeff[i * MLS_CG_SIZE + 1] = (uint16_t)abs(coeff[i * trSize + 1]);
-        tmpCoeff[i * MLS_CG_SIZE + 2] = (uint16_t)abs(coeff[i * trSize + 2]);
-        tmpCoeff[i * MLS_CG_SIZE + 3] = (uint16_t)abs(coeff[i * trSize + 3]);
-    }
-
-    do
-    {
-        uint32_t blkPos, sig, ctxSig;
-        blkPos = scan[scanPosSigOff];
-        const uint32_t posZeroMask = (subPosBase + scanPosSigOff) ? ~0 : 0;
-        sig     = scanFlagMask & 1;
-        scanFlagMask >>= 1;
-        X265_CHECK((uint32_t)(tmpCoeff[blkPos] != 0) == sig, "sign bit mistake\n");
-        if ((scanPosSigOff != 0) || (subPosBase == 0) || numNonZero)
-        {
-            const uint32_t cnt = tabSigCtx[blkPos] + offset;
-            ctxSig = cnt & posZeroMask;
-
-            //X265_CHECK(ctxSig == Quant::getSigCtxInc(patternSigCtx, log2TrSize, trSize, codingParameters.scan[subPosBase + scanPosSigOff], bIsLuma, codingParameters.firstSignificanceMapContext), "sigCtx mistake!\n");;
-            //encodeBin(sig, baseCtx[ctxSig]);
-            const uint32_t mstate = baseCtx[ctxSig];
-            const uint32_t mps = mstate & 1;
-            //const uint32_t stateBits = PFX(entropyStateBits)[mstate ^ sig];
-            //uint32_t nextState = (stateBits >> 24) + mps;
-            //if ((mstate ^ sig) == 1)
-            //    nextState = sig;
-            //X265_CHECK(sbacNext(mstate, sig) == nextState, "nextState check failure\n");
-            //X265_CHECK(sbacGetEntropyBits(mstate, sig) == (stateBits & 0xFFFFFF), "entropyBits check failure\n");
-            /*baseCtx[ctxSig] = (uint8_t)nextState;
-            sum += stateBits;*/
-        }
-        assert(numNonZero <= 15);
-        assert(blkPos <= 15);
-        absCoeff[numNonZero] = tmpCoeff[blkPos];
-        numNonZero += sig;
-        scanPosSigOff--;
-    }
-    while(scanPosSigOff >= 0);
-
-    return (sum & 0xFFFFFF);
-}
-
-static uint32_t costCoeffRemain_c(uint16_t *absCoeff, int numNonZero, int idx)
-{
-    uint32_t goRiceParam = 0;
-
-    uint32_t sum = 0;
-    int baseLevel = 3;
-    do
-    {
-        if (idx >= C1FLAG_NUMBER)
-            baseLevel = 1;
-
-        // TODO: the IDX is not really idx, so this check inactive
-        //X265_CHECK(baseLevel == ((idx < C1FLAG_NUMBER) ? (2 + firstCoeff2) : 1), "baseLevel check failurr\n");
-        int codeNumber = absCoeff[idx] - baseLevel;
-
-        if (codeNumber >= 0)
-        {
-            //writeCoefRemainExGolomb(absCoeff[idx] - baseLevel, goRiceParam);
-            uint32_t length = 0;
-
-            codeNumber = ((uint32_t)codeNumber >> goRiceParam) - COEF_REMAIN_BIN_REDUCTION;
-            if (codeNumber >= 0)
-            {
-                {
-                    unsigned long cidx;
-                    CLZ(cidx, codeNumber + 1);
-                    length = cidx;
-                }
-                X265_CHECK((codeNumber != 0) || (length == 0), "length check failure\n");
-
-                codeNumber = (length + length);
-            }
-            sum += (COEF_REMAIN_BIN_REDUCTION + 1 + goRiceParam + codeNumber);
-
-            if (absCoeff[idx] > (COEF_REMAIN_BIN_REDUCTION << goRiceParam))
-                goRiceParam = (goRiceParam + 1) - (goRiceParam >> 2);
-            X265_CHECK(goRiceParam <= 4, "goRiceParam check failure\n");
-        }
-        baseLevel = 2;
-        idx++;
-    }
-    while(idx < numNonZero);
-
-    return sum;
-}
+//// NOTE: no defined value on lastNZPosInCG & absSumSign when ALL ZEROS block as input
+//static uint32_t findPosFirstLast_c(const int16_t *dstCoeff, const intptr_t trSize, const uint16_t scanTbl[16])
+//{
+//    int n;
+//
+//    for (n = SCAN_SET_SIZE - 1; n >= 0; n--)
+//    {
+//        const uint32_t idx = scanTbl[n];
+//        const uint32_t idxY = idx / MLS_CG_SIZE;
+//        const uint32_t idxX = idx % MLS_CG_SIZE;
+//        if (dstCoeff[idxY * trSize + idxX])
+//            break;
+//    }
+//
+//    X265_CHECK(n >= -1, "non-zero coeff scan failuare!\n");
+//
+//    uint32_t lastNZPosInCG = (uint32_t)n;
+//
+//    for (n = 0; n < SCAN_SET_SIZE; n++)
+//    {
+//        const uint32_t idx = scanTbl[n];
+//        const uint32_t idxY = idx / MLS_CG_SIZE;
+//        const uint32_t idxX = idx % MLS_CG_SIZE;
+//        if (dstCoeff[idxY * trSize + idxX])
+//            break;
+//    }
+//
+//    uint32_t firstNZPosInCG = (uint32_t)n;
+//
+//    uint32_t absSumSign = 0;
+//    for (n = firstNZPosInCG; n <= (int)lastNZPosInCG; n++)
+//    {
+//        const uint32_t idx = scanTbl[n];
+//        const uint32_t idxY = idx / MLS_CG_SIZE;
+//        const uint32_t idxX = idx % MLS_CG_SIZE;
+//        absSumSign += dstCoeff[idxY * trSize + idxX];
+//    }
+//
+//    // NOTE: when coeff block all ZERO, the lastNZPosInCG is undefined and firstNZPosInCG is 16
+//    return ((absSumSign << 31) | (lastNZPosInCG << 8) | firstNZPosInCG);
+//}
 
 
-static uint32_t costC1C2Flag_c(uint16_t *absCoeff, intptr_t numC1Flag, uint8_t *baseCtxMod, intptr_t ctxOffset)
-{
-    uint32_t sum = 0;
-    uint32_t c1 = 1;
-    uint32_t firstC2Idx = 8;
-    uint32_t firstC2Flag = 2;
-    uint32_t c1Next = 0xFFFFFFFE;
+//static uint32_t costCoeffNxN_c(const uint16_t *scan, const coeff_t *coeff, intptr_t trSize, uint16_t *absCoeff, const uint8_t *tabSigCtx, uint32_t scanFlagMask, uint8_t *baseCtx, int offset, int scanPosSigOff, int subPosBase)
+//{
+//    ALIGN_VAR_32(uint16_t, tmpCoeff[SCAN_SET_SIZE]);
+//    uint32_t numNonZero = (scanPosSigOff < (SCAN_SET_SIZE - 1) ? 1 : 0);
+//    uint32_t sum = 0;
+//
+//    // correct offset to match assembly
+//    absCoeff -= numNonZero;
+//
+//    for (int i = 0; i < MLS_CG_SIZE; i++)
+//    {
+//        tmpCoeff[i * MLS_CG_SIZE + 0] = (uint16_t)abs(coeff[i * trSize + 0]);
+//        tmpCoeff[i * MLS_CG_SIZE + 1] = (uint16_t)abs(coeff[i * trSize + 1]);
+//        tmpCoeff[i * MLS_CG_SIZE + 2] = (uint16_t)abs(coeff[i * trSize + 2]);
+//        tmpCoeff[i * MLS_CG_SIZE + 3] = (uint16_t)abs(coeff[i * trSize + 3]);
+//    }
+//
+//    do
+//    {
+//        uint32_t blkPos, sig, ctxSig;
+//        blkPos = scan[scanPosSigOff];
+//        const uint32_t posZeroMask = (subPosBase + scanPosSigOff) ? ~0 : 0;
+//        sig     = scanFlagMask & 1;
+//        scanFlagMask >>= 1;
+//        X265_CHECK((uint32_t)(tmpCoeff[blkPos] != 0) == sig, "sign bit mistake\n");
+//        if ((scanPosSigOff != 0) || (subPosBase == 0) || numNonZero)
+//        {
+//            const uint32_t cnt = tabSigCtx[blkPos] + offset;
+//            ctxSig = cnt & posZeroMask;
+//
+//            //X265_CHECK(ctxSig == Quant::getSigCtxInc(patternSigCtx, log2TrSize, trSize, codingParameters.scan[subPosBase + scanPosSigOff], bIsLuma, codingParameters.firstSignificanceMapContext), "sigCtx mistake!\n");;
+//            //encodeBin(sig, baseCtx[ctxSig]);
+//            const uint32_t mstate = baseCtx[ctxSig];
+//            const uint32_t mps = mstate & 1;
+//            //const uint32_t stateBits = PFX(entropyStateBits)[mstate ^ sig];
+//            //uint32_t nextState = (stateBits >> 24) + mps;
+//            //if ((mstate ^ sig) == 1)
+//            //    nextState = sig;
+//            //X265_CHECK(sbacNext(mstate, sig) == nextState, "nextState check failure\n");
+//            //X265_CHECK(sbacGetEntropyBits(mstate, sig) == (stateBits & 0xFFFFFF), "entropyBits check failure\n");
+//            /*baseCtx[ctxSig] = (uint8_t)nextState;
+//            sum += stateBits;*/
+//        }
+//        assert(numNonZero <= 15);
+//        assert(blkPos <= 15);
+//        absCoeff[numNonZero] = tmpCoeff[blkPos];
+//        numNonZero += sig;
+//        scanPosSigOff--;
+//    }
+//    while(scanPosSigOff >= 0);
+//
+//    return (sum & 0xFFFFFF);
+//}
 
-    int idx = 0;
-    do
-    {
-        uint32_t symbol1 = absCoeff[idx] > 1;
-        uint32_t symbol2 = absCoeff[idx] > 2;
-        //encodeBin(symbol1, baseCtxMod[c1]);
-        {
-            const uint32_t mstate = baseCtxMod[c1];
-            //baseCtxMod[c1] = sbacNext(mstate, symbol1);
-            //sum += sbacGetEntropyBits(mstate, symbol1);
-        }
+//static uint32_t costCoeffRemain_c(uint16_t *absCoeff, int numNonZero, int idx)
+//{
+//    uint32_t goRiceParam = 0;
+//
+//    uint32_t sum = 0;
+//    int baseLevel = 3;
+//    do
+//    {
+//        if (idx >= C1FLAG_NUMBER)
+//            baseLevel = 1;
+//
+//        // TODO: the IDX is not really idx, so this check inactive
+//        //X265_CHECK(baseLevel == ((idx < C1FLAG_NUMBER) ? (2 + firstCoeff2) : 1), "baseLevel check failurr\n");
+//        int codeNumber = absCoeff[idx] - baseLevel;
+//
+//        if (codeNumber >= 0)
+//        {
+//            //writeCoefRemainExGolomb(absCoeff[idx] - baseLevel, goRiceParam);
+//            uint32_t length = 0;
+//
+//            codeNumber = ((uint32_t)codeNumber >> goRiceParam) - COEF_REMAIN_BIN_REDUCTION;
+//            if (codeNumber >= 0)
+//            {
+//                {
+//                    unsigned long cidx;
+//                    CLZ(cidx, codeNumber + 1);
+//                    length = cidx;
+//                }
+//                X265_CHECK((codeNumber != 0) || (length == 0), "length check failure\n");
+//
+//                codeNumber = (length + length);
+//            }
+//            sum += (COEF_REMAIN_BIN_REDUCTION + 1 + goRiceParam + codeNumber);
+//
+//            if (absCoeff[idx] > (COEF_REMAIN_BIN_REDUCTION << goRiceParam))
+//                goRiceParam = (goRiceParam + 1) - (goRiceParam >> 2);
+//            X265_CHECK(goRiceParam <= 4, "goRiceParam check failure\n");
+//        }
+//        baseLevel = 2;
+//        idx++;
+//    }
+//    while(idx < numNonZero);
+//
+//    return sum;
+//}
 
-        if (symbol1)
-            c1Next = 0;
 
-        if (symbol1 + firstC2Flag == 3)
-            firstC2Flag = symbol2;
-
-        if (symbol1 + firstC2Idx == 9)
-            firstC2Idx  = idx;
-
-        c1 = (c1Next & 3);
-        c1Next >>= 2;
-        X265_CHECK(c1 <= 3, "c1 check failure\n");
-        idx++;
-    }
-    while(idx < numC1Flag);
-
-    if (!c1)
-    {
-        X265_CHECK((firstC2Flag <= 1), "firstC2FlagIdx check failure\n");
-
-        baseCtxMod += ctxOffset;
-
-        //encodeBin(firstC2Flag, baseCtxMod[0]);
-        {
-            const uint32_t mstate = baseCtxMod[0];
-            //baseCtxMod[0] = sbacNext(mstate, firstC2Flag);
-            //sum += sbacGetEntropyBits(mstate, firstC2Flag);
-        }
-    }
-    return (sum & 0x00FFFFFF) + (c1 << 26) + (firstC2Idx << 28);
-}
-template<int log2TrSize>
-static void nonPsyRdoQuant_c(int16_t *m_resiDctCoeff, int64_t *costUncoded, int64_t *totalUncodedCost, int64_t *totalRdCost, uint32_t blkPos)
-{
-    const int transformShift = MAX_TR_DYNAMIC_RANGE - X265_DEPTH - log2TrSize; /* Represents scaling through forward transform */
-    const int scaleBits = SCALE_BITS - 2 * transformShift;
-    const uint32_t trSize = 1 << log2TrSize;
-
-    for (int y = 0; y < MLS_CG_SIZE; y++)
-    {
-        for (int x = 0; x < MLS_CG_SIZE; x++)
-        {
-             int64_t signCoef = m_resiDctCoeff[blkPos + x];            /* pre-quantization DCT coeff */
-             costUncoded[blkPos + x] = static_cast<int64_t>((double)((signCoef * signCoef) << scaleBits));
-             *totalUncodedCost += costUncoded[blkPos + x];
-             *totalRdCost += costUncoded[blkPos + x];
-        }
-        blkPos += trSize;
-    }
-}
-template<int log2TrSize>
-static void psyRdoQuant_c(int16_t *m_resiDctCoeff, int16_t *m_fencDctCoeff, int64_t *costUncoded, int64_t *totalUncodedCost, int64_t *totalRdCost, int64_t *psyScale, uint32_t blkPos)
-{
-    const int transformShift = MAX_TR_DYNAMIC_RANGE - X265_DEPTH - log2TrSize; /* Represents scaling through forward transform */
-    const int scaleBits = SCALE_BITS - 2 * transformShift;
-    const uint32_t trSize = 1 << log2TrSize;
-    int max = X265_MAX(0, (2 * transformShift + 1));
-
-    for (int y = 0; y < MLS_CG_SIZE; y++)
-    {
-        for (int x = 0; x < MLS_CG_SIZE; x++)
-        {
-            int64_t signCoef = m_resiDctCoeff[blkPos + x];            /* pre-quantization DCT coeff */
-            int64_t predictedCoef = m_fencDctCoeff[blkPos + x] - signCoef; /* predicted DCT = source DCT - residual DCT*/
-
-            costUncoded[blkPos + x] = static_cast<int64_t>((double)((signCoef * signCoef) << scaleBits));
-
-            /* when no residual coefficient is coded, predicted coef == recon coef */
-            costUncoded[blkPos + x] -= static_cast<int64_t>((double)(((*psyScale) * predictedCoef) >> max));
-
-            *totalUncodedCost += costUncoded[blkPos + x];
-            *totalRdCost += costUncoded[blkPos + x];
-        }
-        blkPos += trSize;
-    }
-}
-template<int log2TrSize>
-static void psyRdoQuant_c_1(int16_t *m_resiDctCoeff, /*int16_t  *m_fencDctCoeff, */ int64_t *costUncoded, int64_t *totalUncodedCost, int64_t *totalRdCost, /* int64_t *psyScale,*/ uint32_t blkPos)
-{
-	const int transformShift = MAX_TR_DYNAMIC_RANGE - X265_DEPTH - log2TrSize; /* Represents scaling through forward transform */
-	const int scaleBits = SCALE_BITS - 2 * transformShift;
-	const uint32_t trSize = 1 << log2TrSize;
-
-	for (int y = 0; y < MLS_CG_SIZE; y++)
-	{
-		for (int x = 0; x < MLS_CG_SIZE; x++)
-		{
-			int64_t signCoef = m_resiDctCoeff[blkPos + x];            /* pre-quantization DCT coeff */
-			costUncoded[blkPos + x] = static_cast<int64_t>((double)((signCoef * signCoef) << scaleBits));
-			*totalUncodedCost += costUncoded[blkPos + x];
-			*totalRdCost += costUncoded[blkPos + x];
-		}
-		blkPos += trSize;
-	}
-}
-template<int log2TrSize>
-static void psyRdoQuant_c_2(int16_t *m_resiDctCoeff, int16_t *m_fencDctCoeff, int64_t *costUncoded, int64_t *totalUncodedCost, int64_t *totalRdCost, int64_t *psyScale, uint32_t blkPos)
-{
-	const int transformShift = MAX_TR_DYNAMIC_RANGE - X265_DEPTH - log2TrSize; /* Represents scaling through forward transform */
-
-	const uint32_t trSize = 1 << log2TrSize;
-	int max = X265_MAX(0, (2 * transformShift + 1));
-
-	for (int y = 0; y < MLS_CG_SIZE; y++)
-	{
-		for (int x = 0; x < MLS_CG_SIZE; x++)
-		{
-			int64_t signCoef = m_resiDctCoeff[blkPos + x];            /* pre-quantization DCT coeff */
-			int64_t predictedCoef = m_fencDctCoeff[blkPos + x] - signCoef; /* predicted DCT = source DCT - residual DCT*/
-			costUncoded[blkPos + x] -= static_cast<int64_t>((double)(((*psyScale) * predictedCoef) >> max));
-			*totalUncodedCost += costUncoded[blkPos + x];
-			*totalRdCost += costUncoded[blkPos + x];
-		}
-		blkPos += trSize;
-	}
-}
+//static uint32_t costC1C2Flag_c(uint16_t *absCoeff, intptr_t numC1Flag, uint8_t *baseCtxMod, intptr_t ctxOffset)
+//{
+//    uint32_t sum = 0;
+//    uint32_t c1 = 1;
+//    uint32_t firstC2Idx = 8;
+//    uint32_t firstC2Flag = 2;
+//    uint32_t c1Next = 0xFFFFFFFE;
+//
+//    int idx = 0;
+//    do
+//    {
+//        uint32_t symbol1 = absCoeff[idx] > 1;
+//        uint32_t symbol2 = absCoeff[idx] > 2;
+//        //encodeBin(symbol1, baseCtxMod[c1]);
+//        {
+//            const uint32_t mstate = baseCtxMod[c1];
+//            //baseCtxMod[c1] = sbacNext(mstate, symbol1);
+//            //sum += sbacGetEntropyBits(mstate, symbol1);
+//        }
+//
+//        if (symbol1)
+//            c1Next = 0;
+//
+//        if (symbol1 + firstC2Flag == 3)
+//            firstC2Flag = symbol2;
+//
+//        if (symbol1 + firstC2Idx == 9)
+//            firstC2Idx  = idx;
+//
+//        c1 = (c1Next & 3);
+//        c1Next >>= 2;
+//        X265_CHECK(c1 <= 3, "c1 check failure\n");
+//        idx++;
+//    }
+//    while(idx < numC1Flag);
+//
+//    if (!c1)
+//    {
+//        X265_CHECK((firstC2Flag <= 1), "firstC2FlagIdx check failure\n");
+//
+//        baseCtxMod += ctxOffset;
+//
+//        //encodeBin(firstC2Flag, baseCtxMod[0]);
+//        {
+//            const uint32_t mstate = baseCtxMod[0];
+//            //baseCtxMod[0] = sbacNext(mstate, firstC2Flag);
+//            //sum += sbacGetEntropyBits(mstate, firstC2Flag);
+//        }
+//    }
+//    return (sum & 0x00FFFFFF) + (c1 << 26) + (firstC2Idx << 28);
+//}
+//template<int log2TrSize>
+//static void nonPsyRdoQuant_c(int16_t *m_resiDctCoeff, int64_t *costUncoded, int64_t *totalUncodedCost, int64_t *totalRdCost, uint32_t blkPos)
+//{
+//    const int transformShift = MAX_TR_DYNAMIC_RANGE - X265_DEPTH - log2TrSize; /* Represents scaling through forward transform */
+//    const int scaleBits = SCALE_BITS - 2 * transformShift;
+//    const uint32_t trSize = 1 << log2TrSize;
+//
+//    for (int y = 0; y < MLS_CG_SIZE; y++)
+//    {
+//        for (int x = 0; x < MLS_CG_SIZE; x++)
+//        {
+//             int64_t signCoef = m_resiDctCoeff[blkPos + x];            /* pre-quantization DCT coeff */
+//             costUncoded[blkPos + x] = static_cast<int64_t>((double)((signCoef * signCoef) << scaleBits));
+//             *totalUncodedCost += costUncoded[blkPos + x];
+//             *totalRdCost += costUncoded[blkPos + x];
+//        }
+//        blkPos += trSize;
+//    }
+//}
+//template<int log2TrSize>
+//static void psyRdoQuant_c(int16_t *m_resiDctCoeff, int16_t *m_fencDctCoeff, int64_t *costUncoded, int64_t *totalUncodedCost, int64_t *totalRdCost, int64_t *psyScale, uint32_t blkPos)
+//{
+//    const int transformShift = MAX_TR_DYNAMIC_RANGE - X265_DEPTH - log2TrSize; /* Represents scaling through forward transform */
+//    const int scaleBits = SCALE_BITS - 2 * transformShift;
+//    const uint32_t trSize = 1 << log2TrSize;
+//    int max = X265_MAX(0, (2 * transformShift + 1));
+//
+//    for (int y = 0; y < MLS_CG_SIZE; y++)
+//    {
+//        for (int x = 0; x < MLS_CG_SIZE; x++)
+//        {
+//            int64_t signCoef = m_resiDctCoeff[blkPos + x];            /* pre-quantization DCT coeff */
+//            int64_t predictedCoef = m_fencDctCoeff[blkPos + x] - signCoef; /* predicted DCT = source DCT - residual DCT*/
+//
+//            costUncoded[blkPos + x] = static_cast<int64_t>((double)((signCoef * signCoef) << scaleBits));
+//
+//            /* when no residual coefficient is coded, predicted coef == recon coef */
+//            costUncoded[blkPos + x] -= static_cast<int64_t>((double)(((*psyScale) * predictedCoef) >> max));
+//
+//            *totalUncodedCost += costUncoded[blkPos + x];
+//            *totalRdCost += costUncoded[blkPos + x];
+//        }
+//        blkPos += trSize;
+//    }
+//}
+//template<int log2TrSize>
+//static void psyRdoQuant_c_1(int16_t *m_resiDctCoeff, /*int16_t  *m_fencDctCoeff, */ int64_t *costUncoded, int64_t *totalUncodedCost, int64_t *totalRdCost, /* int64_t *psyScale,*/ uint32_t blkPos)
+//{
+//	const int transformShift = MAX_TR_DYNAMIC_RANGE - X265_DEPTH - log2TrSize; /* Represents scaling through forward transform */
+//	const int scaleBits = SCALE_BITS - 2 * transformShift;
+//	const uint32_t trSize = 1 << log2TrSize;
+//
+//	for (int y = 0; y < MLS_CG_SIZE; y++)
+//	{
+//		for (int x = 0; x < MLS_CG_SIZE; x++)
+//		{
+//			int64_t signCoef = m_resiDctCoeff[blkPos + x];            /* pre-quantization DCT coeff */
+//			costUncoded[blkPos + x] = static_cast<int64_t>((double)((signCoef * signCoef) << scaleBits));
+//			*totalUncodedCost += costUncoded[blkPos + x];
+//			*totalRdCost += costUncoded[blkPos + x];
+//		}
+//		blkPos += trSize;
+//	}
+//}
+//template<int log2TrSize>
+//static void psyRdoQuant_c_2(int16_t *m_resiDctCoeff, int16_t *m_fencDctCoeff, int64_t *costUncoded, int64_t *totalUncodedCost, int64_t *totalRdCost, int64_t *psyScale, uint32_t blkPos)
+//{
+//	const int transformShift = MAX_TR_DYNAMIC_RANGE - X265_DEPTH - log2TrSize; /* Represents scaling through forward transform */
+//
+//	const uint32_t trSize = 1 << log2TrSize;
+//	int max = X265_MAX(0, (2 * transformShift + 1));
+//
+//	for (int y = 0; y < MLS_CG_SIZE; y++)
+//	{
+//		for (int x = 0; x < MLS_CG_SIZE; x++)
+//		{
+//			int64_t signCoef = m_resiDctCoeff[blkPos + x];            /* pre-quantization DCT coeff */
+//			int64_t predictedCoef = m_fencDctCoeff[blkPos + x] - signCoef; /* predicted DCT = source DCT - residual DCT*/
+//			costUncoded[blkPos + x] -= static_cast<int64_t>((double)(((*psyScale) * predictedCoef) >> max));
+//			*totalUncodedCost += costUncoded[blkPos + x];
+//			*totalRdCost += costUncoded[blkPos + x];
+//		}
+//		blkPos += trSize;
+//	}
+//}
 
 namespace X265_NS {
 // x265 private namespace
@@ -1076,14 +1076,14 @@ void setupDCTPrimitives_c(EncoderPrimitives& p)
     p.dequant_normal = dequant_normal_c;
     p.quant = quant_c;
     p.nquant = nquant_c;
-    p.cu[BLOCK_4x4].nonPsyRdoQuant   = nonPsyRdoQuant_c<2>;
-    p.cu[BLOCK_8x8].nonPsyRdoQuant   = nonPsyRdoQuant_c<3>;
-    p.cu[BLOCK_16x16].nonPsyRdoQuant = nonPsyRdoQuant_c<4>;
-    p.cu[BLOCK_32x32].nonPsyRdoQuant = nonPsyRdoQuant_c<5>;
-    p.cu[BLOCK_4x4].psyRdoQuant = psyRdoQuant_c<2>;
-    p.cu[BLOCK_8x8].psyRdoQuant = psyRdoQuant_c<3>;
-    p.cu[BLOCK_16x16].psyRdoQuant = psyRdoQuant_c<4>;
-    p.cu[BLOCK_32x32].psyRdoQuant = psyRdoQuant_c<5>;
+    //p.cu[BLOCK_4x4].nonPsyRdoQuant   = nonPsyRdoQuant_c<2>;
+    //p.cu[BLOCK_8x8].nonPsyRdoQuant   = nonPsyRdoQuant_c<3>;
+    //p.cu[BLOCK_16x16].nonPsyRdoQuant = nonPsyRdoQuant_c<4>;
+    //p.cu[BLOCK_32x32].nonPsyRdoQuant = nonPsyRdoQuant_c<5>;
+    //p.cu[BLOCK_4x4].psyRdoQuant = psyRdoQuant_c<2>;
+    //p.cu[BLOCK_8x8].psyRdoQuant = psyRdoQuant_c<3>;
+    //p.cu[BLOCK_16x16].psyRdoQuant = psyRdoQuant_c<4>;
+    //p.cu[BLOCK_32x32].psyRdoQuant = psyRdoQuant_c<5>;
     p.dst4x4 = dst4_c;
     p.cu[BLOCK_4x4].dct   = dct4_c;
     p.cu[BLOCK_8x8].dct   = dct8_c;
@@ -1104,18 +1104,18 @@ void setupDCTPrimitives_c(EncoderPrimitives& p)
     p.cu[BLOCK_8x8].copy_cnt   = copy_count<8>;
     p.cu[BLOCK_16x16].copy_cnt = copy_count<16>;
     p.cu[BLOCK_32x32].copy_cnt = copy_count<32>;
-	p.cu[BLOCK_4x4].psyRdoQuant_1p = psyRdoQuant_c_1<2>;
-	p.cu[BLOCK_4x4].psyRdoQuant_2p = psyRdoQuant_c_2<2>;
-	p.cu[BLOCK_8x8].psyRdoQuant_1p = psyRdoQuant_c_1<3>;
-	p.cu[BLOCK_8x8].psyRdoQuant_2p = psyRdoQuant_c_2<3>;
-	p.cu[BLOCK_16x16].psyRdoQuant_1p = psyRdoQuant_c_1<4>;
-	p.cu[BLOCK_16x16].psyRdoQuant_2p = psyRdoQuant_c_2<4>;
-	p.cu[BLOCK_32x32].psyRdoQuant_1p = psyRdoQuant_c_1<5>;
-	p.cu[BLOCK_32x32].psyRdoQuant_2p = psyRdoQuant_c_2<5>;
-    p.scanPosLast = scanPosLast_c;
-    p.findPosFirstLast = findPosFirstLast_c;
-    p.costCoeffNxN = costCoeffNxN_c;
-    p.costCoeffRemain = costCoeffRemain_c;
-    p.costC1C2Flag = costC1C2Flag_c;
+	//p.cu[BLOCK_4x4].psyRdoQuant_1p = psyRdoQuant_c_1<2>;
+	//p.cu[BLOCK_4x4].psyRdoQuant_2p = psyRdoQuant_c_2<2>;
+	//p.cu[BLOCK_8x8].psyRdoQuant_1p = psyRdoQuant_c_1<3>;
+	//p.cu[BLOCK_8x8].psyRdoQuant_2p = psyRdoQuant_c_2<3>;
+	//p.cu[BLOCK_16x16].psyRdoQuant_1p = psyRdoQuant_c_1<4>;
+	//p.cu[BLOCK_16x16].psyRdoQuant_2p = psyRdoQuant_c_2<4>;
+	//p.cu[BLOCK_32x32].psyRdoQuant_1p = psyRdoQuant_c_1<5>;
+	//p.cu[BLOCK_32x32].psyRdoQuant_2p = psyRdoQuant_c_2<5>;
+    //p.scanPosLast = scanPosLast_c;
+    //p.findPosFirstLast = findPosFirstLast_c;
+    //p.costCoeffNxN = costCoeffNxN_c;
+    //p.costCoeffRemain = costCoeffRemain_c;
+    //p.costC1C2Flag = costC1C2Flag_c;
 }
 }

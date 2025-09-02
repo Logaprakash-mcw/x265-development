@@ -27,7 +27,6 @@
 #include "common.h"
 #include "slice.h"
 #include "threading.h"
-#include "scalinglist.h"
 #include "x265.h"
 #include "framedata.h"
 #include "temporalfilter.h"
@@ -41,51 +40,6 @@ extern const char g_sliceTypeToChar[3];
 
 class Entropy;
 
-#ifdef SVT_HEVC
-typedef struct SvtAppContext
-{
-    EB_COMPONENTTYPE*          svtEncoderHandle;
-    EB_H265_ENC_CONFIGURATION* svtHevcParams;
-
-    // Buffer Pools
-    EB_BUFFERHEADERTYPE*       inputPictureBuffer;
-    uint64_t                   byteCount;
-    uint64_t                   outFrameCount;
-
-}SvtAppContext;
-#endif
-
-struct EncStats
-{
-    double        m_psnrSumY;
-    double        m_psnrSumU;
-    double        m_psnrSumV;
-    double        m_globalSsim;
-    double        m_totalQp;
-    double        m_maxFALL;
-    uint64_t      m_accBits;
-    uint32_t      m_numPics;
-    uint16_t      m_maxCLL;
-
-    EncStats()
-    {
-        m_psnrSumY = m_psnrSumU = m_psnrSumV = m_globalSsim = 0;
-        m_accBits = 0;
-        m_numPics = 0;
-        m_totalQp = 0;
-        m_maxCLL = 0;
-        m_maxFALL = 0;
-    }
-
-    void addQP(double aveQp);
-
-    void addPsnr(double psnrY, double psnrU, double psnrV);
-
-    void addBits(uint64_t bits);
-
-    void addSsim(double ssim);
-};
-
 #define MAX_NUM_REF_IDX 64
 #define DUP_BUFFER 2
 #define doubling 7
@@ -98,14 +52,6 @@ struct RefIdxLastGOP
     int numRefIdxl1[MAX_NUM_REF_IDX];
 };
 
-struct RPSListNode
-{
-    int idx;
-    int count;
-    RPS* rps;
-    RPSListNode* next;
-    RPSListNode* prior;
-};
 
 struct cuLocation
 {
@@ -188,28 +134,14 @@ public:
     FrameEncoder*      m_frameEncoder[X265_MAX_FRAME_THREADS];
     DPB*               m_dpb;
     Frame*             m_exportedPic;
-    FILE*              m_analysisFileIn;
-    FILE*              m_analysisFileOut;
-    FILE*              m_naluFile;
     x265_param*        m_param;
     x265_param*        m_latestParam;     // Holds latest param during a reconfigure
     RateControl*       m_rateControl;
     Lookahead*         m_lookahead;
-    AdaptiveFrameDuplication* m_dupBuffer[DUP_BUFFER];      // picture buffer of size 2
-    /*Frame duplication: Two pictures used to compute PSNR */
-    pixel*             m_dupPicOne[3];
-    pixel*             m_dupPicTwo[3];
 
     bool               m_externalFlush;
-    /* Collect statistics globally */
-    EncStats           m_analyzeAll;
-    EncStats           m_analyzeI;
-    EncStats           m_analyzeP;
-    EncStats           m_analyzeB;
-    VPS                m_vps;
+
     SPS                m_sps;
-    PPS                m_pps;
-    ScalingList        m_scalingList;      // quantization matrix information
     Window             m_conformanceWindow;
 
     bool               m_bZeroLatency;     // x265_encoder_encode() returns NALs for the input picture, zero lag
@@ -223,46 +155,6 @@ public:
     /* Begin intra refresh when one not in progress or else begin one as soon as the current 
      * one is done. Requires bIntraRefresh to be set.*/
     int                m_bQueuedIntraRefresh;
-
-    /* For optimising slice QP */
-    Lock               m_sliceQpLock;
-    int                m_iFrameNum;   
-    int                m_iPPSQpMinus26;
-    int64_t            m_iBitsCostSum[QP_MAX_MAX + 1];
-    Lock               m_sliceRefIdxLock;
-    RefIdxLastGOP      m_refIdxLastGOP;
-
-    Lock               m_rpsInSpsLock;
-    int                m_rpsInSpsCount;
-    /* For HDR*/
-    double             m_cB;
-    double             m_cR;
-
-    int                m_bToneMap; // Enables tone-mapping
-    int                m_enableNal;
-
-#ifdef ENABLE_HDR10_PLUS
-    const hdr10plus_api     *m_hdr10plus_api;
-    uint8_t                 **m_cim;
-    int                     m_numCimInfo;
-#endif
-
-#ifdef SVT_HEVC
-    SvtAppContext*          m_svtAppData;
-#endif
-
-    x265_sei_payload        m_prevTonemapPayload;
-
-    int                     m_zoneIndex;
-
-    /* Collect frame level feature data */
-    uint64_t*               m_rdCost;
-    uint64_t*               m_variance;
-    uint32_t*               m_trainingCount;
-    int32_t                 m_startPoint;
-    Lock                    m_dynamicRefineLock;
-
-    bool                    m_saveCTUSize;
 
 
     ThreadSafeInteger* zoneReadCount;
@@ -286,38 +178,24 @@ public:
 
     int encode(const x265_picture* pic, x265_picture *pic_out);
 
-    int reconfigureParam(x265_param* encParam, x265_param* param);
-
-    bool isReconfigureRc(x265_param* latestParam, x265_param* param_in);
-
-    void copyCtuInfo(x265_ctu_info_t** frameCtuInfo, int poc);
-
-    int getRefFrameList(PicYuv** l0, PicYuv** l1, int sliceType, int poc, int* pocL0, int* pocL1);
-
-    char* statsString(EncStats&, char*);
+    //void copyCtuInfo(x265_ctu_info_t** frameCtuInfo, int poc);
 
     void configure(x265_param *param);
 
-    void configureZone(x265_param *p, x265_param *zone);
-
     uint64_t computeSSD(pixel *fenc, pixel *rec, intptr_t stride, uint32_t width, uint32_t height, x265_param *param);
 
-    double ComputePSNR(x265_picture *firstPic, x265_picture *secPic, x265_param *param);
+    //double ComputePSNR(x265_picture *firstPic, x265_picture *secPic, x265_param *param);
 
     void copyPicture(x265_picture *dest, const x265_picture *src);
-
-    void initRefIdx();
-    void analyseRefIdx(int *numRefIdx);
-    void updateRefIdx();
 
     bool isFilterThisframe(uint8_t sliceTypeConfig, int curSliceType);
     bool generateMcstfRef(Frame* frameEnc, FrameEncoder* currEncoder);
 
+
 protected:
 
-    void initVPS(VPS *vps);
     void initSPS(SPS *sps);
-    void initPPS(PPS *pps);
+
 };
 }
 

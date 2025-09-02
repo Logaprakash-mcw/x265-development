@@ -31,7 +31,7 @@
 #include <iostream>
 
 namespace X265_NS {
-class RAWOutput : public OutputFile
+class RAWOutput 
 {
 protected:
 
@@ -51,7 +51,7 @@ public:
 
     const char* getName() const { return "raw"; }
 
-    void setParam(x265_param* param);
+    //void setParam(x265_param* param);
 
     int writeHeaders(const x265_nal* nal, uint32_t nalcount);
 

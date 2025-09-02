@@ -111,41 +111,15 @@ struct LookaheadTLD
 
     ~LookaheadTLD() { X265_FREE(wbuffer[0]); }
 
-//    void collectPictureStatistics(Frame *curFrame);
-    void computeIntensityHistogramBinsLuma(Frame *curFrame, uint64_t *sumAvgIntensityTotalSegmentsLuma);
 
-    void computeIntensityHistogramBinsChroma(
-        Frame    *curFrame,
-        uint64_t *sumAverageIntensityCb,
-        uint64_t *sumAverageIntensityCr);
-
-    void calculateHistogram(
-        pixel    *inputSrc,
-        uint32_t  inputWidth,
-        uint32_t  inputHeight,
-        intptr_t  stride,
-        uint8_t   dsFactor,
-        uint32_t *histogram,
-        uint64_t *sum);
-
-    void computePictureStatistics(Frame *curFrame);
 
     uint32_t calcVariance(pixel* src, intptr_t stride, intptr_t blockOffset, uint32_t plane);
 
-    void calcAdaptiveQuantFrame(Frame *curFrame, x265_param* param);
-    void calcFrameSegment(Frame *curFrame);
-    void lowresIntraEstimate(Lowres& fenc, uint32_t qgSize);
-
-    void weightsAnalyse(Lowres& fenc, Lowres& ref);
-    void xPreanalyze(Frame* curFrame);
-    void xPreanalyzeQp(Frame* curFrame);
 protected:
 
     uint32_t acEnergyCu(Frame* curFrame, uint32_t blockX, uint32_t blockY, int csp, uint32_t qgSize);
     uint32_t edgeDensityCu(Frame* curFrame, uint32_t &avgAngle, uint32_t blockX, uint32_t blockY, uint32_t qgSize);
-    uint32_t lumaSumCu(Frame* curFrame, uint32_t blockX, uint32_t blockY, uint32_t qgSize);
-    uint32_t weightCostLuma(Lowres& fenc, Lowres& ref, WeightParam& wp);
-    bool     allocWeightedRef(Lowres& fenc);
+
 };
 
 class Lookahead : public JobProvider
@@ -222,39 +196,13 @@ public:
     Frame*  getDecidedPicture();
 
     void    setLookaheadQueue();
-    int     findSliceType(int poc);
 
 protected:
 
     void    findJob(int workerThreadID);
     void    slicetypeDecide();
-    void    slicetypeAnalyse(Lowres **frames, bool bKeyframe);
 
-    /* called by slicetypeAnalyse() to make slice decisions */
-    bool    scenecut(Lowres **frames, int p0, int p1, bool bRealScenecut, int numFrames);
-    bool    scenecutInternal(Lowres **frames, int p0, int p1, bool bRealScenecut);
 
-    bool    histBasedScenecut(Lowres **frames, int p0, int p1, int numFrames);
-    bool    detectHistBasedSceneChange(Lowres **frames, int p0, int p1, int p2);
-
-    void    slicetypePath(Lowres **frames, int length, char(*best_paths)[X265_LOOKAHEAD_MAX + 1]);
-    int64_t slicetypePathCost(Lowres **frames, char *path, int64_t threshold);
-    int64_t vbvFrameCost(Lowres **frames, int p0, int p1, int b);
-    void    vbvLookahead(Lowres **frames, int numFrames, int keyframes);
-    void    aqMotion(Lowres **frames, bool bintra);
-    void    calcMotionAdaptiveQuantFrame(Lowres **frames, int p0, int p1, int b);
-    /* called by slicetypeAnalyse() to effect cuTree adjustments to adaptive
-     * quant offsets */
-    void    cuTree(Lowres **frames, int numframes, bool bintra);
-    void    estimateCUPropagate(Lowres **frames, double average_duration, int p0, int p1, int b, int referenced);
-    void    cuTreeFinish(Lowres *frame, double averageDuration, int ref0Distance);
-    void    computeCUTreeQpOffset(Lowres *frame, double averageDuration, int ref0Distance);
-
-    /* called by getEstimatedPictureCost() to finalize cuTree costs */
-    int64_t frameCostRecalculate(Lowres **frames, int p0, int p1, int b);
-    /*Compute index for positioning B-Ref frames*/
-    void     placeBref(Frame** frames, int start, int end, int num, int *brefs);
-    void     compCostBref(Lowres **frame, int start, int end, int num);
 };
 
 class PreLookaheadGroup : public BondedTaskGroup

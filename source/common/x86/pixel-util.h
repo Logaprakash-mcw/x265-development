@@ -40,7 +40,7 @@
     void PFX(scale1D_128to64_aligned_ ## cpu(pixel*, const pixel*)); \
     void PFX(scale2D_64to32_ ## cpu(pixel*, const pixel*, intptr_t)); \
     uint32_t PFX(costCoeffRemain_ ## cpu(uint16_t *absCoeff, int numNonZero, int idx)); \
-    uint32_t PFX(costC1C2Flag_sse2(uint16_t *absCoeff, intptr_t numNonZero, uint8_t *baseCtxMod, intptr_t ctxOffset)); \
+    //uint32_t PFX(costC1C2Flag_sse2(uint16_t *absCoeff, intptr_t numNonZero, uint8_t *baseCtxMod, intptr_t ctxOffset)); \
 
 DEFINE_UTILS(sse2);
 DEFINE_UTILS(ssse3);
@@ -58,8 +58,8 @@ float PFX(pixel_ssim_end4_avx(int sum0[5][4], int sum1[5][4], int width));
 int PFX(scanPosLast_x64(const uint16_t *scan, const coeff_t *coeff, uint16_t *coeffSign, uint16_t *coeffFlag, uint8_t *coeffNum, int numSig, const uint16_t* scanCG4x4, const int trSize));
 int PFX(scanPosLast_avx2_bmi2(const uint16_t *scan, const coeff_t *coeff, uint16_t *coeffSign, uint16_t *coeffFlag, uint8_t *coeffNum, int numSig, const uint16_t* scanCG4x4, const int trSize));
 uint32_t PFX(findPosFirstLast_ssse3(const int16_t *dstCoeff, const intptr_t trSize, const uint16_t scanTbl[16]));
-uint32_t PFX(costCoeffNxN_sse4(const uint16_t *scan, const coeff_t *coeff, intptr_t trSize, uint16_t *absCoeff, const uint8_t *tabSigCtx, uint32_t scanFlagMask, uint8_t *baseCtx, int offset, int scanPosSigOff, int subPosBase));
-uint32_t PFX(costCoeffNxN_avx2_bmi2(const uint16_t *scan, const coeff_t *coeff, intptr_t trSize, uint16_t *absCoeff, const uint8_t *tabSigCtx, uint32_t scanFlagMask, uint8_t *baseCtx, int offset, int scanPosSigOff, int subPosBase));
+//uint32_t PFX(costCoeffNxN_sse4(const uint16_t *scan, const coeff_t *coeff, intptr_t trSize, uint16_t *absCoeff, const uint8_t *tabSigCtx, uint32_t scanFlagMask, uint8_t *baseCtx, int offset, int scanPosSigOff, int subPosBase));
+//uint32_t PFX(costCoeffNxN_avx2_bmi2(const uint16_t *scan, const coeff_t *coeff, intptr_t trSize, uint16_t *absCoeff, const uint8_t *tabSigCtx, uint32_t scanFlagMask, uint8_t *baseCtx, int offset, int scanPosSigOff, int subPosBase));
 
 int  PFX(count_nonzero_16x16_avx512(const int16_t* quantCoeff));
 int  PFX(count_nonzero_32x32_avx512(const int16_t* quantCoeff));

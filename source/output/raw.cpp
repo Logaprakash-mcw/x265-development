@@ -48,11 +48,6 @@ RAWOutput::RAWOutput(const char* fname, InputFileInfo&)
         b_fail = true;
 }
 
-void RAWOutput::setParam(x265_param* param)
-{
-    param->bAnnexB = true;
-}
-
 int RAWOutput::writeHeaders(const x265_nal* nal, uint32_t nalcount)
 {
     uint32_t bytes = 0;

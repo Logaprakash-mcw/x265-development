@@ -27,14 +27,12 @@
 
 #include "common.h"
 #include "wavefront.h"
-#include "bitstream.h"
 #include "frame.h"
 #include "picyuv.h"
 #include "md5.h"
 
 
 #include "entropy.h"
-#include "reference.h"
 #include "temporalfilter.h"
 
 namespace X265_NS {
@@ -46,65 +44,6 @@ class Encoder;
 #define ANGULAR_MODE_ID 2
 #define AMP_ID 3
 
-struct StatisticLog
-{
-    uint64_t cntInter[4];
-    uint64_t cntIntra[4];
-    uint64_t cuInterDistribution[4][INTER_MODES];
-    uint64_t cuIntraDistribution[4][INTRA_MODES];
-    uint64_t cntIntraNxN;
-    uint64_t cntSkipCu[4];
-    uint64_t cntTotalCu[4];
-    uint64_t totalCu;
-
-    StatisticLog()
-    {
-        memset(this, 0, sizeof(StatisticLog));
-    }
-};
-
-/* manages the state of encoding one row of CTU blocks.  When
- * WPP is active, several rows will be simultaneously encoded. */
-struct CTURow
-{
-    unsigned int      sliceId;          /* store current row slice id */
-
-    FrameStats        rowStats;
-
-    /* Threading variables */
-
-    /* This lock must be acquired when reading or writing m_active or m_busy */
-    Lock              lock;
-
-    /* row is ready to run, has no neighbor dependencies. The row may have
-     * external dependencies (reference frame pixels) that prevent it from being
-     * processed, so it may stay with m_active=true for some time before it is
-     * encoded by a worker thread. */
-    volatile bool     active;
-
-    /* row is being processed by a worker thread.  This flag is only true when a
-     * worker thread is within the context of FrameEncoder::processRow(). This
-     * flag is used to detect multiple possible wavefront problems. */
-    volatile bool     busy;
-
-    /* count of completed CUs in this row */
-    volatile uint32_t completed;
-    volatile uint32_t avgQPComputed;
-
-    volatile int      reEncode;
-
-    /* called at the start of each frame to initialize state */
-    void init(Entropy& initContext, unsigned int sid)
-    {
-        active = false;
-        busy = false;
-        completed = 0;
-        avgQPComputed = 0;
-        sliceId = sid;
-        reEncode = 0;
-        memset(&rowStats, 0, sizeof(rowStats));
-    }
-};
 
 /*Film grain characteristics*/
 struct FilmGrain
@@ -159,10 +98,10 @@ public:
     int                      m_localTldIdx;
     bool                     m_reconfigure; /* reconfigure in progress */
     volatile bool            m_threadActive;
-    volatile bool            *m_bAllRowsStop;
-    volatile int             m_completionCount;
-    volatile int             *m_vbvResetTriggerRow;
-    volatile int             m_sliceCnt;
+    //volatile bool            *m_bAllRowsStop;
+    //volatile int             m_completionCount;
+    //volatile int             *m_vbvResetTriggerRow;
+    //volatile int             m_sliceCnt;
 
     uint32_t                 m_numRows;
     uint32_t                 m_numCols;
@@ -171,19 +110,18 @@ public:
     uint32_t                 m_refLagRows;
     bool                     m_bUseSao;
 
-    CTURow*                  m_rows;
-    uint16_t                 m_sliceAddrBits;
-    uint32_t                 m_sliceGroupSize;
-    uint32_t*                m_sliceBaseRow;    
-    uint32_t*                m_sliceMaxBlockRow;
-    int64_t                  m_rowSliceTotalBits[2];
+    //uint16_t                 m_sliceAddrBits;
+    //uint32_t                 m_sliceGroupSize;
+    //uint32_t*                m_sliceBaseRow;    
+    //uint32_t*                m_sliceMaxBlockRow;
+    //int64_t                  m_rowSliceTotalBits[2];
 
-    uint64_t                 m_SSDY;
-    uint64_t                 m_SSDU;
-    uint64_t                 m_SSDV;
-    double                   m_ssim;
-    uint64_t                 m_accessUnitBits;
-    uint32_t                 m_ssimCnt;
+    //uint64_t                 m_SSDY;
+    //uint64_t                 m_SSDU;
+    //uint64_t                 m_SSDV;
+    //double                   m_ssim;
+    //uint64_t                 m_accessUnitBits;
+    //uint32_t                 m_ssimCnt;
 
     volatile int             m_activeWorkerCount;        // count of workers currently encoding or filtering CTUs
     volatile int             m_totalActiveWorkerCount;   // sum of m_activeWorkerCount sampled at end of each CTU
@@ -207,15 +145,11 @@ public:
     x265_param*              m_param;
     Frame*                   m_frame;
     //ThreadLocalData*         m_tld; /* for --no-wpp */
-    Bitstream*               m_outStreams;
-    Bitstream*               m_backupStreams;
-    uint32_t*                m_substreamSizes;
+    //uint32_t*                m_substreamSizes;
 
-    CUGeom*                  m_cuGeoms;
-    uint32_t*                m_ctuGeomMap;
+    //CUGeom*                  m_cuGeoms;
+    //uint32_t*                m_ctuGeomMap;
 
-    Bitstream                m_bs;
-    MotionReference          m_mref[2][MAX_NUM_REF + 1];
 
 
     // initialization for mcstf

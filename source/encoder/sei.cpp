@@ -22,7 +22,6 @@
 *****************************************************************************/
 
 #include "common.h"
-#include "bitstream.h"
 #include "slice.h"
 #include "sei.h"
 

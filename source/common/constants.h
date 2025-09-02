@@ -34,11 +34,6 @@ extern double x265_lambda_tab[QP_MAX_MAX + 1];
 extern double x265_lambda2_tab[QP_MAX_MAX + 1];
 extern const uint16_t x265_chroma_lambda2_offset_tab[MAX_CHROMA_LAMBDA_OFFSET + 1];
 
-enum { ChromaQPMappingTableSize = 70 };
-enum { AngleMapping422TableSize = 36 };
-
-extern const uint8_t g_chromaScale[ChromaQPMappingTableSize];
-extern const uint8_t g_chroma422IntraAngleMappingTable[AngleMapping422TableSize];
 
 // flexible conversion from relative to absolute index
 extern const uint32_t g_zscanToRaster[MAX_NUM_PARTITIONS];
@@ -70,35 +65,6 @@ extern const int16_t g_t32[32][32];
 #define IF_INTERNAL_OFFS (1 << (IF_INTERNAL_PREC - 1)) // Offset used internally
 #define SLFASE_CONSTANT  0x5f4e4a53
 
-extern const int16_t g_lumaFilter[4][NTAPS_LUMA];      // Luma filter taps
-extern const int16_t g_chromaFilter[8][NTAPS_CHROMA];  // Chroma filter taps
-
-// Scanning order & context mapping table
-
-#define NUM_SCAN_SIZE 4
-
-extern const uint16_t* const g_scanOrder[NUM_SCAN_TYPE][NUM_SCAN_SIZE];
-extern const uint16_t* const g_scanOrderCG[NUM_SCAN_TYPE][NUM_SCAN_SIZE];
-extern const uint16_t g_scan8x8diag[8 * 8];
-ALIGN_VAR_16(extern const uint16_t, g_scan4x4[NUM_SCAN_TYPE + 1][4 * 4]);  // +1 for safe buffer area for codeCoeffNxN assembly optimize, there have up to 15 bytes beyond bound read
-extern const uint8_t g_lastCoeffTable[32];
-extern const uint8_t g_goRiceRange[5]; // maximum value coded with Rice codes
-
-// CABAC tables
-extern const uint8_t g_lpsTable[64][4];
-extern const uint8_t x265_exp2_lut[64];
-
-// Intra tables
-extern const uint8_t g_intraFilterFlags[NUM_INTRA_MODE];
-
-extern const uint32_t g_depthScanIdx[8][8];
-
-extern const double g_YUVtoRGB_BT2020[3][3];
-
-#define MIN_HDR_LEGAL_RANGE 64
-#define MAX_HDR_LEGAL_RANGE 940
-#define CBCR_OFFSET 512
-extern const double g_ST2084_PQTable[MAX_HDR_LEGAL_RANGE - MIN_HDR_LEGAL_RANGE + 1];
 
 }
 

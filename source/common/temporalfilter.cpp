@@ -66,8 +66,7 @@ void OrigPicBuffer::setOrigPicList(Frame* inFrame, int frameCnt)
 {
     Slice* slice = inFrame->m_encData->m_slice;
     uint8_t j = 0;
-    for (int iterPOC = (inFrame->m_poc - inFrame->m_mcstf->m_range);
-        iterPOC <= (inFrame->m_poc + inFrame->m_mcstf->m_range); iterPOC++)
+    for (int iterPOC = (inFrame->m_poc - inFrame->m_mcstf->m_range); iterPOC <= (inFrame->m_poc + inFrame->m_mcstf->m_range); iterPOC++)
     {
         if (iterPOC != inFrame->m_poc)
         {

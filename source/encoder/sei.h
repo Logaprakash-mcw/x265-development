@@ -25,14 +25,13 @@
 #define X265_SEI_H
 
 #include "common.h"
-#include "bitstream.h"
 #include "slice.h"
 #include "md5.h"
 
 namespace X265_NS {
 // private namespace
 
-class SEI : public SyntaxElementWriter
+class SEI
 {
 public:
     virtual ~SEI() {}
@@ -74,7 +73,7 @@ class FilmGrainCharacteristics : public SEI
     uint8_t     m_filmGrainTransferCharacteristics;
     uint8_t     m_filmGrainMatrixCoeffs;
 
-    void writeSEI(const SPS&)
+    /*void writeSEI(const SPS&)
     {
         WRITE_FLAG(m_filmGrainCharacteristicsCancelFlag, "film_grain_characteristics_cancel_flag");
 
@@ -126,7 +125,7 @@ class FilmGrainCharacteristics : public SEI
                 WRITE_FLAG(0, "payload_bit_equal_to_zero");
             }
         }
-    }
+    }*/
 };
 
 }

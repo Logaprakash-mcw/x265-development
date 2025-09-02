@@ -35,131 +35,12 @@ class PicList;
 class PicYuv;
 class MotionReference;
 
-enum SliceType
-{
-    B_SLICE,
-    P_SLICE,
-    I_SLICE
-};
-
-struct RPS
-{
-    int  numberOfPictures;
-    int  numberOfNegativePictures;
-    int  numberOfPositivePictures;
-
-    int  poc[MAX_NUM_REF_PICS];
-    int  deltaPOC[MAX_NUM_REF_PICS];
-    bool bUsed[MAX_NUM_REF_PICS];
-
-    RPS()
-        : numberOfPictures(0)
-        , numberOfNegativePictures(0)
-        , numberOfPositivePictures(0)
-    {
-        memset(deltaPOC, 0, sizeof(deltaPOC));
-        memset(poc, 0, sizeof(poc));
-        memset(bUsed, 0, sizeof(bUsed));
-    }
-
-    void sortDeltaPOC();
-};
-
-namespace Profile {
-    enum Name
-    {
-        NONE = 0,
-        MAIN = 1,
-        MAIN10 = 2,
-        MAINSTILLPICTURE = 3,
-        MAINREXT = 4,
-        HIGHTHROUGHPUTREXT = 5
-    };
-}
-
-namespace Level {
-    enum Tier
-    {
-        MAIN = 0,
-        HIGH = 1,
-    };
-
-    enum Name
-    {
-        NONE = 0,
-        LEVEL1 = 30,
-        LEVEL2 = 60,
-        LEVEL2_1 = 63,
-        LEVEL3 = 90,
-        LEVEL3_1 = 93,
-        LEVEL4 = 120,
-        LEVEL4_1 = 123,
-        LEVEL5 = 150,
-        LEVEL5_1 = 153,
-        LEVEL5_2 = 156,
-        LEVEL6 = 180,
-        LEVEL6_1 = 183,
-        LEVEL6_2 = 186,
-        LEVEL8_5 = 255,
-    };
-}
-
-struct ProfileTierLevel
-{
-    int      profileIdc;
-    int      levelIdc;
-    uint32_t minCrForLevel;
-    uint32_t maxLumaSrForLevel;
-    uint32_t bitDepthConstraint;
-    int      chromaFormatConstraint;
-    bool     tierFlag;
-    bool     progressiveSourceFlag;
-    bool     interlacedSourceFlag;
-    bool     nonPackedConstraintFlag;
-    bool     frameOnlyConstraintFlag;
-    bool     profileCompatibilityFlag[32];
-    bool     intraConstraintFlag;
-    bool     onePictureOnlyConstraintFlag;
-    bool     lowerBitRateConstraintFlag;
-};
-
-struct HRDInfo
-{
-    uint32_t bitRateScale;
-    uint32_t cpbSizeScale;
-    uint32_t initialCpbRemovalDelayLength;
-    uint32_t cpbRemovalDelayLength;
-    uint32_t dpbOutputDelayLength;
-    uint32_t bitRateValue;
-    uint32_t cpbSizeValue;
-    bool     cbrFlag;
-
-    HRDInfo()
-        : bitRateScale(0)
-        , cpbSizeScale(0)
-        , initialCpbRemovalDelayLength(1)
-        , cpbRemovalDelayLength(1)
-        , dpbOutputDelayLength(1)
-        , cbrFlag(false)
-    {
-    }
-};
-
 struct TimingInfo
 {
     uint32_t numUnitsInTick;
     uint32_t timeScale;
 };
 
-struct VPS
-{
-    HRDInfo          hrdParameters;
-    ProfileTierLevel ptl;
-    uint32_t         maxTempSubLayers;
-    uint32_t         numReorderPics[MAX_T_LAYERS];
-    uint32_t         maxDecPicBuffering[MAX_T_LAYERS];
-    uint32_t         maxLatencyIncrease[MAX_T_LAYERS];
-};
 
 struct Window
 {
@@ -175,33 +56,6 @@ struct Window
     }
 };
 
-struct VUI
-{
-    int        aspectRatioIdc;
-    int        sarWidth;
-    int        sarHeight;
-    int        videoFormat;
-    int        colourPrimaries;
-    int        transferCharacteristics;
-    int        matrixCoefficients;
-    int        chromaSampleLocTypeTopField;
-    int        chromaSampleLocTypeBottomField;
-
-    bool       aspectRatioInfoPresentFlag;
-    bool       overscanInfoPresentFlag;
-    bool       overscanAppropriateFlag;
-    bool       videoSignalTypePresentFlag;
-    bool       videoFullRangeFlag;
-    bool       colourDescriptionPresentFlag;
-    bool       chromaLocInfoPresentFlag;
-    bool       frameFieldInfoPresentFlag;
-    bool       fieldSeqFlag;
-    bool       hrdParametersPresentFlag;
-
-    HRDInfo    hrdParameters;
-    Window     defaultDisplayWindow;
-    TimingInfo timingInfo;
-};
 
 struct SPS
 {
@@ -234,13 +88,6 @@ struct SPS
 
     uint32_t maxAMPDepth;
 
-    uint32_t maxTempSubLayers;   // max number of Temporal Sub layers
-    uint32_t maxDecPicBuffering[MAX_T_LAYERS]; // these are dups of VPS values
-    uint32_t maxLatencyIncrease[MAX_T_LAYERS];
-    int      numReorderPics[MAX_T_LAYERS];
-
-    RPS      spsrps[MAX_NUM_SHORT_TERM_RPS];
-    int      spsrpsNum;
     int      numGOPBegin;
 
     bool     bUseSAO; // use param
@@ -251,7 +98,6 @@ struct SPS
     bool     bEmitVUIHRDInfo;
 
     Window   conformanceWindow;
-    VUI      vuiParameters;
 
     SPS()
     {
@@ -267,54 +113,6 @@ struct SPS
     }
 };
 
-struct PPS
-{
-    uint32_t maxCuDQPDepth;
-
-    int      chromaQpOffset[2];      // use param
-    int      deblockingFilterBetaOffsetDiv2;
-    int      deblockingFilterTcOffsetDiv2;
-
-    bool     bUseWeightPred;         // use param
-    bool     bUseWeightedBiPred;     // use param
-    bool     bUseDQP;
-    bool     bConstrainedIntraPred;  // use param
-
-    bool     bTransquantBypassEnabled;  // Indicates presence of cu_transquant_bypass_flag in CUs.
-    bool     bTransformSkipEnabled;     // use param
-    bool     bEntropyCodingSyncEnabled; // use param
-    bool     bSignHideEnabled;          // use param
-
-    bool     bDeblockingFilterControlPresent;
-    bool     bPicDisableDeblockingFilter;
-
-    int      numRefIdxDefault[2];
-    bool     pps_slice_chroma_qp_offsets_present_flag;
-};
-
-struct WeightParam
-{
-    // Explicit weighted prediction parameters parsed in slice header,
-    uint32_t log2WeightDenom;
-    int      inputWeight;
-    int      inputOffset;
-    int      wtPresent;
-
-    /* makes a non-h265 weight (i.e. fix7), into an h265 weight */
-    void setFromWeightAndOffset(int w, int o, int denom, bool bNormalize)
-    {
-        inputOffset = o;
-        log2WeightDenom = denom;
-        inputWeight = w;
-        while (bNormalize && log2WeightDenom > 0 && (inputWeight > 127))
-        {
-            log2WeightDenom--;
-            inputWeight >>= 1;
-        }
-
-        inputWeight = X265_MIN(inputWeight, 127);
-    }
-};
 
 #define SET_WEIGHT(w, b, s, d, o) \
     { \
@@ -329,16 +127,11 @@ class Slice
 public:
 
     const SPS*  m_sps;
-    const PPS*  m_pps;
     Frame*      m_refFrameList[2][MAX_NUM_REF + 1];
     PicYuv*     m_refReconPicList[2][MAX_NUM_REF + 1];
-
-    WeightParam m_weightPredTable[2][MAX_NUM_REF][3]; // [list][refIdx][0:Y, 1:U, 2:V]
     MotionReference (*m_mref)[MAX_NUM_REF + 1];
-    RPS         m_rps;
 
     NalUnitType m_nalUnitType;
-    SliceType   m_sliceType;
     int         m_sliceQp;
     int         m_chromaQpOffset[2];
     int         m_poc;
@@ -373,7 +166,6 @@ public:
         memset(m_refFrameList, 0, sizeof(m_refFrameList));
         memset(m_refReconPicList, 0, sizeof(m_refReconPicList));
         memset(m_refPOCList, 0, sizeof(m_refPOCList));
-        disableWeights();
         m_iPPSQpMinus26 = 0;
         numRefIdxDefault[0] = 1;
         numRefIdxDefault[1] = 1;
@@ -382,30 +174,6 @@ public:
         m_fieldNum = 0;
     }
 
-    void disableWeights();
-
-    void setRefPicList(PicList& picList);
-
-    bool getRapPicFlag() const
-    {
-        return m_nalUnitType == NAL_UNIT_CODED_SLICE_IDR_W_RADL
-            || m_nalUnitType == NAL_UNIT_CODED_SLICE_IDR_N_LP
-            || m_nalUnitType == NAL_UNIT_CODED_SLICE_CRA;
-    }
-    bool getIdrPicFlag() const
-    {
-        return m_nalUnitType == NAL_UNIT_CODED_SLICE_IDR_W_RADL
-            || m_nalUnitType == NAL_UNIT_CODED_SLICE_IDR_N_LP;
-    }
-    bool isIRAP() const   { return m_nalUnitType >= 16 && m_nalUnitType <= 23; }
-
-    bool isIntra()  const { return m_sliceType == I_SLICE; }
-
-    bool isInterB() const { return m_sliceType == B_SLICE; }
-
-    bool isInterP() const { return m_sliceType == P_SLICE; }
-
-    uint32_t realEndAddress(uint32_t endCUAddr) const;
 };
 
 }

@@ -390,83 +390,6 @@ sse_t pixel_ssd_s_c(const int16_t* a, intptr_t dstride)
     return sum;
 }
 
-template<int size>
-void blockfill_s_c(int16_t* dst, intptr_t dstride, int16_t val)
-{
-    for (int y = 0; y < size; y++)
-        for (int x = 0; x < size; x++)
-            dst[y * dstride + x] = val;
-}
-
-template<int size>
-void cpy2Dto1D_shl(int16_t* dst, const int16_t* src, intptr_t srcStride, int shift)
-{
-    X265_CHECK(((intptr_t)dst & 15) == 0, "dst alignment error\n");
-    X265_CHECK((((intptr_t)src | (srcStride * sizeof(*src))) & 15) == 0 || size == 4, "src alignment error\n");
-    X265_CHECK(shift >= 0, "invalid shift\n");
-
-    for (int i = 0; i < size; i++)
-    {
-        for (int j = 0; j < size; j++)
-            dst[j] = src[j] << shift;
-
-        src += srcStride;
-        dst += size;
-    }
-}
-
-template<int size>
-void cpy2Dto1D_shr(int16_t* dst, const int16_t* src, intptr_t srcStride, int shift)
-{
-    X265_CHECK(((intptr_t)dst & 15) == 0, "dst alignment error\n");
-    X265_CHECK((((intptr_t)src | (srcStride * sizeof(*src))) & 15) == 0 || size == 4, "src alignment error\n");
-    X265_CHECK(shift > 0, "invalid shift\n");
-
-    int16_t round = 1 << (shift - 1);
-    for (int i = 0; i < size; i++)
-    {
-        for (int j = 0; j < size; j++)
-            dst[j] = (src[j] + round) >> shift;
-
-        src += srcStride;
-        dst += size;
-    }
-}
-
-template<int size>
-void cpy1Dto2D_shl(int16_t* dst, const int16_t* src, intptr_t dstStride, int shift)
-{
-    X265_CHECK((((intptr_t)dst | (dstStride * sizeof(*dst))) & 15) == 0 || size == 4, "dst alignment error\n");
-    X265_CHECK(((intptr_t)src & 15) == 0, "src alignment error\n");
-    X265_CHECK(shift >= 0, "invalid shift\n");
-
-    for (int i = 0; i < size; i++)
-    {
-        for (int j = 0; j < size; j++)
-            dst[j] = src[j] << shift;
-
-        src += size;
-        dst += dstStride;
-    }
-}
-
-template<int size>
-void cpy1Dto2D_shr(int16_t* dst, const int16_t* src, intptr_t dstStride, int shift)
-{
-    X265_CHECK((((intptr_t)dst | (dstStride * sizeof(*dst))) & 15) == 0 || size == 4, "dst alignment error\n");
-    X265_CHECK(((intptr_t)src & 15) == 0, "src alignment error\n");
-    X265_CHECK(shift > 0, "invalid shift\n");
-
-    int16_t round = 1 << (shift - 1);
-    for (int i = 0; i < size; i++)
-    {
-        for (int j = 0; j < size; j++)
-            dst[j] = (src[j] + round) >> shift;
-
-        src += size;
-        dst += dstStride;
-    }
-}
 
 template<int blockSize>
 void getResidual(const pixel* fenc, const pixel* pred, int16_t* residual, intptr_t stride)
@@ -556,51 +479,6 @@ void pixelavg_pp(pixel* dst, intptr_t dstride, const pixel* src0, intptr_t sstri
     }
 }
 
-static void scale1D_128to64(pixel *dst, const pixel *src)
-{
-    int x;
-    const pixel* src1 = src;
-    const pixel* src2 = src + 128;
-
-    pixel* dst1 = dst;
-    pixel* dst2 = dst + 64/*128*/;
-
-    for (x = 0; x < 128; x += 2)
-    {
-        // Top pixel
-        pixel pix0 = src1[(x + 0)];
-        pixel pix1 = src1[(x + 1)];
-
-        // Left pixel
-        pixel pix2 = src2[(x + 0)];
-        pixel pix3 = src2[(x + 1)];
-        int sum1 = pix0 + pix1;
-        int sum2 = pix2 + pix3;
-
-        dst1[x >> 1] = (pixel)((sum1 + 1) >> 1);
-        dst2[x >> 1] = (pixel)((sum2 + 1) >> 1);
-    }
-}
-
-static void scale2D_64to32(pixel* dst, const pixel* src, intptr_t stride)
-{
-    uint32_t x, y;
-
-    for (y = 0; y < 64; y += 2)
-    {
-        for (x = 0; x < 64; x += 2)
-        {
-            pixel pix0 = src[(y + 0) * stride + (x + 0)];
-            pixel pix1 = src[(y + 0) * stride + (x + 1)];
-            pixel pix2 = src[(y + 1) * stride + (x + 0)];
-            pixel pix3 = src[(y + 1) * stride + (x + 1)];
-            int sum = pix0 + pix1 + pix2 + pix3;
-
-            dst[y / 2 * 32 + x / 2] = (pixel)((sum + 2) >> 2);
-        }
-    }
-}
-
 static
 void frame_init_lowres_core(const pixel* src0, pixel* dst0, pixel* dsth, pixel* dstv, pixel* dstc,
                             intptr_t src_stride, intptr_t dst_stride, int width, int height)
@@ -644,79 +522,6 @@ void frame_subsample_luma(const pixel* src0, pixel* dst0, intptr_t src_stride, i
     }
 }
 
-/* structural similarity metric */
-static void ssim_4x4x2_core(const pixel* pix1, intptr_t stride1, const pixel* pix2, intptr_t stride2, int sums[2][4])
-{
-    for (int z = 0; z < 2; z++)
-    {
-        uint32_t s1 = 0, s2 = 0, ss = 0, s12 = 0;
-        for (int y = 0; y < 4; y++)
-        {
-            for (int x = 0; x < 4; x++)
-            {
-                int a = pix1[x + y * stride1];
-                int b = pix2[x + y * stride2];
-                s1 += a;
-                s2 += b;
-                ss += a * a;
-                ss += b * b;
-                s12 += a * b;
-            }
-        }
-
-        sums[z][0] = s1;
-        sums[z][1] = s2;
-        sums[z][2] = ss;
-        sums[z][3] = s12;
-        pix1 += 4;
-        pix2 += 4;
-    }
-}
-
-static float ssim_end_1(int s1, int s2, int ss, int s12)
-{
-/* Maximum value for 10-bit is: ss*64 = (2^10-1)^2*16*4*64 = 4286582784, which will overflow in some cases.
- * s1*s1, s2*s2, and s1*s2 also obtain this value for edge cases: ((2^10-1)*16*4)^2 = 4286582784.
- * Maximum value for 9-bit is: ss*64 = (2^9-1)^2*16*4*64 = 1069551616, which will not overflow. */
-
-#if HIGH_BIT_DEPTH
-    X265_CHECK((X265_DEPTH == 10) || (X265_DEPTH == 12), "ssim invalid depth\n");
-#define type float
-    static const float ssim_c1 = (float)(.01 * .01 * PIXEL_MAX * PIXEL_MAX * 64);
-    static const float ssim_c2 = (float)(.03 * .03 * PIXEL_MAX * PIXEL_MAX * 64 * 63);
-#else
-    X265_CHECK(X265_DEPTH == 8, "ssim invalid depth\n");
-#define type int
-    static const int ssim_c1 = (int)(.01 * .01 * PIXEL_MAX * PIXEL_MAX * 64 + .5);
-    static const int ssim_c2 = (int)(.03 * .03 * PIXEL_MAX * PIXEL_MAX * 64 * 63 + .5);
-#endif
-    type fs1 = (type)s1;
-    type fs2 = (type)s2;
-    type fss = (type)ss;
-    type fs12 = (type)s12;
-    type vars = (type)(fss * 64 - fs1 * fs1 - fs2 * fs2);
-    type covar = (type)(fs12 * 64 - fs1 * fs2);
-    return (float)(2 * fs1 * fs2 + ssim_c1) * (float)(2 * covar + ssim_c2)
-           / ((float)(fs1 * fs1 + fs2 * fs2 + ssim_c1) * (float)(vars + ssim_c2));
-#undef type
-#undef PIXEL_MAX
-}
-
-static float ssim_end_4(int sum0[5][4], int sum1[5][4], int width)
-{
-    float ssim = 0.0;
-
-    for (int i = 0; i < width; i++)
-    {
-        ssim += ssim_end_1(sum0[i][0] + sum0[i + 1][0] + sum1[i][0] + sum1[i + 1][0],
-                           sum0[i][1] + sum0[i + 1][1] + sum1[i][1] + sum1[i + 1][1],
-                           sum0[i][2] + sum0[i + 1][2] + sum1[i][2] + sum1[i + 1][2],
-                           sum0[i][3] + sum0[i + 1][3] + sum1[i][3] + sum1[i + 1][3]);
-    }
-
-    return ssim;
-}
-
 template<int size>
 uint64_t pixel_var(const pixel* pix, intptr_t i_stride)
 {
@@ -739,39 +544,6 @@ uint64_t pixel_var(const pixel* pix, intptr_t i_stride)
 #if defined(_MSC_VER)
 #pragma warning(disable: 4127) // conditional expression is constant
 #endif
-
-template<int size>
-int psyCost_pp(const pixel* source, intptr_t sstride, const pixel* recon, intptr_t rstride)
-{
-    static pixel zeroBuf[8] /* = { 0 } */;
-
-    if (size)
-    {
-        int dim = 1 << (size + 2);
-        uint32_t totEnergy = 0;
-        for (int i = 0; i < dim; i += 8)
-        {
-            for (int j = 0; j < dim; j+= 8)
-            {
-                /* AC energy, measured by sa8d (AC + DC) minus SAD (DC) */
-                int sourceEnergy = sa8d_8x8(source + i * sstride + j, sstride, zeroBuf, 0) - 
-                                   (sad<8, 8>(source + i * sstride + j, sstride, zeroBuf, 0) >> 2);
-                int reconEnergy =  sa8d_8x8(recon + i * rstride + j, rstride, zeroBuf, 0) - 
-                                   (sad<8, 8>(recon + i * rstride + j, rstride, zeroBuf, 0) >> 2);
-
-                totEnergy += abs(sourceEnergy - reconEnergy);
-            }
-        }
-        return totEnergy;
-    }
-    else
-    {
-        /* 4x4 is too small for sa8d */
-        int sourceEnergy = satd_4x4(source, sstride, zeroBuf, 0) - (sad<4, 4>(source, sstride, zeroBuf, 0) >> 2);
-        int reconEnergy = satd_4x4(recon, rstride, zeroBuf, 0) - (sad<4, 4>(recon, rstride, zeroBuf, 0) >> 2);
-        return abs(sourceEnergy - reconEnergy);
-    }
-}
 
 template<int bx, int by>
 void blockcopy_pp_c(pixel* a, intptr_t stridea, const pixel* b, intptr_t strideb)
@@ -923,77 +695,6 @@ static void planecopy_sp_shl_c(const uint16_t* src, intptr_t srcStride, pixel* d
 
         dst += dstStride;
         src += srcStride;
-    }
-}
-
-/* Estimate the total amount of influence on future quality that could be had if we
- * were to improve the reference samples used to inter predict any given CU. */
-static void estimateCUPropagateCost(int* dst, const uint16_t* propagateIn, const int32_t* intraCosts, const uint16_t* interCosts,
-                                    const int32_t* invQscales, const double* fpsFactor, int len)
-{
-    double fps = *fpsFactor / 256;  // range[0.01, 1.00]
-    for (int i = 0; i < len; i++)
-    {
-        int intraCost = intraCosts[i];
-        int interCost = X265_MIN(intraCosts[i], interCosts[i] & LOWRES_COST_MASK);
-        double propagateIntra = intraCost * invQscales[i]; // Q16 x Q8.8 = Q24.8
-        double propagateAmount = (double)propagateIn[i] + propagateIntra * fps; // Q16.0 + Q24.8 x Q0.x = Q25.0
-        double propagateNum = (double)(intraCost - interCost); // Q32 - Q32 = Q33.0
-
-#if 0
-        // algorithm that output match to asm
-        float intraRcp = (float)1.0f / intraCost;   // VC can't mapping this into RCPPS
-        float intraRcpError1 = (float)intraCost * (float)intraRcp;
-        intraRcpError1 *= (float)intraRcp;
-        float intraRcpError2 = intraRcp + intraRcp;
-        float propagateDenom = intraRcpError2 - intraRcpError1;
-        dst[i] = (int)(propagateAmount * propagateNum * (double)propagateDenom + 0.5);
-#else
-        double propagateDenom = (double)intraCost;             // Q32
-        dst[i] = (int)(propagateAmount * propagateNum / propagateDenom + 0.5);
-#endif
-        }
-    //}
-}
-
-/* Conversion between double and Q8.8 fixed point (big-endian) for storage */
-static void cuTreeFix8Pack(uint16_t *dst, double *src, int count)
-{
-    for (int i = 0; i < count; i++)
-        dst[i] = (uint16_t)(int16_t)(src[i] * 256.0);
-}
-
-static void cuTreeFix8Unpack(double *dst, uint16_t *src, int count)
-{
-    for (int i = 0; i < count; i++)
-    {
-        int16_t qpFix8 = src[i];
-        dst[i] = (double)(qpFix8) / 256.0;
-    }
-}
-
-template<int log2TrSize>
-static void ssimDist_c(const pixel* fenc, uint32_t fStride, const pixel* recon, intptr_t rstride, uint64_t *ssBlock, int shift, uint64_t *ac_k)
-{
-    *ssBlock = 0;
-    int trSize = 1 << log2TrSize;
-    for (int y = 0; y < trSize; y++)
-    {
-        for (int x = 0; x < trSize; x++)
-        {
-            int temp = fenc[y * fStride + x] - recon[y * rstride + x]; // copy of residual coeff
-            *ssBlock += temp * temp;
-        }
-    }
-
-    *ac_k = 0;
-    for (int block_yy = 0; block_yy < trSize; block_yy += 1)
-    {
-        for (int block_xx = 0; block_xx < trSize; block_xx += 1)
-        {
-            uint32_t temp = fenc[block_yy * fStride + block_xx] >> shift;
-            *ac_k += temp * temp;
-        }
     }
 }
 
@@ -1171,11 +872,11 @@ void setupPixelPrimitives_c(EncoderPrimitives &p)
     p.pu[LUMA_64x16].satd = satd8<64, 16>;
     p.pu[LUMA_16x64].satd = satd8<16, 64>;
 
-    LUMA_CU(4, 4);
-    LUMA_CU(8, 8);
-    LUMA_CU(16, 16);
-    LUMA_CU(32, 32);
-    LUMA_CU(64, 64);
+    //LUMA_CU(4, 4);
+    //LUMA_CU(8, 8);
+    //LUMA_CU(16, 16);
+    //LUMA_CU(32, 32);
+    //LUMA_CU(64, 64);
 
     p.cu[BLOCK_4x4].sa8d   = satd_4x4;
     p.cu[BLOCK_8x8].sa8d   = sa8d_8x8;
@@ -1344,12 +1045,10 @@ void setupPixelPrimitives_c(EncoderPrimitives &p)
     p.weight_pp = weight_pp_c;
     p.weight_sp = weight_sp_c;
 
-    p.scale1D_128to64[NONALIGNED] = p.scale1D_128to64[ALIGNED] = scale1D_128to64;
-    p.scale2D_64to32 = scale2D_64to32;
     p.frameInitLowres = frame_init_lowres_core;
     p.frameInitLowerRes = frame_init_lowres_core;
-    p.ssim_4x4x2_core = ssim_4x4x2_core;
-    p.ssim_end_4 = ssim_end_4;
+    //p.ssim_4x4x2_core = ssim_4x4x2_core;
+    //p.ssim_end_4 = ssim_end_4;
 
     p.planecopy_cp = planecopy_cp_c;
     p.planecopy_sp = planecopy_sp_c;
@@ -1358,20 +1057,6 @@ void setupPixelPrimitives_c(EncoderPrimitives &p)
 #if HIGH_BIT_DEPTH
     p.planeClipAndMax = planeClipAndMax_c;
 #endif
-    p.propagateCost = estimateCUPropagateCost;
-    p.fix8Unpack = cuTreeFix8Unpack;
-    p.fix8Pack = cuTreeFix8Pack;
-
-    p.cu[BLOCK_4x4].ssimDist = ssimDist_c<2>;
-    p.cu[BLOCK_8x8].ssimDist = ssimDist_c<3>;
-    p.cu[BLOCK_16x16].ssimDist = ssimDist_c<4>;
-    p.cu[BLOCK_32x32].ssimDist = ssimDist_c<5>;
-    p.cu[BLOCK_64x64].ssimDist = ssimDist_c<6>;
-
-    p.cu[BLOCK_8x8].normFact = normFact_c;
-    p.cu[BLOCK_16x16].normFact = normFact_c;
-    p.cu[BLOCK_32x32].normFact = normFact_c;
-    p.cu[BLOCK_64x64].normFact = normFact_c;
     /* SubSample Luma*/
     p.frameSubSampleLuma = frame_subsample_luma;
 }

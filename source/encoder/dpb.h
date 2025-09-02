@@ -51,22 +51,8 @@ public:
     {
         m_lastIDR = 0;
         m_pocCRA = 0;
-        m_bhasLeadingPicture = param->radl;
-        if (param->bResetZoneConfig)
-        {
-            for (int i = 0; i < param->rc.zonefileCount ; i++)
-            {
-                if (param->rc.zones[i].zoneParam->radl)
-                {
-                    m_bhasLeadingPicture = param->rc.zones[i].zoneParam->radl;
-                    break;
-                }
-            }
-        }
         m_bRefreshPending = false;
         m_frameDataFreeList = NULL;
-        m_bOpenGOP = param->bOpenGOP;
-        m_bTemporalSublayer = (param->bEnableTemporalSubLayers > 2);
     }
 
     ~DPB();
@@ -75,17 +61,6 @@ public:
 
     void recycleUnreferenced();
 
-protected:
-
-    void computeRPS(int curPoc,int tempId, bool isRAP, RPS * rps, unsigned int maxDecPicBuffer);
-
-    void applyReferencePictureSet(RPS *rps, int curPoc, int tempId, bool isTSAPicture);
-    bool getTemporalLayerNonReferenceFlag();
-    void decodingRefreshMarking(int pocCurr, NalUnitType nalUnitType);
-    bool isTemporalLayerSwitchingPoint(int curPoc, int tempId);
-    bool isStepwiseTemporalLayerSwitchingPoint(RPS *rps, int curPoc, int tempId);
-
-    NalUnitType getNalUnitType(int curPoc, bool bIsKeyFrame);
 };
 }
 

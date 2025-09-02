@@ -33,6 +33,5 @@ add_library(encoder OBJECT ../x265.h
     sei.cpp sei.h
     entropy.cpp entropy.h
     dpb.cpp dpb.h
-    reference.cpp reference.h
     encoder.cpp encoder.h
     api.cpp)

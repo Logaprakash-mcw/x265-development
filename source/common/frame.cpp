@@ -32,29 +32,16 @@ using namespace X265_NS;
 Frame::Frame()
 {
     m_bChromaExtended = false;
-    m_lowresInit = false;
     m_reconRowFlag = NULL;
     m_reconColCount = NULL;
     m_countRefEncoders = 0;
     m_encData = NULL;
     m_reconPic = NULL;
-    m_quantOffsets = NULL;
     m_next = NULL;
     m_prev = NULL;
     m_param = NULL;
-    m_userSEI.numPayloads = 0;
-    m_userSEI.payloads = NULL;
-    m_rpu.payloadSize = 0;
-    m_rpu.payload = NULL;
-    memset(&m_lowres, 0, sizeof(m_lowres));
-    m_rcData = NULL;
     m_encodeStartTime = 0;
     m_reconfigureRc = false;
-    m_ctuInfo = NULL;
-    m_prevCtuInfoChange = NULL;
-    m_addOnDepth = NULL;
-    m_addOnCtuInfo = NULL;
-    m_addOnPrevChange = NULL;
     m_classifyFrame = false;
     m_fieldNum = 0;
     m_picStruct = 0;
@@ -82,21 +69,19 @@ bool Frame::create(x265_param *param)
     m_fencPic = new PicYuv;
     m_param = param;
 
-    if (m_param->bEnableTemporalFilter)
-    {
-        m_mcstf = new TemporalFilter;
-        m_mcstf->init(param);
+    m_mcstf = new TemporalFilter;
+    m_mcstf->init(param);
 
-        m_fencPicSubsampled2 = new PicYuv;
-        m_fencPicSubsampled4 = new PicYuv;
+    m_fencPicSubsampled2 = new PicYuv;
+    m_fencPicSubsampled4 = new PicYuv;
 
-        if (!m_fencPicSubsampled2->createScaledPicYUV(param, 2))
-            return false;
-        if (!m_fencPicSubsampled4->createScaledPicYUV(param, 4))
-            return false;
+    if (!m_fencPicSubsampled2->createScaledPicYUV(param, 2))
+        return false;
+    if (!m_fencPicSubsampled4->createScaledPicYUV(param, 4))
+        return false;
 
-        CHECKED_MALLOC_ZERO(m_isSubSampled, int, 1);
-    }
+    CHECKED_MALLOC_ZERO(m_isSubSampled, int, 1);
+
 
     if (m_fencPic->create(param, !!m_param->bCopyPicToFrame))
     {
@@ -164,7 +149,7 @@ void Frame::reinit(const SPS& sps)
 {
     m_bChromaExtended = false;
     m_reconPic = m_encData->m_reconPic;
-    m_encData->reinit(sps);
+    //m_encData->reinit(sps);
 }
 
 void Frame::destroy()
@@ -184,32 +169,28 @@ void Frame::destroy()
         m_fencPic = NULL;
     }
 
-    if (m_param->bEnableTemporalFilter)
+
+    if (m_fencPicSubsampled2)
     {
-
-        if (m_fencPicSubsampled2)
-        {
-            m_fencPicSubsampled2->destroy();
-            delete m_fencPicSubsampled2;
-            m_fencPicSubsampled2 = NULL;
-        }
-
-        if (m_fencPicSubsampled4)
-        {
-            m_fencPicSubsampled4->destroy();
-            delete m_fencPicSubsampled4;
-            m_fencPicSubsampled4 = NULL;
-        }
-        delete m_mcstf;
-        X265_FREE(m_isSubSampled);
+        m_fencPicSubsampled2->destroy();
+        delete m_fencPicSubsampled2;
+        m_fencPicSubsampled2 = NULL;
     }
 
-    if (m_reconPic)
+    if (m_fencPicSubsampled4)
     {
+        m_fencPicSubsampled4->destroy();
+        delete m_fencPicSubsampled4;
+        m_fencPicSubsampled4 = NULL;
+    }
+    delete m_mcstf;
+    X265_FREE(m_isSubSampled);
+
+    if(m_reconPic)
         m_reconPic->destroy();
-        delete m_reconPic;
-        m_reconPic = NULL;
-    }
+    delete m_reconPic;
+    m_reconPic = NULL;
+
 
     if (m_reconRowFlag)
     {
@@ -223,68 +204,5 @@ void Frame::destroy()
         m_reconColCount = NULL;
     }
 
-    if (m_quantOffsets)
-    {
-        delete[] m_quantOffsets;
-    }
 
-    if (m_userSEI.numPayloads)
-    {
-        for (int i = 0; i < m_userSEI.numPayloads; i++)
-            delete[] m_userSEI.payloads[i].payload;
-        delete[] m_userSEI.payloads;
-    }
-
-    if (m_ctuInfo)
-    {
-        uint32_t widthInCU = (m_param->sourceWidth + m_param->maxCUSize - 1) >> m_param->maxLog2CUSize;
-        uint32_t heightInCU = (m_param->sourceHeight + m_param->maxCUSize - 1) >> m_param->maxLog2CUSize;
-        uint32_t numCUsInFrame = widthInCU * heightInCU;
-        for (uint32_t i = 0; i < numCUsInFrame; i++)
-        {
-            X265_FREE((*m_ctuInfo + i)->ctuInfo);
-            (*m_ctuInfo + i)->ctuInfo = NULL;
-            X265_FREE(m_addOnDepth[i]);
-            m_addOnDepth[i] = NULL;
-            X265_FREE(m_addOnCtuInfo[i]);
-            m_addOnCtuInfo[i] = NULL;
-            X265_FREE(m_addOnPrevChange[i]);
-            m_addOnPrevChange[i] = NULL;
-        }
-        X265_FREE(*m_ctuInfo);
-        *m_ctuInfo = NULL;
-        X265_FREE(m_ctuInfo);
-        m_ctuInfo = NULL;
-        X265_FREE(m_prevCtuInfoChange);
-        m_prevCtuInfoChange = NULL;
-        X265_FREE(m_addOnDepth);
-        m_addOnDepth = NULL;
-        X265_FREE(m_addOnCtuInfo);
-        m_addOnCtuInfo = NULL;
-        X265_FREE(m_addOnPrevChange);
-        m_addOnPrevChange = NULL;
-    }
-
-    m_lowres.destroy(m_param);
-    X265_FREE(m_rcData);
-
-    if (m_param->bDynamicRefine)
-    {
-        X265_FREE_ZERO(m_classifyRd);
-        X265_FREE_ZERO(m_classifyVariance);
-        X265_FREE_ZERO(m_classifyCount);
-    }
-
-    if (m_param->rc.aqMode == X265_AQ_EDGE || (m_param->rc.zonefileCount && m_param->rc.aqMode != 0))
-    {
-        X265_FREE(m_edgePic);
-        X265_FREE(m_gaussianPic);
-        X265_FREE(m_thetaPic);
-    }
-
-    if (m_param->recursionSkipMode == EDGE_BASED_RSKIP)
-    {
-        X265_FREE_ZERO(m_edgeBitPlane);
-        m_edgeBitPic = NULL;
-    }
 }

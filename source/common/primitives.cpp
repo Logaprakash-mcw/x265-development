@@ -54,8 +54,6 @@ EncoderPrimitives primitives;
 void setupPixelPrimitives_c(EncoderPrimitives &p);
 void setupDCTPrimitives_c(EncoderPrimitives &p);
 void setupFilterPrimitives_c(EncoderPrimitives &p);
-void setupIntraPrimitives_c(EncoderPrimitives &p);
-void setupLoopFilterPrimitives_c(EncoderPrimitives &p);
 void setupLowPassPrimitives_c(EncoderPrimitives& p);
 
 void setupCPrimitives(EncoderPrimitives &p)
@@ -64,8 +62,6 @@ void setupCPrimitives(EncoderPrimitives &p)
     setupDCTPrimitives_c(p);        // dct.cpp
     setupLowPassPrimitives_c(p);    // lowpassdct.cpp
     setupFilterPrimitives_c(p);     // ipfilter.cpp
-    setupIntraPrimitives_c(p);      // intrapred.cpp
-    setupLoopFilterPrimitives_c(p); // loopfilter.cpp
 }
 
 void enableLowpassDCTPrimitives(EncoderPrimitives &p)
@@ -113,8 +109,8 @@ void setupAliasPrimitives(EncoderPrimitives &p)
         p.chroma[X265_CSP_I444].pu[i].addAvg[NONALIGNED]  = p.pu[i].addAvg[NONALIGNED];
         p.chroma[X265_CSP_I444].pu[i].addAvg[ALIGNED] = p.pu[i].addAvg[ALIGNED];
         p.chroma[X265_CSP_I444].pu[i].satd    = p.pu[i].satd;
-        p.chroma[X265_CSP_I444].pu[i].p2s[NONALIGNED]     = p.pu[i].convert_p2s[NONALIGNED];
-        p.chroma[X265_CSP_I444].pu[i].p2s[ALIGNED] = p.pu[i].convert_p2s[ALIGNED];
+        //p.chroma[X265_CSP_I444].pu[i].p2s[NONALIGNED]     = p.pu[i].convert_p2s[NONALIGNED];
+        //p.chroma[X265_CSP_I444].pu[i].p2s[ALIGNED] = p.pu[i].convert_p2s[ALIGNED];
     }
 
     for (int i = 0; i < NUM_CU_SIZES; i++)
@@ -204,43 +200,6 @@ void setupAliasPrimitives(EncoderPrimitives &p)
     p.chroma[X265_CSP_I422].cu[BLOCK_422_2x4].sse_pp = NULL;
 }
 
-void x265_report_simd(x265_param* param)
-{
-    if (param->logLevel >= X265_LOG_INFO)
-    {
-        int cpuid = param->cpuid;
-
-        char buf[1000];
-        char *p = buf + sprintf(buf, "using cpu capabilities:");
-        char *none = p;
-        for (int i = 0; X265_NS::cpu_names[i].flags; i++)
-        {
-            if (!strcmp(X265_NS::cpu_names[i].name, "SSE")
-                && (cpuid & X265_CPU_SSE2))
-                continue;
-            if (!strcmp(X265_NS::cpu_names[i].name, "SSE2")
-                && (cpuid & (X265_CPU_SSE2_IS_FAST | X265_CPU_SSE2_IS_SLOW)))
-                continue;
-            if (!strcmp(X265_NS::cpu_names[i].name, "SSE3")
-                && (cpuid & X265_CPU_SSSE3 || !(cpuid & X265_CPU_CACHELINE_64)))
-                continue;
-            if (!strcmp(X265_NS::cpu_names[i].name, "SSE4.1")
-                && (cpuid & X265_CPU_SSE42))
-                continue;
-            if (!strcmp(X265_NS::cpu_names[i].name, "BMI1")
-                && (cpuid & X265_CPU_BMI2))
-                continue;
-            if ((cpuid & X265_NS::cpu_names[i].flags) == X265_NS::cpu_names[i].flags
-                && (!i || X265_NS::cpu_names[i].flags != X265_NS::cpu_names[i - 1].flags))
-                p += sprintf(p, " %s", X265_NS::cpu_names[i].name);
-        }
-
-        if (p == none)
-            sprintf(p, " none!");
-        x265_log(param, X265_LOG_INFO, "%s\n", buf);
-    }
-}
-
 void x265_setup_primitives(x265_param *param)
 {
     if (!primitives.pu[0].sad)
@@ -250,8 +209,8 @@ void x265_setup_primitives(x265_param *param)
         /* We do not want the encoder to use the un-optimized intra all-angles
          * C references. It is better to call the individual angle functions
          * instead. We must check for NULL before using this primitive */
-        for (int i = 0; i < NUM_TR_SIZE; i++)
-            primitives.cu[i].intra_pred_allangs = NULL;
+        //for (int i = 0; i < NUM_TR_SIZE; i++)
+        //    primitives.cu[i].intra_pred_allangs = NULL;
 
 #if ENABLE_ASSEMBLY
 #if X265_ARCH_X86
@@ -277,7 +236,7 @@ void x265_setup_primitives(x265_param *param)
         }
     }
 
-    x265_report_simd(param);
+    //x265_report_simd(param);
 }
 }
 

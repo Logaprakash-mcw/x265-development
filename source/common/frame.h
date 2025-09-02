@@ -26,7 +26,6 @@
 #define X265_FRAME_H
 
 #include "common.h"
-#include "lowres.h"
 #include "threading.h"
 #include "temporalfilter.h"
 
@@ -90,22 +89,12 @@ public:
 
     int                    m_poc;
     int                    m_encodeOrder;
-    int                    m_gopOffset;
     int64_t                m_pts;                // user provided presentation time stamp
-    int64_t                m_reorderedPts;
-    int64_t                m_dts;
-    int32_t                m_forceqp;            // Force to use the qp specified in qp file
-    void*                  m_userData;           // user provided pointer passed in with this picture
 
-    Lowres                 m_lowres;
-    bool                   m_lowresInit;         // lowres init complete (pre-analysis)
     bool                   m_bChromaExtended;    // orig chroma planes motion extended for weight analysis
     bool                   m_reconfigureRc;
 
-    float*                 m_quantOffsets;       // points to quantOffsets in x265_picture
-    x265_sei               m_userSEI;
     uint32_t               m_picStruct;          // picture structure SEI message
-    x265_dolby_vision_rpu  m_rpu;
 
     /* Frame Parallelism - notification between FrameEncoders of available motion reference rows */
     ThreadSafeInteger*     m_reconRowFlag;       // flag of CTU rows completely reconstructed and extended for motion reference
@@ -116,24 +105,9 @@ public:
     Frame*                 m_next;               // PicList doubly linked list pointers
     Frame*                 m_prev;
     x265_param*            m_param;              // Points to the latest param set for the frame.
-    x265_analysis_data     m_analysisData;
-    RcStats*               m_rcData;
 
-    Event                  m_copyMVType;
-
-    x265_ctu_info_t**      m_ctuInfo;
     Event                  m_copied;
-    int*                   m_prevCtuInfoChange;
     int64_t                m_encodeStartTime;
-
-    uint8_t**              m_addOnDepth;
-    uint8_t**              m_addOnCtuInfo;
-    int**                  m_addOnPrevChange;
-
-    /* Average feature values of frames being considered for classification */
-    uint64_t*              m_classifyRd;
-    uint64_t*              m_classifyVariance;
-    uint32_t*              m_classifyCount;
 
     bool                   m_classifyFrame;
     int                    m_fieldNum;

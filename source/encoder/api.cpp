@@ -22,7 +22,6 @@
  *****************************************************************************/
 
 #include "common.h"
-#include "bitstream.h"
 #include "param.h"
 
 #include "encoder.h"
@@ -108,77 +107,15 @@ x265_encoder *x265_encoder_open(x265_param *p)
 
     encoder = new Encoder;
 
-#ifdef SVT_HEVC
-
-    if (param->bEnableSvtHevc)
-    {
-        EB_ERRORTYPE return_error = EB_ErrorNone;
-        int ret = 0;
-
-        svt_initialise_app_context(encoder);
-        ret = svt_initialise_input_buffer(encoder);
-        if (!ret)
-        {
-            x265_log(param, X265_LOG_ERROR, "SVT-HEVC Encoder: Unable to allocate input buffer \n");
-            goto fail;
-        }
-
-        // Create Encoder Handle
-        return_error = EbInitHandle(&encoder->m_svtAppData->svtEncoderHandle, encoder->m_svtAppData, encoder->m_svtAppData->svtHevcParams);
-        if (return_error != EB_ErrorNone)
-        {
-            x265_log(param, X265_LOG_ERROR, "SVT-HEVC Encoder: Unable to initialise encoder handle  \n");
-            goto fail;
-        }
-
-        memcpy(encoder->m_svtAppData->svtHevcParams, param->svtHevcParam, sizeof(EB_H265_ENC_CONFIGURATION));
-
-        // Send over all configuration parameters
-        return_error = EbH265EncSetParameter(encoder->m_svtAppData->svtEncoderHandle, encoder->m_svtAppData->svtHevcParams);
-        if (return_error != EB_ErrorNone)
-        {
-            x265_log(param, X265_LOG_ERROR, "SVT-HEVC Encoder: Error while configuring encoder parameters  \n");
-            goto fail;
-        }
-
-        // Init Encoder
-        return_error = EbInitEncoder(encoder->m_svtAppData->svtEncoderHandle);
-        if (return_error != EB_ErrorNone)
-        {
-            x265_log(param, X265_LOG_ERROR, "SVT-HEVC Encoder: Encoder init failed  \n");
-            goto fail;
-        }
-
-        memcpy(param->svtHevcParam, encoder->m_svtAppData->svtHevcParams, sizeof(EB_H265_ENC_CONFIGURATION));
-        encoder->m_param = param;
-        return encoder;
-    }
-#endif
-
     x265_setup_primitives(param);
 
     if (x265_check_params(param))
         goto fail;
 
-    if (!param->rc.bEnableSlowFirstPass)
-        PARAM_NS::x265_param_apply_fastfirstpass(param);
-
     // may change params for auto-detect, etc
     encoder->configure(param);
     if (encoder->m_aborted)
         goto fail;
-    // may change rate control and CPB params
-    //if (!enforceLevel(*param, encoder->m_vps))
-        //goto fail;
-
-    // will detect and set profile/tier/level in VPS
-    //determineLevel(*param, encoder->m_vps);
-
-    if (!param->bAllowNonConformance && encoder->m_vps.ptl.profileIdc == Profile::NONE)
-    {
-        x265_log(param, X265_LOG_INFO, "non-conformant bitstreams not allowed (--allow-non-conformance)\n");
-        goto fail;
-    }
 
     encoder->create();
     p->frameNumThreads = encoder->m_param->frameNumThreads;
@@ -208,35 +145,6 @@ void x265_encoder_parameters(x265_encoder *enc, x265_param *out)
     }
 }
 
-
-int x265_encoder_reconfig_zone(x265_encoder* enc, x265_zone* zone_in)
-{
-    if (!enc || !zone_in)
-        return -1;
-
-    Encoder* encoder = static_cast<Encoder*>(enc);
-    int read = encoder->zoneReadCount[encoder->m_zoneIndex].get();
-    int write = encoder->zoneWriteCount[encoder->m_zoneIndex].get();
-
-    x265_zone* zone = &(encoder->m_param->rc).zones[encoder->m_zoneIndex];
-    x265_param* zoneParam = zone->zoneParam;
-
-    if (write && (read < write))
-    {
-        read = encoder->zoneReadCount[encoder->m_zoneIndex].waitForChange(read);
-    }
-
-    zone->startFrame = zone_in->startFrame;
-    zoneParam->rc.bitrate = zone_in->zoneParam->rc.bitrate;
-    zoneParam->rc.vbvMaxBitrate = zone_in->zoneParam->rc.vbvMaxBitrate;
-    memcpy(zone->relativeComplexity, zone_in->relativeComplexity, sizeof(double) * encoder->m_param->reconfigWindowSize);
-    
-    encoder->zoneWriteCount[encoder->m_zoneIndex].incr();
-    encoder->m_zoneIndex++;
-    encoder->m_zoneIndex %= encoder->m_param->rc.zonefileCount;
-
-    return 0;
-}
 
 int x265_encoder_encode(x265_encoder *enc, x265_nal **pp_nal, uint32_t *pi_nal, x265_picture *pic_in, x265_picture *pic_out)
 {
@@ -467,36 +375,8 @@ void x265_encoder_close(x265_encoder *enc)
     {
         Encoder *encoder = static_cast<Encoder*>(enc);
 
-#ifdef SVT_HEVC
-        if (encoder->m_param->bEnableSvtHevc)
-        {
-            EB_ERRORTYPE return_value;
-            return_value = EbDeinitEncoder(encoder->m_svtAppData->svtEncoderHandle);
-            if (return_value != EB_ErrorNone)
-            {
-                x265_log(encoder->m_param, X265_LOG_ERROR, "SVT HEVC encoder: Error while closing the encoder \n");
-            }
-            return_value = EbDeinitHandle(encoder->m_svtAppData->svtEncoderHandle);
-            if (return_value != EB_ErrorNone)
-            {
-                x265_log(encoder->m_param, X265_LOG_ERROR, "SVT HEVC encoder: Error while closing the Handle \n");
-            }
-
-            svt_print_summary(enc);
-            EB_H265_ENC_INPUT *inputData = (EB_H265_ENC_INPUT*)encoder->m_svtAppData->inputPictureBuffer->pBuffer;
-            if (inputData->dolbyVisionRpu.payload) X265_FREE(inputData->dolbyVisionRpu.payload);
-
-            X265_FREE(inputData);
-            X265_FREE(encoder->m_svtAppData->inputPictureBuffer);
-            X265_FREE(encoder->m_svtAppData->svtHevcParams);
-            encoder->stopJobs();
-            encoder->destroy();
-            delete encoder;
-            return;
-        }
-#endif
-
         encoder->stopJobs();
+
         encoder->destroy();
         delete encoder;
     }
@@ -516,7 +396,7 @@ int x265_encoder_ctu_info(x265_encoder *enc, int poc, x265_ctu_info_t** ctu)
     if (!ctu || !enc)
         return -1;
     Encoder* encoder = static_cast<Encoder*>(enc);
-    encoder->copyCtuInfo(ctu, poc);
+    //encoder->copyCtuInfo(ctu, poc);
     return 0;
 }
 
@@ -546,14 +426,6 @@ void x265_picture_init(x265_param *param, x265_picture *pic)
 
     pic->bitDepth = param->internalBitDepth;
     pic->colorSpace = param->internalCsp;
-
-    if ((param->analysisSave || param->analysisLoad) || (param->bAnalysisType == AVC_INFO))
-    {
-        uint32_t widthInCU = (param->sourceWidth + param->maxCUSize - 1) >> param->maxLog2CUSize;
-        uint32_t heightInCU = (param->sourceHeight + param->maxCUSize - 1) >> param->maxLog2CUSize;
-
-        uint32_t numCUsInFrame   = widthInCU * heightInCU;
-    }
 }
 
 void x265_picture_free(x265_picture *p)
@@ -569,16 +441,6 @@ x265_zone *x265_zone_alloc(int zoneCount, int isZoneFile)
             zone[i].zoneParam = (x265_param*)x265_malloc(sizeof(x265_param));
     }
     return zone;
-}
-
-void x265_zone_free(x265_param *param)
-{
-    if (param && param->rc.zones && (param->rc.zoneCount || param->rc.zonefileCount))
-    {
-        for (int i = 0; i < param->rc.zonefileCount; i++)
-            x265_free(param->rc.zones[i].zoneParam);
-        x265_free(param->rc.zones);
-    }
 }
 
 static const x265_api libapi =
@@ -601,13 +463,13 @@ static const x265_api libapi =
     &PARAM_NS::x265_param_parse,
     &PARAM_NS::x265_scenecut_aware_qp_param_parse,
     //&PARAM_NS::x265_param_apply_profile,
-    &PARAM_NS::x265_param_default_preset,
+    //&PARAM_NS::x265_param_default_preset,
     &x265_picture_alloc,
     &x265_picture_free,
     &x265_picture_init,
     &x265_encoder_open,
     &x265_encoder_parameters,
-    &x265_encoder_reconfig_zone,
+    //&x265_encoder_reconfig_zone,
     &x265_encoder_encode,
     &x265_encoder_close,
     &x265_cleanup,
@@ -616,12 +478,12 @@ static const x265_api libapi =
     &x265_encoder_intra_refresh,
     &x265_encoder_ctu_info,
     &x265_dither_image,
-#if ENABLE_LIBVMAF
-    &x265_calculate_vmafscore,
-    &x265_calculate_vmaf_framelevelscore,
-    &x265_vmaf_encoder_log,
-#endif
-    &PARAM_NS::x265_zone_param_parse
+//#if ENABLE_LIBVMAF
+//    &x265_calculate_vmafscore,
+//    &x265_calculate_vmaf_framelevelscore,
+//    &x265_vmaf_encoder_log,
+//#endif
+//    &PARAM_NS::x265_zone_param_parse
 };
 
 typedef const x265_api* (*api_get_func)(int bitDepth);
@@ -818,362 +680,6 @@ const x265_api* x265_api_query(int bitDepth, int apiVersion, int* err)
     return &libapi;
 }
 
-FILE* x265_csvlog_open(const x265_param* param)
-{
-    FILE *csvfp = x265_fopen(param->csvfn, "r");
-    if (csvfp)
-    {
-        /* file already exists, re-open for append */
-        fclose(csvfp);
-        return x265_fopen(param->csvfn, "ab");
-    }
-    else
-    {
-        /* new CSV file, write header */
-        csvfp = x265_fopen(param->csvfn, "wb");
-        if (csvfp)
-        {
-            if (param->csvLogLevel)
-            {
-                fprintf(csvfp, "Encode Order, Type, POC, QP, Bits, Scenecut, ");
-                if (!!param->bEnableTemporalSubLayers)
-                    fprintf(csvfp, "Temporal Sub Layer ID, ");
-                if (param->csvLogLevel >= 2)
-                    fprintf(csvfp, "I/P cost ratio, ");
-                if (param->rc.rateControlMode == X265_RC_CRF)
-                    fprintf(csvfp, "RateFactor, ");
-                if (param->rc.vbvBufferSize)
-                    fprintf(csvfp, "BufferFill, BufferFillFinal, ");
-                if (param->rc.vbvBufferSize && param->csvLogLevel >= 2)
-                    fprintf(csvfp, "UnclippedBufferFillFinal, ");
-                if (param->bEnablePsnr)
-                    fprintf(csvfp, "Y PSNR, U PSNR, V PSNR, YUV PSNR, ");
-                if (param->bEnableSsim)
-                    fprintf(csvfp, "SSIM, SSIM(dB), ");
-                fprintf(csvfp, "Latency, ");
-                fprintf(csvfp, "List 0, List 1");
-                uint32_t size = param->maxCUSize;
-                for (uint32_t depth = 0; depth <= param->maxCUDepth; depth++)
-                {
-                    fprintf(csvfp, ", Intra %dx%d DC, Intra %dx%d Planar, Intra %dx%d Ang", size, size, size, size, size, size);
-                    size /= 2;
-                }
-                fprintf(csvfp, ", 4x4");
-                size = param->maxCUSize;
-                if (param->bEnableRectInter)
-                {
-                    for (uint32_t depth = 0; depth <= param->maxCUDepth; depth++)
-                    {
-                        fprintf(csvfp, ", Inter %dx%d, Inter %dx%d (Rect)", size, size, size, size);
-                        if (param->bEnableAMP)
-                            fprintf(csvfp, ", Inter %dx%d (Amp)", size, size);
-                        size /= 2;
-                    }
-                }
-                else
-                {
-                    for (uint32_t depth = 0; depth <= param->maxCUDepth; depth++)
-                    {
-                        fprintf(csvfp, ", Inter %dx%d", size, size);
-                        size /= 2;
-                    }
-                }
-                size = param->maxCUSize;
-                for (uint32_t depth = 0; depth <= param->maxCUDepth; depth++)
-                {
-                    fprintf(csvfp, ", Skip %dx%d", size, size);
-                    size /= 2;
-                }
-                size = param->maxCUSize;
-                for (uint32_t depth = 0; depth <= param->maxCUDepth; depth++)
-                {
-                    fprintf(csvfp, ", Merge %dx%d", size, size);
-                    size /= 2;
-                }
-
-                if (param->csvLogLevel >= 2)
-                {
-                    fprintf(csvfp, ", Avg Luma Distortion, Avg Chroma Distortion, Avg psyEnergy, Avg Residual Energy,"
-                        " Min Luma Level, Max Luma Level, Avg Luma Level");
-
-                    if (param->internalCsp != X265_CSP_I400)
-                        fprintf(csvfp, ", Min Cb Level, Max Cb Level, Avg Cb Level, Min Cr Level, Max Cr Level, Avg Cr Level");
-
-                    /* PU statistics */
-                    size = param->maxCUSize;
-                    for (uint32_t i = 0; i< param->maxLog2CUSize - (uint32_t)g_log2Size[param->minCUSize] + 1; i++)
-                    {
-                        fprintf(csvfp, ", Intra %dx%d", size, size);
-                        fprintf(csvfp, ", Skip %dx%d", size, size);
-                        fprintf(csvfp, ", AMP %d", size);
-                        fprintf(csvfp, ", Inter %dx%d", size, size);
-                        fprintf(csvfp, ", Merge %dx%d", size, size);
-                        fprintf(csvfp, ", Inter %dx%d", size, size / 2);
-                        fprintf(csvfp, ", Merge %dx%d", size, size / 2);
-                        fprintf(csvfp, ", Inter %dx%d", size / 2, size);
-                        fprintf(csvfp, ", Merge %dx%d", size / 2, size);
-                        size /= 2;
-                    }
-
-                    if ((uint32_t)g_log2Size[param->minCUSize] == 3)
-                        fprintf(csvfp, ", 4x4");
-
-                    /* detailed performance statistics */
-                    fprintf(csvfp, ", DecideWait (ms), Row0Wait (ms), Wall time (ms), Ref Wait Wall (ms), Total CTU time (ms),"
-                        "Stall Time (ms), Total frame time (ms), Avg WPP, Row Blocks");
-#if ENABLE_LIBVMAF
-                    fprintf(csvfp, ", VMAF Frame Score");
-#endif
-                }
-                fprintf(csvfp, "\n");
-            }
-            else
-            {
-                fputs(summaryCSVHeader, csvfp);
-                if (param->csvLogLevel >= 2 || param->maxCLL || param->maxFALL)
-                    fputs("MaxCLL, MaxFALL,", csvfp);
-#if ENABLE_LIBVMAF
-                fputs(" Aggregate VMAF Score,", csvfp);
-#endif
-                fputs(" Version\n", csvfp);
-            }
-        }
-        return csvfp;
-    }
-}
-
-// per frame CSV logging
-void x265_csvlog_frame(const x265_param* param, const x265_picture* pic)
-{
-    if (!param->csvfpt)
-        return;
-
-    const x265_frame_stats* frameStats = &pic->frameData;
-    fprintf(param->csvfpt, "%d, %c-SLICE, %4d, %2.2lf, %10d, %d,", frameStats->encoderOrder, frameStats->sliceType, frameStats->poc,
-                                                                   frameStats->qp, (int)frameStats->bits, frameStats->bScenecut);
-    if (!!param->bEnableTemporalSubLayers)
-        fprintf(param->csvfpt, "%d,", frameStats->tLayer);
-    if (param->csvLogLevel >= 2)
-        fprintf(param->csvfpt, "%.2f,", frameStats->ipCostRatio);
-    if (param->rc.rateControlMode == X265_RC_CRF)
-        fprintf(param->csvfpt, "%.3lf,", frameStats->rateFactor);
-    if (param->rc.vbvBufferSize)
-        fprintf(param->csvfpt, "%.3lf, %.3lf,", frameStats->bufferFill, frameStats->bufferFillFinal);
-    if (param->rc.vbvBufferSize && param->csvLogLevel >= 2)
-        fprintf(param->csvfpt, "%.3lf,", frameStats->unclippedBufferFillFinal);
-    if (param->bEnablePsnr)
-        fprintf(param->csvfpt, "%.3lf, %.3lf, %.3lf, %.3lf,", frameStats->psnrY, frameStats->psnrU, frameStats->psnrV, frameStats->psnr);
-    if (param->bEnableSsim)
-        fprintf(param->csvfpt, " %.6f, %6.3f,", frameStats->ssim, x265_ssim2dB(frameStats->ssim));
-    fprintf(param->csvfpt, "%d, ", frameStats->frameLatency);
-    if (frameStats->sliceType == 'I' || frameStats->sliceType == 'i')
-        fputs(" -, -,", param->csvfpt);
-    else
-    {
-        int i = 0;
-        while (frameStats->list0POC[i] != -1)
-            fprintf(param->csvfpt, "%d ", frameStats->list0POC[i++]);
-        fprintf(param->csvfpt, ",");
-        if (frameStats->sliceType != 'P')
-        {
-            i = 0;
-            while (frameStats->list1POC[i] != -1)
-                fprintf(param->csvfpt, "%d ", frameStats->list1POC[i++]);
-            fprintf(param->csvfpt, ",");
-        }
-        else
-            fputs(" -,", param->csvfpt);
-    }
-
-    if (param->csvLogLevel)
-    {
-        for (uint32_t depth = 0; depth <= param->maxCUDepth; depth++)
-            fprintf(param->csvfpt, "%5.2lf%%, %5.2lf%%, %5.2lf%%,", frameStats->cuStats.percentIntraDistribution[depth][0],
-                                                                    frameStats->cuStats.percentIntraDistribution[depth][1],
-                                                                    frameStats->cuStats.percentIntraDistribution[depth][2]);
-        fprintf(param->csvfpt, "%5.2lf%%", frameStats->cuStats.percentIntraNxN);
-        if (param->bEnableRectInter)
-        {
-            for (uint32_t depth = 0; depth <= param->maxCUDepth; depth++)
-            {
-                fprintf(param->csvfpt, ", %5.2lf%%, %5.2lf%%", frameStats->cuStats.percentInterDistribution[depth][0],
-                                                               frameStats->cuStats.percentInterDistribution[depth][1]);
-                if (param->bEnableAMP)
-                    fprintf(param->csvfpt, ", %5.2lf%%", frameStats->cuStats.percentInterDistribution[depth][2]);
-            }
-        }
-        else
-        {
-            for (uint32_t depth = 0; depth <= param->maxCUDepth; depth++)
-                fprintf(param->csvfpt, ", %5.2lf%%", frameStats->cuStats.percentInterDistribution[depth][0]);
-        }
-        for (uint32_t depth = 0; depth <= param->maxCUDepth; depth++)
-            fprintf(param->csvfpt, ", %5.2lf%%", frameStats->cuStats.percentSkipCu[depth]);
-        for (uint32_t depth = 0; depth <= param->maxCUDepth; depth++)
-            fprintf(param->csvfpt, ", %5.2lf%%", frameStats->cuStats.percentMergeCu[depth]);
-    }
-
-    if (param->csvLogLevel >= 2)
-    {
-        fprintf(param->csvfpt, ", %.2lf, %.2lf, %.2lf, %.2lf ", frameStats->avgLumaDistortion,
-                                                                frameStats->avgChromaDistortion,
-                                                                frameStats->avgPsyEnergy,
-                                                                frameStats->avgResEnergy);
-
-        fprintf(param->csvfpt, ", %d, %d, %.2lf", frameStats->minLumaLevel, frameStats->maxLumaLevel, frameStats->avgLumaLevel);
-
-        if (param->internalCsp != X265_CSP_I400)
-        {
-            fprintf(param->csvfpt, ", %d, %d, %.2lf", frameStats->minChromaULevel, frameStats->maxChromaULevel, frameStats->avgChromaULevel);
-            fprintf(param->csvfpt, ", %d, %d, %.2lf", frameStats->minChromaVLevel, frameStats->maxChromaVLevel, frameStats->avgChromaVLevel);
-        }
-
-        for (uint32_t i = 0; i < param->maxLog2CUSize - (uint32_t)g_log2Size[param->minCUSize] + 1; i++)
-        {
-            fprintf(param->csvfpt, ", %.2lf%%", frameStats->puStats.percentIntraPu[i]);
-            fprintf(param->csvfpt, ", %.2lf%%", frameStats->puStats.percentSkipPu[i]);
-            fprintf(param->csvfpt, ",%.2lf%%", frameStats->puStats.percentAmpPu[i]);
-            for (uint32_t j = 0; j < 3; j++)
-            {
-                fprintf(param->csvfpt, ", %.2lf%%", frameStats->puStats.percentInterPu[i][j]);
-                fprintf(param->csvfpt, ", %.2lf%%", frameStats->puStats.percentMergePu[i][j]);
-            }
-        }
-        if ((uint32_t)g_log2Size[param->minCUSize] == 3)
-            fprintf(param->csvfpt, ",%.2lf%%", frameStats->puStats.percentNxN);
-
-        fprintf(param->csvfpt, ", %.1lf, %.1lf, %.1lf, %.1lf, %.1lf, %.1lf, %.1lf,", frameStats->decideWaitTime, frameStats->row0WaitTime,
-                                                                                     frameStats->wallTime, frameStats->refWaitWallTime,
-                                                                                     frameStats->totalCTUTime, frameStats->stallTime,
-                                                                                     frameStats->totalFrameTime);
-
-        fprintf(param->csvfpt, " %.3lf, %d", frameStats->avgWPP, frameStats->countRowBlocks);
-#if ENABLE_LIBVMAF
-        fprintf(param->csvfpt, ", %lf", frameStats->vmafFrameScore);
-#endif
-    }
-    fprintf(param->csvfpt, "\n");
-    fflush(stderr);
-}
-
-void x265_csvlog_encode(const x265_param *p, const x265_stats *stats, int padx, int pady, int argc, char** argv)
-{
-    if (p && p->csvfpt)
-    {
-        const x265_api * api = x265_api_get(0);
-
-        if (p->csvLogLevel)
-        {
-            // adding summary to a per-frame csv log file, so it needs a summary header
-            fprintf(p->csvfpt, "\nSummary\n");
-            fputs(summaryCSVHeader, p->csvfpt);
-            if (p->csvLogLevel >= 2 || p->maxCLL || p->maxFALL)
-                fputs("MaxCLL, MaxFALL,", p->csvfpt);
-#if ENABLE_LIBVMAF
-            fputs(" Aggregate VMAF score,", p->csvfpt);
-#endif
-            fputs(" Version\n",p->csvfpt);
-
-        }
-        // CLI arguments or other
-        if (argc)
-        {
-            fputc('"', p->csvfpt);
-            for (int i = 1; i < argc; i++)
-            {
-                fputc(' ', p->csvfpt);
-                fputs(argv[i], p->csvfpt);
-            }
-            fputc('"', p->csvfpt);
-        }
-        else
-        {
-            char *opts = x265_param2string((x265_param*)p, padx, pady);
-            if (opts)
-            {
-                fputc('"', p->csvfpt);
-                fputs(opts, p->csvfpt);
-                fputc('"', p->csvfpt);
-                X265_FREE(opts);
-            }
-        }
-
-        // current date and time
-        time_t now;
-        struct tm* timeinfo;
-        time(&now);
-        timeinfo = localtime(&now);
-        char buffer[200];
-        strftime(buffer, 128, "%c", timeinfo);
-        fprintf(p->csvfpt, ", %s, ", buffer);
-        // elapsed time, fps, bitrate
-        fprintf(p->csvfpt, "%.2f, %.2f, %.2f,",
-            stats->elapsedEncodeTime, stats->encodedPictureCount / stats->elapsedEncodeTime, stats->bitrate);
-
-        if (p->bEnablePsnr)
-            fprintf(p->csvfpt, " %.3lf, %.3lf, %.3lf, %.3lf,",
-            stats->globalPsnrY / stats->encodedPictureCount, stats->globalPsnrU / stats->encodedPictureCount,
-            stats->globalPsnrV / stats->encodedPictureCount, stats->globalPsnr);
-        else
-            fprintf(p->csvfpt, " -, -, -, -,");
-        if (p->bEnableSsim)
-            fprintf(p->csvfpt, " %.6f, %6.3f,", stats->globalSsim, x265_ssim2dB(stats->globalSsim));
-        else
-            fprintf(p->csvfpt, " -, -,");
-
-        if (stats->statsI.numPics)
-        {
-            fprintf(p->csvfpt, " %-6u, %2.2lf, %-8.2lf,", stats->statsI.numPics, stats->statsI.avgQp, stats->statsI.bitrate);
-            if (p->bEnablePsnr)
-                fprintf(p->csvfpt, " %.3lf, %.3lf, %.3lf,", stats->statsI.psnrY, stats->statsI.psnrU, stats->statsI.psnrV);
-            else
-                fprintf(p->csvfpt, " -, -, -,");
-            if (p->bEnableSsim)
-                fprintf(p->csvfpt, " %.3lf,", stats->statsI.ssim);
-            else
-                fprintf(p->csvfpt, " -,");
-        }
-        else
-            fprintf(p->csvfpt, " -, -, -, -, -, -, -,");
-
-        if (stats->statsP.numPics)
-        {
-            fprintf(p->csvfpt, " %-6u, %2.2lf, %-8.2lf,", stats->statsP.numPics, stats->statsP.avgQp, stats->statsP.bitrate);
-            if (p->bEnablePsnr)
-                fprintf(p->csvfpt, " %.3lf, %.3lf, %.3lf,", stats->statsP.psnrY, stats->statsP.psnrU, stats->statsP.psnrV);
-            else
-                fprintf(p->csvfpt, " -, -, -,");
-            if (p->bEnableSsim)
-                fprintf(p->csvfpt, " %.3lf,", stats->statsP.ssim);
-            else
-                fprintf(p->csvfpt, " -,");
-        }
-        else
-            fprintf(p->csvfpt, " -, -, -, -, -, -, -,");
-
-        if (stats->statsB.numPics)
-        {
-            fprintf(p->csvfpt, " %-6u, %2.2lf, %-8.2lf,", stats->statsB.numPics, stats->statsB.avgQp, stats->statsB.bitrate);
-            if (p->bEnablePsnr)
-                fprintf(p->csvfpt, " %.3lf, %.3lf, %.3lf,", stats->statsB.psnrY, stats->statsB.psnrU, stats->statsB.psnrV);
-            else
-                fprintf(p->csvfpt, " -, -, -,");
-            if (p->bEnableSsim)
-                fprintf(p->csvfpt, " %.3lf,", stats->statsB.ssim);
-            else
-                fprintf(p->csvfpt, " -,");
-        }
-        else
-            fprintf(p->csvfpt, " -, -, -, -, -, -, -,");
-        if (p->csvLogLevel >= 2 || p->maxCLL || p->maxFALL)
-            fprintf(p->csvfpt, " %-6u, %-6u,", stats->maxCLL, stats->maxFALL);
-#if ENABLE_LIBVMAF
-        fprintf(p->csvfpt, " %lf,", stats->aggregateVmafScore);
-#endif
-        fprintf(p->csvfpt, " %s\n", api->version_str);
-
-    }
-}
 
 /* The dithering algorithm is based on Sierra-2-4A error diffusion.
  * We convert planes in place (without allocating a new buffer). */

@@ -45,17 +45,12 @@ FrameEncoder::FrameEncoder()
     m_threadActive = true;
     m_slicetypeWaitTime = 0;
     m_activeWorkerCount = 0;
-    m_completionCount = 0;
-    m_outStreams = NULL;
-    m_backupStreams = NULL;
-    m_substreamSizes = NULL;
-    //m_tld = NULL;
-    m_rows = NULL;
+    //m_completionCount = 0;
+    //m_substreamSizes = NULL;
     m_top = NULL;
     m_param = NULL;
     m_frame = NULL;
-    m_cuGeoms = NULL;
-    m_ctuGeomMap = NULL;
+    //m_ctuGeomMap = NULL;
     m_localTldIdx = 0;
 }
 
@@ -72,26 +67,21 @@ void FrameEncoder::destroy()
         }
     }
 
-    delete[] m_rows;
-    delete[] m_outStreams;
-    delete[] m_backupStreams;
-    X265_FREE(m_sliceBaseRow);
-    X265_FREE((void*)m_bAllRowsStop);
-    X265_FREE((void*)m_vbvResetTriggerRow);
-    X265_FREE(m_sliceMaxBlockRow);
-    X265_FREE(m_cuGeoms);
-    X265_FREE(m_ctuGeomMap);
-    X265_FREE(m_substreamSizes);
+    //X265_FREE(m_sliceBaseRow);
+    //X265_FREE((void*)m_bAllRowsStop);
+    //X265_FREE((void*)m_vbvResetTriggerRow);
+    //X265_FREE(m_sliceMaxBlockRow);
+    //X265_FREE(m_cuGeoms);
+    //X265_FREE(m_ctuGeomMap);
+    //X265_FREE(m_substreamSizes);
 
-    if (m_param->bEnableTemporalFilter)
-    {
-        delete m_frameEncTF->m_metld;
+    delete m_frameEncTF->m_metld;
 
-        for (int i = 0; i < (m_frameEncTF->m_range << 1); i++)
-            m_frameEncTF->destroyRefPicInfo(&m_mcstfRefList[i]);
+    for (int i = 0; i < (m_frameEncTF->m_range << 1); i++)
+        m_frameEncTF->destroyRefPicInfo(&m_mcstfRefList[i]);
 
-        delete m_frameEncTF;
-    }
+    delete m_frameEncTF;
+
 }
 
 bool FrameEncoder::init(Encoder *top, int numRows, int numCols)
@@ -101,58 +91,10 @@ bool FrameEncoder::init(Encoder *top, int numRows, int numCols)
     m_numRows = numRows;
     m_numCols = numCols;
     m_reconfigure = false;
-    m_filterRowDelay = ((m_param->bEnableSAO && m_param->bSaoNonDeblocked)
-                        || (!m_param->bEnableLoopFilter && m_param->bEnableSAO)) ?
-                        2 : (m_param->bEnableSAO || m_param->bEnableLoopFilter ? 1 : 0);
+    m_filterRowDelay =  0;
     m_filterRowDelayCus = m_filterRowDelay * numCols;
-    m_rows = new CTURow[m_numRows];
+
     bool ok = !!m_numRows;
-
-    m_sliceBaseRow = X265_MALLOC(uint32_t, m_param->maxSlices + 1);
-    m_bAllRowsStop = X265_MALLOC(bool, m_param->maxSlices);
-    m_vbvResetTriggerRow = X265_MALLOC(int, m_param->maxSlices);
-    ok &= !!m_sliceBaseRow;
-    m_sliceGroupSize = (uint16_t)(m_numRows + m_param->maxSlices - 1) / m_param->maxSlices;
-    uint32_t sliceGroupSizeAccu = (m_numRows << 8) / m_param->maxSlices;    
-    uint32_t rowSum = sliceGroupSizeAccu;
-    uint32_t sidx = 0;
-    for (uint32_t i = 0; i < m_numRows; i++)
-    {
-        const uint32_t rowRange = (rowSum >> 8);
-        if ((i >= rowRange) & (sidx != m_param->maxSlices - 1))
-        {
-            rowSum += sliceGroupSizeAccu;
-            m_sliceBaseRow[++sidx] = i;
-        }
-    }
-    X265_CHECK(sidx < m_param->maxSlices, "sliceID check failed!");
-    m_sliceBaseRow[0] = 0;
-    m_sliceBaseRow[m_param->maxSlices] = m_numRows;
-
-    m_sliceMaxBlockRow = X265_MALLOC(uint32_t, m_param->maxSlices + 1);
-    ok &= !!m_sliceMaxBlockRow;
-    uint32_t maxBlockRows = (m_param->sourceHeight + (16 - 1)) / 16;
-    sliceGroupSizeAccu = (maxBlockRows << 8) / m_param->maxSlices;
-    rowSum = sliceGroupSizeAccu;
-    sidx = 0;
-    for (uint32_t i = 0; i < maxBlockRows; i++)
-    {
-        const uint32_t rowRange = (rowSum >> 8);
-        if ((i >= rowRange) & (sidx != m_param->maxSlices - 1))
-        {
-            rowSum += sliceGroupSizeAccu;
-            m_sliceMaxBlockRow[++sidx] = i;
-        }
-    }
-    m_sliceMaxBlockRow[0] = 0;
-    m_sliceMaxBlockRow[m_param->maxSlices] = maxBlockRows;
-
-    /* determine full motion search range */
-    int range  = m_param->searchRange;       /* fpel search */
-    range += !!(m_param->searchMethod < 2);  /* diamond/hex range check lag */
-    range += NTAPS_LUMA / 2;                 /* subpel filter half-length */
-    range += 2 + (MotionEstimate::hpelIterationCount(m_param->subpelRefine) + 1) / 2; /* subpel refine steps */
-    m_refLagRows = /*(m_param->maxSlices > 1 ? 1 : 0) +*/ 1 + ((range + m_param->maxCUSize - 1) / m_param->maxCUSize);
 
     // NOTE: 2 times of numRows because both Encoder and Filter in same queue
     if (!WaveFront::init(m_numRows * 2))
@@ -165,18 +107,15 @@ bool FrameEncoder::init(Encoder *top, int numRows, int numCols)
     {
         unsigned long tmp;
         CLZ(tmp, (numRows * numCols - 1));
-        m_sliceAddrBits = (uint16_t)(tmp + 1);
+        //m_sliceAddrBits = (uint16_t)(tmp + 1);
     }
 
-    if (m_param->bEnableTemporalFilter)
-    {
-        m_frameEncTF = new TemporalFilter();
-        if (m_frameEncTF)
-            m_frameEncTF->init(m_param);
+    m_frameEncTF = new TemporalFilter();
+    if (m_frameEncTF)
+        m_frameEncTF->init(m_param);
 
-        for (int i = 0; i < (m_frameEncTF->m_range << 1); i++)
-            ok &= !!m_frameEncTF->createRefPicInfo(&m_mcstfRefList[i], m_param);
-    }
+    for (int i = 0; i < (m_frameEncTF->m_range << 1); i++)
+        ok &= !!m_frameEncTF->createRefPicInfo(&m_mcstfRefList[i], m_param);
 
     return ok;
 }
@@ -186,16 +125,9 @@ bool FrameEncoder::startCompressFrame(Frame* curFrame)
 {
     m_slicetypeWaitTime = x265_mdate() - m_prevOutputTime;
     m_frame = curFrame;
-    //m_sliceType = curFrame->m_lowres.sliceType;
     curFrame->m_encData->m_frameEncoderID = m_jpId;
     curFrame->m_encData->m_jobProvider = this;
-    curFrame->m_encData->m_slice->m_mref = m_mref;
 
-    /*if (!m_cuGeoms)
-    {
-        if (!initializeGeoms())
-            return false;
-    }*/
 
     m_enable.trigger();
     return true;
@@ -282,31 +214,26 @@ void FrameEncoder::compressFrame()
     m_allRowsAvailableTime = 0;
     m_stallStartTime = 0;
 
-    m_completionCount = 0;
-    memset((void*)m_bAllRowsStop, 0, sizeof(bool) * m_param->maxSlices);
-    memset((void*)m_vbvResetTriggerRow, -1, sizeof(int) * m_param->maxSlices);
-    m_rowSliceTotalBits[0] = 0;
-    m_rowSliceTotalBits[1] = 0;
+    //m_completionCount = 0;
 
-    if (m_param->bEnableTemporalFilter)
-    {
-        m_frameEncTF->m_QP = 32; // Keep qp is constant
-        m_frameEncTF->bilateralFilter(m_frame, m_mcstfRefList, m_param->temporalFilterStrength);
-    }
-    if (m_param->bEnableTemporalFilter)
-    {
-        //Reset the MCSTF context in Frame Encoder and Frame
-        for (int i = 0; i < (m_frameEncTF->m_range << 1); i++)
-        {
-            memset(m_mcstfRefList[i].mvs0, 0, sizeof(MV) * ((m_param->sourceWidth / 16) * (m_param->sourceHeight / 16)));
-            memset(m_mcstfRefList[i].mvs1, 0, sizeof(MV) * ((m_param->sourceWidth / 16) * (m_param->sourceHeight / 16)));
-            memset(m_mcstfRefList[i].mvs2, 0, sizeof(MV) * ((m_param->sourceWidth / 16) * (m_param->sourceHeight / 16)));
-            memset(m_mcstfRefList[i].mvs,  0, sizeof(MV) * ((m_param->sourceWidth / 4) * (m_param->sourceHeight / 4)));
-            memset(m_mcstfRefList[i].noise, 0, sizeof(int) * ((m_param->sourceWidth / 4) * (m_param->sourceHeight / 4)));
-            memset(m_mcstfRefList[i].error, 0, sizeof(int) * ((m_param->sourceWidth / 4) * (m_param->sourceHeight / 4)));
+    //m_rowSliceTotalBits[0] = 0;
+    //m_rowSliceTotalBits[1] = 0;
 
-            m_frame->m_mcstf->m_numRef = 0;
-        }
+
+    m_frameEncTF->m_QP = 32; // Keep qp is constant
+    m_frameEncTF->bilateralFilter(m_frame, m_mcstfRefList, m_param->temporalFilterStrength);
+
+    //Reset the MCSTF context in Frame Encoder and Frame
+    for (int i = 0; i < (m_frameEncTF->m_range << 1); i++)
+    {
+        memset(m_mcstfRefList[i].mvs0, 0, sizeof(MV) * ((m_param->sourceWidth / 16) * (m_param->sourceHeight / 16)));
+        memset(m_mcstfRefList[i].mvs1, 0, sizeof(MV) * ((m_param->sourceWidth / 16) * (m_param->sourceHeight / 16)));
+        memset(m_mcstfRefList[i].mvs2, 0, sizeof(MV) * ((m_param->sourceWidth / 16) * (m_param->sourceHeight / 16)));
+        memset(m_mcstfRefList[i].mvs,  0, sizeof(MV) * ((m_param->sourceWidth / 4) * (m_param->sourceHeight / 4)));
+        memset(m_mcstfRefList[i].noise, 0, sizeof(int) * ((m_param->sourceWidth / 4) * (m_param->sourceHeight / 4)));
+        memset(m_mcstfRefList[i].error, 0, sizeof(int) * ((m_param->sourceWidth / 4) * (m_param->sourceHeight / 4)));
+
+        m_frame->m_mcstf->m_numRef = 0;
     }
     m_endFrameTime = x265_mdate();
 }
