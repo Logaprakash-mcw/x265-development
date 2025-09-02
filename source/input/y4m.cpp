@@ -81,7 +81,7 @@ Y4MInput::Y4MInput(InputFileInfo& info)
             buf[q] = X265_MALLOC(char, framesize);
             if (!buf[q])
             {
-                x265_log(NULL, X265_LOG_ERROR, "y4m: buffer allocation failure, aborting");
+                x265_log(X265_LOG_ERROR, "y4m: buffer allocation failure, aborting");
                 threadActive = false;
                 break;
             }
@@ -338,7 +338,7 @@ bool Y4MInput::populateFrameQueue()
     if (fread(hbuf, sizeof(hbuf), 1, ifs) != 1 || memcmp(hbuf, header, sizeof(header)))
     {
         if (!feof(ifs))
-            x265_log(NULL, X265_LOG_ERROR, "y4m: frame header missing\n");
+            x265_log(X265_LOG_ERROR, "y4m: frame header missing\n");
         return false;
     }
     /* consume bytes up to line feed */

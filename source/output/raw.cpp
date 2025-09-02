@@ -47,34 +47,34 @@ RAWOutput::RAWOutput(const char* fname, InputFileInfo&)
     if (!ofs || ferror(ofs))
         b_fail = true;
 }
-
-int RAWOutput::writeHeaders(const x265_nal* nal, uint32_t nalcount)
-{
-    uint32_t bytes = 0;
-
-    for (uint32_t i = 0; i < nalcount; i++)
-    {
-        fwrite((const void*)nal->payload, 1, nal->sizeBytes, ofs);
-        bytes += nal->sizeBytes;
-        nal++;
-    }
-
-    return bytes;
-}
-
-int RAWOutput::writeFrame(const x265_nal* nal, uint32_t nalcount, x265_picture&)
-{
-    uint32_t bytes = 0;
-
-    for (uint32_t i = 0; i < nalcount; i++)
-    {
-        fwrite((const void*)nal->payload, 1, nal->sizeBytes, ofs);
-        bytes += nal->sizeBytes;
-        nal++;
-    }
-
-    return bytes;
-}
+//
+//int RAWOutput::writeHeaders(const x265_nal* nal, uint32_t nalcount)
+//{
+//    uint32_t bytes = 0;
+//
+//    for (uint32_t i = 0; i < nalcount; i++)
+//    {
+//        fwrite((const void*)nal->payload, 1, nal->sizeBytes, ofs);
+//        bytes += nal->sizeBytes;
+//        nal++;
+//    }
+//
+//    return bytes;
+//}
+//
+//int RAWOutput::writeFrame(const x265_nal* nal, uint32_t nalcount, x265_picture&)
+//{
+//    uint32_t bytes = 0;
+//
+//    for (uint32_t i = 0; i < nalcount; i++)
+//    {
+//        fwrite((const void*)nal->payload, 1, nal->sizeBytes, ofs);
+//        bytes += nal->sizeBytes;
+//        nal++;
+//    }
+//
+//    return bytes;
+//}
 
 void RAWOutput::closeFile(int64_t, int64_t)
 {

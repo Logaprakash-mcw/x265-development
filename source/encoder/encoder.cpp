@@ -49,7 +49,6 @@
 #define PU_2Nx2N 1
 #define MAX_CHROMA_QP_OFFSET 12
 #define CONF_OFFSET_BYTES (2 * sizeof(int))
-static const char* defaultAnalysisFileName = "x265_analysis.dat";
 
 using namespace X265_NS;
 
@@ -73,7 +72,6 @@ Encoder::Encoder()
     m_threadPool = NULL;
     for (int i = 0; i < X265_MAX_FRAME_THREADS; i++)
         m_frameEncoder[i] = NULL;
-    MotionEstimate::initScales();
 
     m_origPicBuffer = 0;
 }
@@ -83,7 +81,7 @@ inline char *strcatFilename(const char *input, const char *suffix)
     char *output = X265_MALLOC(char, strlen(input) + strlen(suffix) + 1);
     if (!output)
     {
-        x265_log(NULL, X265_LOG_ERROR, "unable to allocate memory for filename\n");
+        x265_log(X265_LOG_ERROR, "unable to allocate memory for filename\n");
         return NULL;
     }
     strcpy(output, input);
@@ -96,7 +94,7 @@ void Encoder::create()
     if (!primitives.pu[0].sad)
     {
         // this should be an impossible condition when using our public API, and indicates a serious bug.
-        x265_log(m_param, X265_LOG_ERROR, "Primitives must be initialized before encoder is created\n");
+        x265_log( X265_LOG_ERROR, "Primitives must be initialized before encoder is created\n");
         abort();
     }
 
@@ -108,7 +106,7 @@ void Encoder::create()
     // Do not allow WPP if only one row or fewer than 3 columns, it is pointless and unstable
     if (rows == 1 || cols < 3)
     {
-        x265_log(p, X265_LOG_WARNING, "Too few rows/columns, --wpp disabled\n");
+        x265_log(X265_LOG_WARNING, "Too few rows/columns, --wpp disabled\n");
         p->bEnableWavefront = 0;
     }
 
@@ -117,15 +115,6 @@ void Encoder::create()
     m_numPools = 0;
     if (allowPools)
         m_threadPool = ThreadPool::allocThreadPools(p, m_numPools, 0);
-    else
-    {
-        if (!p->frameNumThreads)
-        {
-            // auto-detect frame threads
-            int cpuCount = ThreadPool::getCpuCount();
-            ThreadPool::getFrameThreadsCount(p, cpuCount);
-        }
-    }
 
     for (int i = 0; i < m_param->frameNumThreads; i++)
     {
@@ -161,8 +150,7 @@ void Encoder::create()
         lookAheadThreadPool[0].m_jpTable[m_lookahead->m_jpId] = m_lookahead;
     }
 
-    m_lookahead->m_numPools = pools;
-    m_dpb = new DPB(m_param);
+    m_dpb = new DPB();
     m_origPicBuffer = new OrigPicBuffer();
 
     int numRows = (m_param->sourceHeight + m_param->maxCUSize - 1) / m_param->maxCUSize;
@@ -171,7 +159,7 @@ void Encoder::create()
     {
         if (!m_frameEncoder[i]->init(this, numRows, numCols))
         {
-            x265_log(m_param, X265_LOG_ERROR, "Unable to initialize frame encoder, aborting\n");
+            x265_log(X265_LOG_ERROR, "Unable to initialize frame encoder, aborting\n");
             m_aborted = true;
         }
     }
@@ -183,8 +171,6 @@ void Encoder::create()
     }
     if (!m_lookahead->create())
         m_aborted = true;
-
-    //initRefIdx();
 
     m_bZeroLatency = !m_param->lookaheadDepth && m_param->frameNumThreads == 1;
 
@@ -257,74 +243,6 @@ void Encoder::destroy()
 }
 
 
-//Find Sum of Squared Difference (SSD) between two pictures
-uint64_t Encoder::computeSSD(pixel *fenc, pixel *rec, intptr_t stride, uint32_t width, uint32_t height, x265_param *param)
-{
-    uint64_t ssd = 0;
-
-    if (width & 3)
-    {
-        if ((width | height) & 3)
-        {
-            /* Slow Path */
-            for (uint32_t y = 0; y < height; y++)
-            {
-                for (uint32_t x = 0; x < width; x++)
-                {
-                    int diff = (int)(fenc[x] - rec[x]);
-                    ssd += diff * diff;
-                }
-
-                fenc += stride;
-                rec += stride;
-            }
-
-            return ssd;
-        }
-    }
-
-    uint32_t y = 0;
-
-    /* Consume rows in ever narrower chunks of height */
-    for (int size = BLOCK_64x64; size >= BLOCK_4x4 && y < height; size--)
-    {
-        uint32_t rowHeight = 1 << (size + 2);
-
-        for (; y + rowHeight <= height; y += rowHeight)
-        {
-            uint32_t y1, x = 0;
-
-            /* Consume each row using the largest square blocks possible */
-            if (size == BLOCK_64x64 && !(stride & 31))
-                for (; x + 64 <= width; x += 64)
-                    ssd += primitives.cu[BLOCK_64x64].sse_pp(fenc + x, stride, rec + x, stride);
-
-            if (size >= BLOCK_32x32 && !(stride & 15))
-                for (; x + 32 <= width; x += 32)
-                    for (y1 = 0; y1 + 32 <= rowHeight; y1 += 32)
-                        ssd += primitives.cu[BLOCK_32x32].sse_pp(fenc + y1 * stride + x, stride, rec + y1 * stride + x, stride);
-
-            if (size >= BLOCK_16x16)
-                for (; x + 16 <= width; x += 16)
-                    for (y1 = 0; y1 + 16 <= rowHeight; y1 += 16)
-                        ssd += primitives.cu[BLOCK_16x16].sse_pp(fenc + y1 * stride + x, stride, rec + y1 * stride + x, stride);
-
-            if (size >= BLOCK_8x8)
-                for (; x + 8 <= width; x += 8)
-                    for (y1 = 0; y1 + 8 <= rowHeight; y1 += 8)
-                        ssd += primitives.cu[BLOCK_8x8].sse_pp(fenc + y1 * stride + x, stride, rec + y1 * stride + x, stride);
-
-            for (; x + 4 <= width; x += 4)
-                for (y1 = 0; y1 + 4 <= rowHeight; y1 += 4)
-                    ssd += primitives.cu[BLOCK_4x4].sse_pp(fenc + y1 * stride + x, stride, rec + y1 * stride + x, stride);
-
-            fenc += stride * rowHeight;
-            rec += stride * rowHeight;
-        }
-    }
-
-    return ssd;
-}
 
 
 void Encoder::copyPicture(x265_picture *dest, const x265_picture *src)
@@ -445,7 +363,7 @@ int Encoder::encode(const x265_picture* pic_in, x265_picture* pic_out)
 #if CHECKED_BUILD || _DEBUG
     if (g_checkFailures)
     {
-        x265_log(m_param, X265_LOG_ERROR, "encoder aborting because of internal error\n");
+        x265_log(X265_LOG_ERROR, "encoder aborting because of internal error\n");
         return -1;
     }
 #endif
@@ -492,7 +410,7 @@ int Encoder::encode(const x265_picture* pic_in, x265_picture* pic_out)
                     if (!inFrame->m_fencPic->createOffsets(m_sps))
                     {
                         m_aborted = true;
-                        x265_log(m_param, X265_LOG_ERROR, "memory allocation failure, aborting encode\n");
+                        x265_log(X265_LOG_ERROR, "memory allocation failure, aborting encode\n");
                         inFrame->destroy();
                         delete inFrame;
                         return -1;
@@ -514,7 +432,7 @@ int Encoder::encode(const x265_picture* pic_in, x265_picture* pic_out)
             else
             {
                 m_aborted = true;
-                x265_log(m_param, X265_LOG_ERROR, "memory allocation failure, aborting encode\n");
+                x265_log(X265_LOG_ERROR, "memory allocation failure, aborting encode\n");
                 inFrame->destroy();
                 delete inFrame;
                 return -1;
@@ -550,7 +468,7 @@ int Encoder::encode(const x265_picture* pic_in, x265_picture* pic_out)
                 if (!(dupFrame->create(m_param)))
                 {
                     m_aborted = true;
-                    x265_log(m_param, X265_LOG_ERROR, "Memory allocation failure, aborting encode\n");
+                    x265_log(X265_LOG_ERROR, "Memory allocation failure, aborting encode\n");
                     fflush(stderr);
                     dupFrame->destroy();
                     delete dupFrame;
@@ -692,7 +610,7 @@ int Encoder::encode(const x265_picture* pic_in, x265_picture* pic_out)
             if (!generateMcstfRef(frameEnc, curEncoder))
             {
                 m_aborted = true;
-                x265_log(m_param, X265_LOG_ERROR, "Failed to initialize MCSTFReferencePicInfo at POC %d\n", frameEnc->m_poc);
+                x265_log(X265_LOG_ERROR, "Failed to initialize MCSTFReferencePicInfo at POC %d\n", frameEnc->m_poc);
                 fflush(stderr);
                 return -1;
             }

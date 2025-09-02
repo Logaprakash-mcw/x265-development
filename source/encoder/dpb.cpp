@@ -106,23 +106,6 @@ void DPB::recycleUnreferenced()
                     curFrame->m_encData->m_meBuffer[i] = NULL;
                 }
             }
-            //if (curFrame->m_ctuInfo != NULL)
-            //{
-            //    uint32_t widthInCU = (curFrame->m_param->sourceWidth + curFrame->m_param->maxCUSize - 1) >> curFrame->m_param->maxLog2CUSize;
-            //    uint32_t heightInCU = (curFrame->m_param->sourceHeight + curFrame->m_param->maxCUSize - 1) >> curFrame->m_param->maxLog2CUSize;
-            //    uint32_t numCUsInFrame = widthInCU * heightInCU;
-            //    for (uint32_t i = 0; i < numCUsInFrame; i++)
-            //    {
-            //        X265_FREE((*curFrame->m_ctuInfo + i)->ctuInfo);
-            //        (*curFrame->m_ctuInfo + i)->ctuInfo = NULL;
-            //    }
-            //    X265_FREE(*curFrame->m_ctuInfo);
-            //    *(curFrame->m_ctuInfo) = NULL;
-            //    X265_FREE(curFrame->m_ctuInfo);
-            //    curFrame->m_ctuInfo = NULL;
-            //    X265_FREE(curFrame->m_prevCtuInfoChange);
-            //    curFrame->m_prevCtuInfoChange = NULL;
-            //}
             curFrame->m_encData = NULL;
             curFrame->m_reconPic = NULL;
         }
@@ -131,14 +114,6 @@ void DPB::recycleUnreferenced()
 
 void DPB::prepareEncode(Frame *newFrame)
 {
-    Slice* slice = newFrame->m_encData->m_slice;
-    slice->m_poc = newFrame->m_poc;
-    slice->m_fieldNum = newFrame->m_fieldNum;
-
-    int pocCurr = slice->m_poc;
-    slice->m_lastIDR = m_lastIDR;
-
     m_picList.pushFront(*newFrame);
-
 }
 

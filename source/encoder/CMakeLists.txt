@@ -31,7 +31,6 @@ add_library(encoder OBJECT ../x265.h
     slicetype.cpp slicetype.h
     frameencoder.cpp frameencoder.h
     sei.cpp sei.h
-    entropy.cpp entropy.h
     dpb.cpp dpb.h
     encoder.cpp encoder.h
     api.cpp)

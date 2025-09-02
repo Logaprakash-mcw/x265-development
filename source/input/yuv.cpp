@@ -63,7 +63,7 @@ YUVInput::YUVInput(InputFileInfo& info)
 
     if (width == 0 || height == 0 || info.fpsNum == 0 || info.fpsDenom == 0)
     {
-        x265_log(NULL, X265_LOG_ERROR, "yuv: width, height, and FPS must be specified\n");
+        x265_log(X265_LOG_ERROR, "yuv: width, height, and FPS must be specified\n");
         return;
     }
     if (!strcmp(info.filename, "-"))
@@ -90,7 +90,7 @@ YUVInput::YUVInput(InputFileInfo& info)
         buf[i] = X265_MALLOC(char, framesize);
         if (buf[i] == NULL)
         {
-            x265_log(NULL, X265_LOG_ERROR, "yuv: buffer allocation failure, aborting\n");
+            x265_log(X265_LOG_ERROR, "yuv: buffer allocation failure, aborting\n");
             threadActive = false;
             return;
         }

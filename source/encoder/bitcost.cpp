@@ -44,7 +44,7 @@ void BitCost::setQP(unsigned int qp)
             s_costs[qp] = X265_MALLOC(uint16_t, 4 * BC_MAX_MV + 1) + 2 * BC_MAX_MV;
             if (!s_costs[qp])
             {
-                x265_log(NULL, X265_LOG_ERROR, "BitCost s_costs buffer allocation failure\n");
+                x265_log(X265_LOG_ERROR, "BitCost s_costs buffer allocation failure\n");
                 return;
             }
             double lambda = x265_lambda_tab[qp];
@@ -64,7 +64,7 @@ void BitCost::setQP(unsigned int qp)
                 s_fpelMvCosts[qp][j] = X265_MALLOC(uint16_t, BC_MAX_MV + 1) + (BC_MAX_MV >> 1);
                 if (!s_fpelMvCosts[qp][j])
                 {
-                    x265_log(NULL, X265_LOG_ERROR, "BitCost s_fpelMvCosts buffer allocation failure\n");
+                    x265_log( X265_LOG_ERROR, "BitCost s_fpelMvCosts buffer allocation failure\n");
                     return;
                 }
                 for (int i = -(BC_MAX_MV >> 1); i < (BC_MAX_MV >> 1); i++)
@@ -99,7 +99,7 @@ void BitCost::CalculateLogs()
         s_bitsizes = X265_MALLOC(float, 4 * BC_MAX_MV + 1) + 2 * BC_MAX_MV;
         if (!s_bitsizes)
         {
-            x265_log(NULL, X265_LOG_ERROR, "BitCost s_bitsizes buffer allocation failure\n");
+            x265_log(X265_LOG_ERROR, "BitCost s_bitsizes buffer allocation failure\n");
             return;
         }
         s_bitsizes[0] = 0.718f;

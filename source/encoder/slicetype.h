@@ -177,13 +177,6 @@ public:
     int8_t                  m_gopId;
 
     Lookahead(x265_param *param, ThreadPool *pool);
-#if DETAILED_CU_STATS
-    int64_t       m_slicetypeDecideElapsedTime;
-    int64_t       m_preLookaheadElapsedTime;
-    uint64_t      m_countSlicetypeDecide;
-    uint64_t      m_countPreLookahead;
-    void          getWorkerStats(int64_t& batchElapsedTime, uint64_t& batchCount, int64_t& coopSliceElapsedTime, uint64_t& coopSliceCount);
-#endif
 
     bool    create();
     void    destroy();
@@ -219,55 +212,6 @@ public:
 protected:
 
     PreLookaheadGroup& operator=(const PreLookaheadGroup&);
-};
-
-class CostEstimateGroup : public BondedTaskGroup
-{
-public:
-
-    Lookahead& m_lookahead;
-    Lowres**   m_frames;
-    bool       m_batchMode;
-
-    CostEstimateGroup(Lookahead& l, Lowres** f) : m_lookahead(l), m_frames(f), m_batchMode(false) {}
-
-    /* Cooperative cost estimate using multiple slices of downscaled frame */
-    struct Coop
-    {
-        int  p0, b, p1;
-        bool bDoSearch[2];
-    } m_coop;
-
-    enum { MAX_COOP_SLICES = 32 };
-    struct Slice
-    {
-        int  costEst;
-        int  costEstAq;
-        int  intraMbs;
-    } m_slice[MAX_COOP_SLICES];
-
-    int64_t singleCost(int p0, int p1, int b, bool intraPenalty = false);
-
-    /* Batch cost estimates, using one worker thread per estimateFrameCost() call */
-    enum { MAX_BATCH_SIZE = 512 };
-    struct Estimate
-    {
-        int  p0, b, p1;
-    } m_estimates[MAX_BATCH_SIZE];
-
-    void add(int p0, int p1, int b);
-    void finishBatch();
-
-protected:
-
-    static const int s_merange = 16;
-
-    void    processTasks(int workerThreadID);
-
-    int64_t estimateFrameCost(LookaheadTLD& tld, int p0, int p1, int b, bool intraPenalty);
-    void    estimateCUCost(LookaheadTLD& tld, int cux, int cuy, int p0, int p1, int b, bool bDoSearch[2], bool lastRow, int slice, bool hme);
-
-    CostEstimateGroup& operator=(const CostEstimateGroup&);
 };
 
 bool computeEdge(pixel* edgePic, pixel* refPic, pixel* edgeTheta, intptr_t stride, int height, int width, bool bcalcTheta, pixel whitePixel = EDGE_THRESHOLD);

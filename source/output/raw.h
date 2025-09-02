@@ -53,9 +53,9 @@ public:
 
     //void setParam(x265_param* param);
 
-    int writeHeaders(const x265_nal* nal, uint32_t nalcount);
+    //int writeHeaders(const x265_nal* nal, uint32_t nalcount);
 
-    int writeFrame(const x265_nal* nal, uint32_t nalcount, x265_picture&);
+    //int writeFrame(const x265_nal* nal, uint32_t nalcount, x265_picture&);
 
     void closeFile(int64_t largest_pts, int64_t second_largest_pts);
 };

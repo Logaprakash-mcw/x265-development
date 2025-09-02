@@ -57,8 +57,8 @@ inline uint32_t acEnergyVar(Frame *curFrame, uint64_t sum_ssd, int shift, int pl
     uint32_t sum = (uint32_t)sum_ssd;
     uint32_t ssd = (uint32_t)(sum_ssd >> 32);
 
-    //curFrame->m_lowres.wp_sum[plane] += sum;
-    //curFrame->m_lowres.wp_ssd[plane] += ssd;
+    curFrame->wp_sum[plane] += sum;
+    curFrame->wp_ssd[plane] += ssd;
     return ssd - ((uint64_t)sum * sum >> shift);
 }
 
@@ -217,7 +217,7 @@ void edgeFilter(Frame *curFrame, x265_param* param)
     }
 
     if(!computeEdge(edgePic, refPic, edgeTheta, stride, height, width, true))
-        x265_log(NULL, X265_LOG_ERROR, "Failed edge computation!");
+        x265_log(X265_LOG_ERROR, "Failed edge computation!");
 }
 
 //Find the angle of a block by averaging the pixel angles 
@@ -309,7 +309,7 @@ Lookahead::Lookahead(x265_param *param, ThreadPool* pool)
      * do much unnecessary work, some frame cost estimates are not needed, so if
      * the thread pool is small we disable this feature after the initial burst
      * of work */
-    m_bBatchFrameCosts = m_bBatchMotionSearch;
+    //m_bBatchFrameCosts = m_bBatchMotionSearch;
 
 
     m_resetRunningAvg = true;
@@ -321,11 +321,7 @@ bool Lookahead::create()
 {
     int numTLD = 1 + (m_pool ? m_pool->m_numWorkers : 0);
     m_tld = new LookaheadTLD[numTLD];
-    //for (int i = 0; i < numTLD; i++)
-    //    m_tld[i].init(m_8x8Width, m_8x8Height, m_8x8Blocks);
-    //m_scratch = X265_MALLOC(int, m_tld[0].widthInCU);
-
-    return m_tld ; //&& m_scratch;
+    return m_tld ;
 }
 
 void Lookahead::stopJobs()
@@ -392,12 +388,6 @@ void Lookahead::flush()
     /* force slicetypeDecide to run until the input queue is empty */
     m_fullQueueSize = 1;
     m_filled = true;
-}
-
-void Lookahead::setLookaheadQueue()
-{
-    m_filled = false;
-    m_fullQueueSize = X265_MAX(1, m_param->lookaheadDepth);
 }
 
 void Lookahead::findJob(int /*workerThreadID*/)
@@ -481,12 +471,11 @@ void PreLookaheadGroup::processTasks(int workerThreadID)
 {
     if (workerThreadID < 0)
         workerThreadID = m_lookahead.m_pool ? m_lookahead.m_pool->m_numWorkers : 0;
-    LookaheadTLD& tld = m_lookahead.m_tld[workerThreadID];
 
     m_lock.acquire();
     while (m_jobAcquired < m_jobTotal)
     {
-        Frame* preFrame = m_preframes[m_jobAcquired++];
+        m_jobAcquired++;
         ProfileLookaheadTime(m_lookahead.m_preLookaheadElapsedTime, m_lookahead.m_countPreLookahead);
         ProfileScopeEvent(prelookahead);
         m_lock.release();
@@ -502,12 +491,10 @@ void PreLookaheadGroup::processTasks(int workerThreadID)
 void Lookahead::slicetypeDecide()
 {
     PreLookaheadGroup pre(*this);
-    Lowres* frames[X265_LOOKAHEAD_MAX + X265_BFRAME_MAX + 4];
-    Frame*  list[X265_BFRAME_MAX + 4];
+    Lowres* frames[X265_LOOKAHEAD_MAX + 1 + 4];
+    Frame*  list[1 + 4];
     memset(frames, 0, sizeof(frames));
     memset(list, 0, sizeof(list));
-    int maxSearch = X265_MIN(m_param->lookaheadDepth, X265_LOOKAHEAD_MAX);
-    maxSearch = X265_MAX(1, maxSearch);
 
     {
         ScopedLock lock(m_inputLock);
@@ -525,14 +512,9 @@ void Lookahead::slicetypeDecide()
         /* dequeue all frames from inputQueue that are about to be enqueued
          * in the output queue. The order is important because Frame can
          * only be in one list at a time */
-        int64_t pts[X265_BFRAME_MAX + 1];
-        for (int i = 0; i <= 0; i++)
-        {
-            Frame *curFrame;
-            curFrame = m_inputQueue.popFront();
-            pts[i] = curFrame->m_pts;
-            maxSearch--;
-        }
+
+        m_inputQueue.popFront();
+
         m_inputLock.release();
 
         m_outputLock.acquire();

@@ -39,15 +39,12 @@ public:
 
     int                m_lastIDR;
     int                m_pocCRA;
-    int                m_bOpenGOP;
-    int                m_bhasLeadingPicture;
     bool               m_bRefreshPending;
-    bool               m_bTemporalSublayer;
     PicList            m_picList;
     PicList            m_freeList;
     FrameData*         m_frameDataFreeList;
 
-    DPB(x265_param *param)
+    DPB()
     {
         m_lastIDR = 0;
         m_pocCRA = 0;

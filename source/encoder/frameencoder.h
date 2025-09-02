@@ -30,9 +30,6 @@
 #include "frame.h"
 #include "picyuv.h"
 #include "md5.h"
-
-
-#include "entropy.h"
 #include "temporalfilter.h"
 
 namespace X265_NS {
@@ -98,48 +95,27 @@ public:
     int                      m_localTldIdx;
     bool                     m_reconfigure; /* reconfigure in progress */
     volatile bool            m_threadActive;
-    //volatile bool            *m_bAllRowsStop;
-    //volatile int             m_completionCount;
-    //volatile int             *m_vbvResetTriggerRow;
-    //volatile int             m_sliceCnt;
 
     uint32_t                 m_numRows;
     uint32_t                 m_numCols;
-    uint32_t                 m_filterRowDelay;
-    uint32_t                 m_filterRowDelayCus;
-    uint32_t                 m_refLagRows;
-    bool                     m_bUseSao;
+    //uint32_t                 m_filterRowDelay;
+    //uint32_t                 m_filterRowDelayCus;
+    //uint32_t                 m_refLagRows;
 
-    //uint16_t                 m_sliceAddrBits;
-    //uint32_t                 m_sliceGroupSize;
-    //uint32_t*                m_sliceBaseRow;    
-    //uint32_t*                m_sliceMaxBlockRow;
-    //int64_t                  m_rowSliceTotalBits[2];
-
-    //uint64_t                 m_SSDY;
-    //uint64_t                 m_SSDU;
-    //uint64_t                 m_SSDV;
-    //double                   m_ssim;
-    //uint64_t                 m_accessUnitBits;
-    //uint32_t                 m_ssimCnt;
-
-    volatile int             m_activeWorkerCount;        // count of workers currently encoding or filtering CTUs
-    volatile int             m_totalActiveWorkerCount;   // sum of m_activeWorkerCount sampled at end of each CTU
-    volatile int             m_activeWorkerCountSamples; // count of times m_activeWorkerCount was sampled (think vbv restarts)
-    volatile int             m_countRowBlocks;           // count of workers forced to abandon a row because of top dependency
+    //volatile int             m_activeWorkerCount;        // count of workers currently encoding or filtering CTUs
+    //volatile int             m_totalActiveWorkerCount;   // sum of m_activeWorkerCount sampled at end of each CTU
+    //volatile int             m_activeWorkerCountSamples; // count of times m_activeWorkerCount was sampled (think vbv restarts)
+    //volatile int             m_countRowBlocks;           // count of workers forced to abandon a row because of top dependency
     int64_t                  m_startCompressTime;        // timestamp when frame encoder is given a frame
-    int64_t                  m_row0WaitTime;             // timestamp when row 0 is allowed to start
-    int64_t                  m_allRowsAvailableTime;     // timestamp when all reference dependencies are resolved
+    //int64_t                  m_row0WaitTime;             // timestamp when row 0 is allowed to start
+    //int64_t                  m_allRowsAvailableTime;     // timestamp when all reference dependencies are resolved
     int64_t                  m_endCompressTime;          // timestamp after all CTUs are compressed
     int64_t                  m_endFrameTime;             // timestamp after RCEnd, NR updates, etc
-    int64_t                  m_stallStartTime;           // timestamp when worker count becomes 0
+    //int64_t                  m_stallStartTime;           // timestamp when worker count becomes 0
     int64_t                  m_prevOutputTime;           // timestamp when prev frame was retrieved by API thread
-    int64_t                  m_slicetypeWaitTime;        // total elapsed time waiting for decided frame
-    int64_t                  m_totalWorkerElapsedTime;   // total elapsed time spent by worker threads processing CTUs
-    int64_t                  m_totalNoWorkerTime;        // total elapsed time without any active worker threads
-#if DETAILED_CU_STATS
-    CUStats                  m_cuStats;
-#endif
+    //int64_t                  m_slicetypeWaitTime;        // total elapsed time waiting for decided frame
+    //int64_t                  m_totalWorkerElapsedTime;   // total elapsed time spent by worker threads processing CTUs
+    //int64_t                  m_totalNoWorkerTime;        // total elapsed time without any active worker threads
 
     Encoder*                 m_top;
     x265_param*              m_param;
@@ -165,9 +141,10 @@ protected:
 
     void threadMain();
 
-    /* Called by WaveFront::findJob() */
-    virtual void processRow(int row, int threadId);
-    virtual void processRowEncoder(int row);
+    ///* Called by WaveFront::findJob() */
+    //virtual void processRow();
+    //virtual void processRow(int row, int threadId);
+    //virtual void processRowEncoder(int row);
 
     void enqueueRowEncoder(int row) { WaveFront::enqueueRow(row * 2 + 0); }
     void enqueueRowFilter(int row)  { WaveFront::enqueueRow(row * 2 + 1); }

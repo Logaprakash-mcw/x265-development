@@ -164,13 +164,7 @@ public:
     OrigPicBuffer*          m_origPicBuffer;
 
     Encoder();
-    ~Encoder()
-    {
-#ifdef ENABLE_HDR10_PLUS
-        if (m_prevTonemapPayload.payload != NULL)
-            X265_FREE(m_prevTonemapPayload.payload);
-#endif
-    };
+    ~Encoder(){};
 
     void create();
     void stopJobs();
@@ -178,11 +172,8 @@ public:
 
     int encode(const x265_picture* pic, x265_picture *pic_out);
 
-    //void copyCtuInfo(x265_ctu_info_t** frameCtuInfo, int poc);
-
     void configure(x265_param *param);
 
-    uint64_t computeSSD(pixel *fenc, pixel *rec, intptr_t stride, uint32_t width, uint32_t height, x265_param *param);
 
     //double ComputePSNR(x265_picture *firstPic, x265_picture *secPic, x265_param *param);
 
@@ -191,10 +182,6 @@ public:
     bool isFilterThisframe(uint8_t sliceTypeConfig, int curSliceType);
     bool generateMcstfRef(Frame* frameEnc, FrameEncoder* currEncoder);
 
-
-protected:
-
-    void initSPS(SPS *sps);
 
 };
 }

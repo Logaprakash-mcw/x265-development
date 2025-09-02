@@ -27,7 +27,6 @@
 #define ABR_ENCODE_H
 
 #include "x265.h"
-#include "scaler.h"
 #include "threading.h"
 #include "x265cli.h"
 
@@ -47,16 +46,11 @@ namespace X265_NS {
         ThreadSafeInteger  m_numActiveEncodes;
 
         x265_picture       ***m_inputPicBuffer; //[numEncodes][queueSize]
-        x265_analysis_data **m_analysisBuffer; //[numEncodes][queueSize]
         int                **m_readFlag;
 
         ThreadSafeInteger  *m_picWriteCnt;
         ThreadSafeInteger  *m_picReadCnt;
         ThreadSafeInteger  **m_picIdxReadCnt;
-        ThreadSafeInteger  *m_analysisWriteCnt; //[numEncodes][queueSize]
-        ThreadSafeInteger  *m_analysisReadCnt; //[numEncodes][queueSize]
-        ThreadSafeInteger  **m_analysisWrite; //[numEncodes][queueSize]
-        ThreadSafeInteger  **m_analysisRead; //[numEncodes][queueSize]
 
         AbrEncoder(CLIOptions cliopt[], uint8_t numEncodes, int& ret);
         bool allocBuffers();
@@ -81,8 +75,6 @@ namespace X265_NS {
         uint32_t m_outputNalsCount;
 
         x265_picture **m_inputPicBuffer;
-        x265_analysis_data **m_analysisBuffer;
-        x265_nal **m_outputNals;
         x265_picture **m_outputRecon;
 
         CLIOptions m_cliopt;
@@ -92,7 +84,7 @@ namespace X265_NS {
         int m_ret;
 
         PassEncoder(uint32_t id, CLIOptions cliopt, AbrEncoder *parent);
-        int init(int &result);
+        int init();
 
         void startThreads();
 
@@ -103,33 +95,6 @@ namespace X265_NS {
         void threadMain();
     };
 
-    class Scaler : public Thread
-    {
-    public:
-        PassEncoder *m_parentEnc;
-        int m_id;
-        int m_scalePlanes[3];
-        int m_scaleFrameSize;
-        uint32_t m_threadId;
-        uint32_t m_threadTotal;
-        ThreadSafeInteger m_scaledWriteCnt;
-        VideoDesc* m_srcFormat;
-        VideoDesc* m_dstFormat;
-        int m_threadActive;
-        ScalerFilterManager* m_filterManager;
-
-        Scaler(int threadId, int threadNum, int id, VideoDesc *src, VideoDesc * dst, PassEncoder *parentEnc);
-        bool scalePic(x265_picture *destination, x265_picture *source);
-        void threadMain();
-        void destroy()
-        {
-            if (m_filterManager)
-            {
-                delete m_filterManager;
-                m_filterManager = NULL;
-            }
-        }
-    };
 
     class Reader : public Thread
     {

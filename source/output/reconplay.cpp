@@ -43,7 +43,7 @@ bool ReconPlay::pipeValid;
 static void sigpipe_handler(int)
 {
     if (ReconPlay::pipeValid)
-        general_log(NULL, "exec", X265_LOG_ERROR, "pipe closed\n");
+        general_log("exec", X265_LOG_ERROR, "pipe closed\n");
     ReconPlay::pipeValid = false;
 }
 #endif
@@ -52,7 +52,7 @@ ReconPlay::ReconPlay(const char* commandLine, x265_param& param)
 {
 #ifndef _WIN32
     if (signal(SIGPIPE, sigpipe_handler) == SIG_ERR)
-        general_log(&param, "exec", X265_LOG_ERROR, "Unable to register SIGPIPE handler: %s\n", strerror(errno));
+        general_log("exec", X265_LOG_ERROR, "Unable to register SIGPIPE handler: %s\n", strerror(errno));
 #endif
 
     width = param.sourceWidth;
@@ -83,7 +83,7 @@ ReconPlay::ReconPlay(const char* commandLine, x265_param& param)
         return;
     }
     else
-        general_log(&param, "exec", X265_LOG_ERROR, "popen(%s) failed\n", commandLine);
+        general_log("exec", X265_LOG_ERROR, "popen(%s) failed\n", commandLine);
 
 fail:
     threadActive = false;

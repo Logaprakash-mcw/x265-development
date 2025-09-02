@@ -43,8 +43,6 @@ protected:
     int absPartIdx;  // part index of PU, including CU offset within CTU
 
     int searchMethod;
-    int searchMethodL0;
-    int searchMethodL1;
     int subpelRefine;
 
     int blockwidth;
@@ -63,7 +61,7 @@ public:
 
     static const int COST_MAX = 1 << 28;
 
-    uint32_t* integral[INTEGRAL_PLANE_NUM];
+    //uint32_t* integral[INTEGRAL_PLANE_NUM];
     Yuv fencPUYuv;
     int partEnum;
     bool bChromaSATD;
@@ -71,27 +69,14 @@ public:
     MotionEstimate();
     ~MotionEstimate();
 
-    static void initScales();
-    static int hpelIterationCount(int subme);
     void init(int csp);
 
-    /* Methods called at slice setup */
     void setSourcePU(pixel *fencY, intptr_t stride, intptr_t offset, int pwidth, int pheight, const int searchMethod, const int subpelRefine);
-    void setSourcePU(pixel *fencY, intptr_t stride, intptr_t offset, int pwidth, int pheight, const int searchMethod, const int searchL0, const int searchL1, const int subpelRefine);
-    void setSourcePU(const Yuv& srcFencYuv, int ctuAddr, int cuPartIdx, int puPartIdx, int pwidth, int pheight, const int searchMethod, const int subpelRefine, bool bChroma);
-
-    /* buf*() and motionEstimate() methods all use cached fenc pixels and thus
-     * require setSourcePU() to be called prior. */
 
     inline int bufSAD(const pixel* fref, intptr_t stride)  { return sad(fencPUYuv.m_buf[0], FENC_STRIDE, fref, stride); }
 
     inline int bufSATD(const pixel* fref, intptr_t stride) { return satd(fencPUYuv.m_buf[0], FENC_STRIDE, fref, stride); }
 
-    inline int bufChromaSATD(const Yuv& refYuv, int puPartIdx)
-    {
-        return chromaSatd(refYuv.getCbAddr(puPartIdx), refYuv.m_csize, fencPUYuv.m_buf[1], fencPUYuv.m_csize) +
-               chromaSatd(refYuv.getCrAddr(puPartIdx), refYuv.m_csize, fencPUYuv.m_buf[2], fencPUYuv.m_csize);
-    }
 
 };
 }
