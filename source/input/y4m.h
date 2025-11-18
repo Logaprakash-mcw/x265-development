@@ -69,7 +69,7 @@ protected:
 
 public:
 
-    Y4MInput(InputFileInfo& info);
+    Y4MInput(InputFileInfo& info, const char *filename);
 
     virtual ~Y4MInput();
     void release();

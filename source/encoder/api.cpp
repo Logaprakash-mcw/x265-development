@@ -140,7 +140,7 @@ void x265_encoder_parameters(x265_encoder *enc, x265_param *out)
 }
 
 
-int x265_encoder_encode(x265_encoder *enc, x265_picture *pic_in, x265_picture *pic_out)
+int x265_encoder_encode(x265_encoder *enc, x265_picture *pic_in, x265_picture *pic_denoised_in, x265_picture *pic_out)
 {
     if (!enc)
         return -1;
@@ -151,7 +151,7 @@ int x265_encoder_encode(x265_encoder *enc, x265_picture *pic_in, x265_picture *p
     // While flushing, we cannot return 0 until the entire stream is flushed
     do
     {
-        numEncoded = encoder->encode(pic_in, pic_out);
+        numEncoded = encoder->encode(pic_in, pic_denoised_in, pic_out);
     }
     while (numEncoded == 0 && !pic_in && encoder->m_numDelayedPic);
 

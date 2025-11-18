@@ -46,6 +46,7 @@ namespace X265_NS {
         ThreadSafeInteger  m_numActiveEncodes;
 
         x265_picture       ***m_inputPicBuffer; //[numEncodes][queueSize]
+        x265_picture       ***m_denoisedInputPicBuffer; //[numEncodes][queueSize]
         int                **m_readFlag;
 
         ThreadSafeInteger  *m_picWriteCnt;
@@ -75,10 +76,12 @@ namespace X265_NS {
         uint32_t m_outputNalsCount;
 
         x265_picture **m_inputPicBuffer;
+        x265_picture **m_denoisedInputPicBuffer;
         x265_picture **m_outputRecon;
 
         CLIOptions m_cliopt;
         InputFile* m_input;
+        InputFile* m_denoisedInput;
         const char* m_reconPlayCmd;
 
         int m_ret;
@@ -88,7 +91,7 @@ namespace X265_NS {
 
         void startThreads();
 
-        bool readPicture(x265_picture*);
+        bool readPicture(x265_picture*, int denoised);
         void destroy();
 
     private:
@@ -102,6 +105,7 @@ namespace X265_NS {
         PassEncoder *m_parentEnc;
         int m_id;
         InputFile* m_input;
+        InputFile* m_denoisedInput;
         int m_threadActive;
 
         Reader(int id, PassEncoder *parentEnc);

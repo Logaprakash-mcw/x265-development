@@ -61,6 +61,9 @@ static const struct option long_options[] =
     { "output",         required_argument, NULL, 'o' },
     { "output-depth",   required_argument, NULL, 'D' },
     { "input",          required_argument, NULL, 0 },
+    { "denoised-input", required_argument, NULL, 0 },
+    { "model-file",     required_argument, NULL, '0' },
+    { "qpfile",         required_argument, NULL, 'p' },
     { "input-depth",    required_argument, NULL, 0 },
     { "input-res",      required_argument, NULL, 0 },
     { "input-csp",      required_argument, NULL, 0 },
@@ -85,6 +88,7 @@ static const struct option long_options[] =
     struct CLIOptions
     {
         InputFile* input;
+        InputFile* denoisedInput;
         ReconFile* recon;
         //OutputFile* output;
         FILE*       qpfile;
@@ -125,6 +129,7 @@ static const struct option long_options[] =
         {
             input = NULL;
             recon = NULL;
+            denoisedInput = NULL;
             //output = NULL;
             qpfile = NULL;
             zoneFile = NULL;

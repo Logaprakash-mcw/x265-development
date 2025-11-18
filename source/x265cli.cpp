@@ -59,6 +59,7 @@ namespace X265_NS {
         H0("-D/--output-depth 8|10|12        Output bit depth (also internal bit depth). Default %d\n", param->internalBitDepth);
         H0("\nInput Options:\n");
         H0("   --input <filename>            Raw YUV or Y4M input file name. `-` for stdin\n");
+        H0("   --denoised-input <filename>   Denoised YUV or Y4M input file name. `-` for stdin\n");
         H1("   --y4m                         Force parsing of input stream as YUV4MPEG2 regardless of file extension\n");
         H0("   --fps <float|rational>        Source frame rate (float or num/denom), auto-detected if Y4M\n");
         H0("   --input-res WxH               Source picture size [w x h], auto-detected if Y4M\n");
@@ -94,6 +95,9 @@ namespace X265_NS {
         if (input)
             input->release();
         input = NULL;
+        if(denoisedInput)
+            denoisedInput->release();
+        denoisedInput = NULL;
         if (recon)
             recon->release();
         recon = NULL;
@@ -272,6 +276,7 @@ namespace X265_NS {
         int outputBitDepth = X265_DEPTH;
         int reconFileBitDepth = 0;
         const char *inputfn = NULL;
+        const char *denoisedInputfn = NULL;
         const char *reconfn = NULL;
         const char *outputfn = NULL;
         argCnt = argc;
@@ -374,6 +379,7 @@ namespace X265_NS {
                 OPT("frames") this->framesToBeEncoded = (uint32_t)x265_atoi(optarg, bError);
                 OPT("output") reconfn = optarg;
                 OPT("input") inputfn = optarg;
+                OPT("denoised-input") denoisedInputfn = optarg;
                 //OPT("recon") reconfn = optarg;
                 OPT("input-depth") inputBitDepth = (uint32_t)x265_atoi(optarg, bError);
                 OPT("dither") this->bDither = true;
@@ -416,6 +422,11 @@ namespace X265_NS {
             x265_log(X265_LOG_ERROR, "input or output file not specified, try --help for help\n");
             return true;
         }
+        if (!denoisedInputfn)
+        {
+            x265_log(X265_LOG_ERROR, "denoised input file not specified, try --help for help\n");
+            return true;
+        }
 
         param->internalBitDepth = inputBitDepth;
 
@@ -426,6 +437,7 @@ namespace X265_NS {
         }
         InputFileInfo info;
         info.filename = inputfn;
+        info.denoisedfilename = denoisedInputfn;
         info.depth = inputBitDepth;
         info.csp = param->internalCsp;
         info.width = param->sourceWidth;
@@ -437,8 +449,9 @@ namespace X265_NS {
         //getParamAspectRatio(param, info.sarWidth, info.sarHeight);
 
 
-        this->input = InputFile::open(info, this->bForceY4m);
-        if (!this->input || this->input->isFail())
+        this->input = InputFile::open(info, info.filename, this->bForceY4m);
+        this->denoisedInput = InputFile::open(info, info.denoisedfilename, this->bForceY4m);
+        if (!this->input || this->input->isFail() || (denoisedInputfn && (!this->denoisedInput || this->denoisedInput->isFail())))
         {
             x265_log_file(X265_LOG_ERROR, "unable to open input file <%s>\n", inputfn);
             return true;
@@ -471,6 +484,7 @@ namespace X265_NS {
         info.timebaseDenom = param->fpsNum;
 
         this->input->startReader();
+        this->denoisedInput->startReader();
         reconFileBitDepth = param->internalBitDepth;
         this->recon = ReconFile::open(reconfn, param->sourceWidth, param->sourceHeight, reconFileBitDepth,
                 param->fpsNum, param->fpsDenom, param->internalCsp);

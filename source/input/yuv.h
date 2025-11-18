@@ -61,7 +61,7 @@ protected:
 
 public:
 
-    YUVInput(InputFileInfo& info);
+    YUVInput(InputFileInfo& info, const char *filename);
 
     virtual ~YUVInput();
     void release();

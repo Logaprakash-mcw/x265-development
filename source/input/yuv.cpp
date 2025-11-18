@@ -40,7 +40,7 @@
 using namespace X265_NS;
 using namespace std;
 
-YUVInput::YUVInput(InputFileInfo& info)
+YUVInput::YUVInput(InputFileInfo& info, const char *filename)
 {
     for (int i = 0; i < QUEUE_SIZE; i++)
         buf[i] = NULL;
@@ -66,7 +66,7 @@ YUVInput::YUVInput(InputFileInfo& info)
         x265_log(X265_LOG_ERROR, "yuv: width, height, and FPS must be specified\n");
         return;
     }
-    if (!strcmp(info.filename, "-"))
+    if (!strcmp(filename, "-"))
     {
         ifs = stdin;
 #if _WIN32
@@ -74,7 +74,7 @@ YUVInput::YUVInput(InputFileInfo& info)
 #endif
     }
     else
-        ifs = x265_fopen(info.filename, "rb");
+        ifs = x265_fopen(filename, "rb");
     if (ifs && !ferror(ifs))
         threadActive = true;
     else

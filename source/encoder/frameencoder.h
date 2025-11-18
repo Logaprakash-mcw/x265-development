@@ -84,7 +84,7 @@ public:
     void destroy();
 
     /* triggers encode of a new frame by the worker thread */
-    bool startCompressFrame(Frame* curFrame);
+    bool startCompressFrame(Frame* curFrame, Frame* denoisedFrame);
 
     /* blocks until worker thread is done, returns access unit */
     Frame *getEncodedPicture();
@@ -120,6 +120,7 @@ public:
     Encoder*                 m_top;
     x265_param*              m_param;
     Frame*                   m_frame;
+    Frame*                   m_denoisedFrame;
     //ThreadLocalData*         m_tld; /* for --no-wpp */
     //uint32_t*                m_substreamSizes;
 

@@ -837,6 +837,7 @@ void FGAnalyser::estimate_cutoff_freq(const std::vector<PelMatrix> &blocks, uint
     if (num_blocks < MIN_BLOCKS_FOR_CUTOFF_ESTIMATION)   // if there is no enough 64 x 64 blocks to estimate cut-off freq, 
                                                          // skip cut-off freq estimation and use previous parameters
     {
+        printf("Not enough blocks to estimate cut-off frequencies \n");
         return;
     }
 
@@ -1942,6 +1943,30 @@ void FGAnalyser::set_film_grain_parameters()
     filmgrain.m_compModel[0] = &m_compModel[0];
     filmgrain.m_compModel[1] = &m_compModel[1];
     filmgrain.m_compModel[2] = &m_compModel[2];
+    printf("===== Frequency Model Parameters =====\n");
+    printf("CancelFlag=%d\n", filmgrain.m_filmGrainCharacteristicsCancelFlag);
+    printf("PersistenceFlag=%d\n", filmgrain.m_filmGrainCharacteristicsPersistenceFlag);
+    printf("ModelId=%u\n", filmgrain.m_filmGrainModelId);
+    printf("SeparateColourDescriptionPresentFlag=%d\n", filmgrain.m_separateColourDescriptionPresentFlag);
+    printf("BlendingModeId=%u\n", filmgrain.m_blendingModeId);
+    printf("log2ScaleFactor=%u\n", filmgrain.m_log2ScaleFactor);
+
+    for (int i = 0; i < 3; i++) {
+        printf("CompModel[%d].bPresentFlag = %d\n", i, filmgrain.m_compModel[i]->bPresentFlag);
+        if (filmgrain.m_compModel[i]->bPresentFlag) {
+            printf("  NumIntensityIntervalsMinus1=%u\n", filmgrain.m_compModel[i]->m_filmGrainNumIntensityIntervalMinus1);
+            printf("  NumModelValues=%u\n", filmgrain.m_compModel[i]->numModelValues);
+            for (int j = 0; j <= filmgrain.m_compModel[i]->m_filmGrainNumIntensityIntervalMinus1; j++) {
+                printf("    Interval[%d] = [%u,%u] Values:",
+                       j,
+                       filmgrain.m_compModel[i]->intensityValues[j].intensityIntervalLowerBound,
+                       filmgrain.m_compModel[i]->intensityValues[j].intensityIntervalUpperBound);
+                for (int k = 0; k < filmgrain.m_compModel[i]->numModelValues; k++)
+                    printf(" %d", filmgrain.m_compModel[i]->intensityValues[j].compModelValue[k]);
+                printf("\n");
+            }
+        }
+    }
     //memcpy(filmgrain.m_compModel, m_compModel, sizeof(m_compModel));
 }
 

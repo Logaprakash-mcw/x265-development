@@ -99,11 +99,12 @@ bool FrameEncoder::init(Encoder *top, int numRows, int numCols)
 }
 
 /* Generate a complete list of unique geom sets for the current picture dimensions */
-bool FrameEncoder::startCompressFrame(Frame* curFrame)
+bool FrameEncoder::startCompressFrame(Frame* curFrame, Frame* denoisedFrame)
 {
     m_frame = curFrame;
-    curFrame->m_encData->m_frameEncoderID = m_jpId;
-    curFrame->m_encData->m_jobProvider = this;
+    m_denoisedFrame = denoisedFrame;
+    // curFrame->m_encData->m_frameEncoderID = m_jpId;
+    // curFrame->m_encData->m_jobProvider = this;
     m_enable.trigger();
     return true;
 }
@@ -128,28 +129,28 @@ void FrameEncoder::compressFrame()
 
     m_startCompressTime = x265_mdate();
 
-    PicYuv *original = new PicYuv();
-    original->create(m_param);
-    original->copyFromFrame(m_frame->m_fencPic);
+    // PicYuv *original = new PicYuv();
+    // original->create(m_param);
+    // original->copyFromFrame(m_frame->m_fencPic);
 
-    m_frameEncTF->m_QP = m_param->qp; // Keep qp is constant
-    m_frameEncTF->bilateralFilter(m_frame, m_mcstfRefList, m_param->temporalFilterStrength);
+    // m_frameEncTF->m_QP = m_param->qp; // Keep qp is constant
+    // m_frameEncTF->bilateralFilter(m_frame, m_mcstfRefList, m_param->temporalFilterStrength);
 
-    m_fg->initBufs(original, m_frame->m_fencPic);
+    m_fg->initBufs(m_frame->m_fencPic, m_denoisedFrame->m_fencPic);
     m_fg->estimate_grain_parameters();
 
     //Reset the MCSTF context in Frame Encoder and Frame
-    for (int i = 0; i < (m_frameEncTF->m_range << 1); i++)
-    {
-        memset(m_mcstfRefList[i].mvs0, 0, sizeof(MV) * ((m_param->sourceWidth / 16) * (m_param->sourceHeight / 16)));
-        memset(m_mcstfRefList[i].mvs1, 0, sizeof(MV) * ((m_param->sourceWidth / 16) * (m_param->sourceHeight / 16)));
-        memset(m_mcstfRefList[i].mvs2, 0, sizeof(MV) * ((m_param->sourceWidth / 16) * (m_param->sourceHeight / 16)));
-        memset(m_mcstfRefList[i].mvs,  0, sizeof(MV) * ((m_param->sourceWidth / 4) * (m_param->sourceHeight / 4)));
-        memset(m_mcstfRefList[i].noise, 0, sizeof(int) * ((m_param->sourceWidth / 4) * (m_param->sourceHeight / 4)));
-        memset(m_mcstfRefList[i].error, 0, sizeof(int) * ((m_param->sourceWidth / 4) * (m_param->sourceHeight / 4)));
+    // for (int i = 0; i < (m_frameEncTF->m_range << 1); i++)
+    // {
+    //     memset(m_mcstfRefList[i].mvs0, 0, sizeof(MV) * ((m_param->sourceWidth / 16) * (m_param->sourceHeight / 16)));
+    //     memset(m_mcstfRefList[i].mvs1, 0, sizeof(MV) * ((m_param->sourceWidth / 16) * (m_param->sourceHeight / 16)));
+    //     memset(m_mcstfRefList[i].mvs2, 0, sizeof(MV) * ((m_param->sourceWidth / 16) * (m_param->sourceHeight / 16)));
+    //     memset(m_mcstfRefList[i].mvs,  0, sizeof(MV) * ((m_param->sourceWidth / 4) * (m_param->sourceHeight / 4)));
+    //     memset(m_mcstfRefList[i].noise, 0, sizeof(int) * ((m_param->sourceWidth / 4) * (m_param->sourceHeight / 4)));
+    //     memset(m_mcstfRefList[i].error, 0, sizeof(int) * ((m_param->sourceWidth / 4) * (m_param->sourceHeight / 4)));
 
-        m_frame->m_mcstf->m_numRef = 0;
-    }
+    //     m_frame->m_mcstf->m_numRef = 0;
+    // }
 
     m_fg->set_film_grain_parameters();
     //if (m_top->m_filmGrainIn)
