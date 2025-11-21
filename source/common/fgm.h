@@ -200,17 +200,20 @@ private:
     PicYuv *m_originalBuf = NULL;
     PicYuv *m_workingBuf  = NULL;
     PicYuv *m_maskBuf     = NULL;
+    std::vector<int> stored_vec_mean_intensity[3];
+    std::vector<int> stored_vec_variance_intensity[3];
+    std::vector<int> stored_element_number_per_interval[3];
 
     void findMask                     ();
 
     //void estimate_grain_parameters    ();
-    void block_transform(int16_t *buff, std::vector<PelMatrix> &squared_dct_grain_block_list, int offsetX, int offsetY, unsigned int bitDepth, int stride);
+    void block_transform(int16_t *buff, std::vector<PelMatrix> &squared_dct_grain_block_list, int offsetX, int offsetY, unsigned int bitDepth, int stride, int windowSize);
     //void block_transform              (const PicYuv& buff1, std::vector<PelMatrix>& squared_dct_grain_block_list, int offsetX, int offsetY, unsigned int bitDepth, uint8_t compID);
-    void estimate_cutoff_freq         (const std::vector<PelMatrix>& blocks, uint8_t compID);
-    int  cutoff_frequency             (std::vector<double>& mean);
+    void estimate_cutoff_freq         (const std::vector<PelMatrix>& blocks, std::vector<int> vec_mean, int bitDepth, int compID, int windowSize);
+    int  cutoff_frequency             (std::vector<double>& mean, int windowSize);
     void estimate_scaling_factors     (std::vector<int>& data_x, std::vector<int>& data_y, unsigned int bitDepth, uint8_t compID);
     bool fit_function                 (std::vector<int>& data_x, std::vector<int>& data_y, std::vector<double>& coeffs, std::vector<double>& scalingVec,
-                                         int order, int bitDepth, bool second_pass);
+                                         int order, int bitDepth, bool second_pass, int compID);
     void avg_scaling_vec              (std::vector<double> &scalingVec, uint8_t compID, int bitDepth);
     bool lloyd_max                    (std::vector<double>& scalingVec, std::vector<int>& quantizedVec, double& distortion, int numQuantizedLevels, int bitDepth);
     void quantize                     (std::vector<double>& scalingVec, std::vector<double>& quantizedVec, double& distortion, std::vector<double> partition, std::vector<double> codebook);
