@@ -40,7 +40,7 @@
 using namespace X265_NS;
 using namespace std;
 static const char header[] = {'F','R','A','M','E'};
-Y4MInput::Y4MInput(InputFileInfo& info)
+Y4MInput::Y4MInput(InputFileInfo& info, const char *filename)
 {
     for (int i = 0; i < QUEUE_SIZE; i++)
         buf[i] = NULL;
@@ -57,7 +57,7 @@ Y4MInput::Y4MInput(InputFileInfo& info)
     framesize = 0;
 
     ifs = NULL;
-    if (!strcmp(info.filename, "-"))
+    if (!strcmp(filename, "-"))
     {
         ifs = stdin;
 #if _WIN32
@@ -65,7 +65,7 @@ Y4MInput::Y4MInput(InputFileInfo& info)
 #endif
     }
     else
-        ifs = x265_fopen(info.filename, "rb");
+        ifs = x265_fopen(filename, "rb");
     if (ifs && !ferror(ifs) && parseHeader())
     {
         int pixelbytes = depth > 8 ? 2 : 1;

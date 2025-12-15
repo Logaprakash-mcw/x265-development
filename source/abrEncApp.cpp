@@ -77,6 +77,7 @@ namespace X265_NS {
     bool AbrEncoder::allocBuffers()
     {
         m_inputPicBuffer = X265_MALLOC(x265_picture**, m_numEncodes);
+        m_denoisedInputPicBuffer = X265_MALLOC(x265_picture**, m_numEncodes);
 
         m_picWriteCnt = new ThreadSafeInteger[m_numEncodes];
         m_picReadCnt = new ThreadSafeInteger[m_numEncodes];
@@ -87,10 +88,14 @@ namespace X265_NS {
         for (uint8_t pass = 0; pass < m_numEncodes; pass++)
         {
             m_inputPicBuffer[pass] = X265_MALLOC(x265_picture*, m_queueSize);
+            m_denoisedInputPicBuffer[pass] = X265_MALLOC(x265_picture*, m_queueSize);
             for (uint32_t idx = 0; idx < m_queueSize; idx++)
             {
                 m_inputPicBuffer[pass][idx] = x265_picture_alloc();
                 x265_picture_init(m_passEnc[pass]->m_param, m_inputPicBuffer[pass][idx]);
+
+                m_denoisedInputPicBuffer[pass][idx] = x265_picture_alloc();
+                x265_picture_init(m_passEnc[pass]->m_param, m_denoisedInputPicBuffer[pass][idx]);
             }
 
             m_picIdxReadCnt[pass] = new ThreadSafeInteger[m_queueSize];
@@ -110,15 +115,19 @@ namespace X265_NS {
             {
                 X265_FREE(m_inputPicBuffer[pass][index]->planes[0]);
                 x265_picture_free(m_inputPicBuffer[pass][index]);
+                X265_FREE(m_denoisedInputPicBuffer[pass][index]->planes[0]);
+                x265_picture_free(m_denoisedInputPicBuffer[pass][index]);
             }
 
             X265_FREE(m_inputPicBuffer[pass]);
+            X265_FREE(m_denoisedInputPicBuffer[pass]);
             X265_FREE(m_readFlag[pass]);
             delete[] m_picIdxReadCnt[pass];
             m_passEnc[pass]->destroy();
             delete m_passEnc[pass];
         }
         X265_FREE(m_inputPicBuffer);
+        X265_FREE(m_denoisedInputPicBuffer);
         X265_FREE(m_readFlag);
 
         delete[] m_picWriteCnt;
@@ -135,7 +144,10 @@ namespace X265_NS {
         m_cliopt = cliopt;
         m_parent = parent;
         if(!(m_cliopt.enableScaler && m_id))
+        {
             m_input = m_cliopt.input;
+            m_denoisedInput = m_cliopt.denoisedInput;
+        }
         m_param = cliopt.param;
         m_inputOver = false;
         m_lastIdx = -1;
@@ -194,7 +206,7 @@ namespace X265_NS {
 
     
 
-    bool PassEncoder::readPicture(x265_picture *dstPic)
+    bool PassEncoder::readPicture(x265_picture *dstPic, int denoised)
     {
         /*Check and wait if there any input frames to read*/
         int ipread = m_parent->m_picReadCnt[m_id].get();
@@ -209,7 +221,11 @@ namespace X265_NS {
         {
             /*Get input index to read from inputQueue. If doesn't need analysis info, it need not wait to fetch poc from analysisQueue*/
             int readPos = ipread % m_parent->m_queueSize;
-            x265_picture *srcPic = (x265_picture*)(m_parent->m_inputPicBuffer[m_id][readPos]);
+            x265_picture *srcPic;
+            if(!denoised)
+                srcPic = (x265_picture*)(m_parent->m_inputPicBuffer[m_id][readPos]);
+            else
+                srcPic = (x265_picture*)(m_parent->m_denoisedInputPicBuffer[m_id][readPos]);
 
             x265_picture *pic = (x265_picture*)(dstPic);
             pic->colorSpace = srcPic->colorSpace;
@@ -251,11 +267,12 @@ namespace X265_NS {
                 x265_log(X265_LOG_ERROR, "Unable to register CTRL+C handler: %s in %s\n",
                     strerror(errno), profileName);
 
-            x265_picture pic_orig, pic_out;
+            x265_picture pic_orig, pic_denoised, pic_out;
             x265_picture *pic_in = &pic_orig;
+            x265_picture *pic_denoised_in = (m_param->bEnableTemporalFilter) ? NULL : &pic_denoised;
             /* Allocate recon picture if analysis save/load is enabled */
             //std::priority_queue<int64_t>* pts_queue = m_cliopt.output->needPTS() ? new std::priority_queue<int64_t>() : NULL;
-            x265_picture *pic_recon = (m_cliopt.recon) ? &pic_out : NULL;
+            x265_picture *pic_recon = (m_param->bEnableTemporalFilter) ? &pic_out : NULL;
             uint32_t inFrameCount = 0;
             uint32_t outFrameCount = 0;
             int16_t *errorBuf = NULL;
@@ -263,20 +280,42 @@ namespace X265_NS {
             int inputPicNum = 1;
 
             api->picture_init(m_param, &pic_orig);
+            if (!m_param->bEnableTemporalFilter)
+                api->picture_init(m_param, &pic_denoised);
 
             // main encoder loop
-            while (pic_in && !b_ctrl_c)
+            while (pic_in && (m_param->bEnableTemporalFilter || pic_denoised_in) && !b_ctrl_c)
             {
                 pic_orig.poc = inFrameCount;
 
-                if (m_cliopt.framesToBeEncoded && inFrameCount >= m_cliopt.framesToBeEncoded)
-                    pic_in = NULL;
-                else if (readPicture(pic_in))
-                    inFrameCount++;
-                else
-                    pic_in = NULL;
+                if (!m_param->bEnableTemporalFilter)
+                    pic_denoised.poc = inFrameCount;
 
-                if (pic_in)
+                if (m_cliopt.framesToBeEncoded && inFrameCount >= m_cliopt.framesToBeEncoded)
+                {
+                    pic_in = NULL;
+                    pic_denoised_in = NULL;
+                }
+                else
+                {
+                    int ret1 = readPicture(pic_in, 0);           // original
+                    int ret2 = 1;
+                    if(pic_denoised_in)
+                        ret2 = readPicture(pic_denoised_in, 1);  // denoised (optional)
+
+                    if (ret1 && ret2)
+                    {
+                        inFrameCount++; // count only when both successfully read
+                    }
+                    else
+                    {
+                        // stop feeding if one stream ends
+                        pic_in = NULL;
+                        pic_denoised_in = NULL;
+                    }
+                }
+
+                if (pic_in )
                 {
                     if (pic_in->bitDepth > m_param->internalBitDepth && m_cliopt.bDither)
                     {
@@ -284,40 +323,54 @@ namespace X265_NS {
                         pic_in->bitDepth = m_param->internalBitDepth;
                     }
                 }
-
-                for (int inputNum = 0; inputNum < inputPicNum; inputNum++)
+                if(pic_denoised_in)
                 {
-                    x265_picture *picInput = NULL;
-                    picInput = pic_in;
-
-                    int numEncoded = api->encoder_encode(m_encoder, picInput, pic_recon);
-
-                    int idx = (inFrameCount - 1) % m_parent->m_queueSize;
-                    m_parent->m_picIdxReadCnt[m_id][idx].incr();
-                    m_parent->m_picReadCnt[m_id].incr();
-
-                    if (numEncoded < 0)
+                    if (pic_denoised_in->bitDepth > m_param->internalBitDepth && m_cliopt.bDither)
                     {
-                        b_ctrl_c = 1;
-                        m_ret = 4;
-                        break;
+                        x265_dither_image(pic_denoised_in, m_cliopt.denoisedInput->getWidth(), m_cliopt.denoisedInput->getHeight(), errorBuf, m_param->internalBitDepth);
+                        pic_denoised_in->bitDepth = m_param->internalBitDepth;
                     }
-
-                    outFrameCount += numEncoded;
-
-                    if (numEncoded && pic_recon && m_cliopt.recon)
+                }
+                if (pic_in)
+                {
+                    for (int inputNum = 0; inputNum < inputPicNum; inputNum++)
                     {
-                        m_cliopt.recon->writePicture(pic_out);
-                        m_cliopt.writeFG(pic_out.m_fg);
+                        x265_picture *picInput = NULL;
+                        x265_picture *picDenoisedInput = NULL;
+                        picInput = pic_in;
+
+                        if (pic_denoised_in)
+                            picDenoisedInput = pic_denoised_in;
+                        int numEncoded = api->encoder_encode(m_encoder, picInput, picDenoisedInput, pic_recon);
+
+                        int idx = (inFrameCount - 1) % m_parent->m_queueSize;
+                        m_parent->m_picIdxReadCnt[m_id][idx].incr();
+                        m_parent->m_picReadCnt[m_id].incr();
+
+                        if (numEncoded < 0)
+                        {
+                            b_ctrl_c = 1;
+                            m_ret = 4;
+                            break;
+                        }
+
+                        outFrameCount += numEncoded;
+
+                        if (numEncoded && pic_recon && m_cliopt.recon)
+                        {
+                            if(m_param->bEnableTemporalFilter)
+                                m_cliopt.recon->writePicture(pic_out);
+                            m_cliopt.writeFG(pic_out.m_fg);
+                        }
+                        m_cliopt.printStatus(outFrameCount);
                     }
-                    m_cliopt.printStatus(outFrameCount);
                 }
             }
 
             /* Flush the encoder */
             while (!b_ctrl_c)
             {
-                int numEncoded = api->encoder_encode(m_encoder, NULL, pic_recon);
+                int numEncoded = api->encoder_encode(m_encoder, NULL, NULL, pic_recon);
                 if (numEncoded < 0)
                 {
                     m_ret = 4;
@@ -378,6 +431,7 @@ namespace X265_NS {
         m_parentEnc = parentEnc;
         m_id = id;
         m_input = parentEnc->m_input;
+        m_denoisedInput = parentEnc->m_denoisedInput;
     }
 
     void Reader::threadMain()
@@ -387,6 +441,12 @@ namespace X265_NS {
         int QDepth = m_parentEnc->m_parent->m_queueSize;
         x265_picture* src = x265_picture_alloc();
         x265_picture_init(m_parentEnc->m_param, src);
+        x265_picture* denoised_src = NULL;
+        if (!m_parentEnc->m_param->bEnableTemporalFilter)
+        {
+            denoised_src = x265_picture_alloc();
+            x265_picture_init(m_parentEnc->m_param, denoised_src);
+        }
 
         while (m_threadActive)
         {
@@ -404,6 +464,11 @@ namespace X265_NS {
             }
 
             x265_picture* dest = m_parentEnc->m_parent->m_inputPicBuffer[m_id][writeIdx];
+            x265_picture* denoised_dest = NULL;
+            if (!m_parentEnc->m_param->bEnableTemporalFilter)
+            {
+                denoised_dest = m_parentEnc->m_parent->m_denoisedInputPicBuffer[m_id][writeIdx];
+            }
             if (m_input->readPicture(*src))
             {
                 dest->poc = src->poc;
@@ -422,6 +487,26 @@ namespace X265_NS {
                 memcpy(dest->planes[0], src->planes[0], src->framesize * sizeof(char));
                 dest->planes[1] = (char*)dest->planes[0] + src->stride[0] * src->height;
                 dest->planes[2] = (char*)dest->planes[1] + src->stride[1] * (src->height >> x265_cli_csps[src->colorSpace].height[1]);
+                if (!m_parentEnc->m_param->bEnableTemporalFilter && m_denoisedInput->readPicture(*denoised_src))
+                {
+                    denoised_dest->poc = denoised_src->poc;
+                    denoised_dest->bitDepth = denoised_src->bitDepth;
+                    denoised_dest->framesize = denoised_src->framesize;
+                    denoised_dest->height = denoised_src->height;
+                    denoised_dest->width = denoised_src->width;
+                    denoised_dest->colorSpace = denoised_src->colorSpace;
+                    denoised_dest->stride[0] = denoised_src->stride[0];
+                    denoised_dest->stride[1] = denoised_src->stride[1];
+                    denoised_dest->stride[2] = denoised_src->stride[2];
+
+                    if (!denoised_dest->planes[0])
+                        denoised_dest->planes[0] = X265_MALLOC(char, denoised_dest->framesize);
+
+                    memcpy(denoised_dest->planes[0], denoised_src->planes[0], denoised_src->framesize * sizeof(char));
+                    denoised_dest->planes[1] = (char*)denoised_dest->planes[0] + denoised_src->stride[0] * denoised_src->height;
+                    denoised_dest->planes[2] = (char*)denoised_dest->planes[1] + denoised_src->stride[1] * (denoised_src->height >> x265_cli_csps[denoised_src->colorSpace].height[1]);
+                }
+
                 m_parentEnc->m_parent->m_picWriteCnt[m_id].incr();
             }
             else
@@ -432,5 +517,6 @@ namespace X265_NS {
             }
         }
         x265_picture_free(src);
+        x265_picture_free(denoised_src);
     }
 }

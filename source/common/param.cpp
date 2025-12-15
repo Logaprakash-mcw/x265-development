@@ -133,6 +133,7 @@ void x265_param_default(x265_param* param)
 
     /* DCT Approximations */
     param->bLowPassDct = 0;
+    param->bEnableTemporalFilter = 0;
     param->temporalFilterStrength = 0.95;
     /* Film grain characteristics model filename */
     param->filmGrain = (char *)"model.bin";
@@ -266,6 +267,7 @@ int x265_param_parse(x265_param* p, const char* name, const char* value)
 
     OPT2("pools", "numa-pools") p->numaPools = strdup(value);
     OPT("qp") p->qp = atoi(value);
+    OPT("mcstf") p->bEnableTemporalFilter = atobool(value);
 
     else
         bExtraParams = true;
@@ -485,6 +487,7 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     s += sprintf(s, " tu-inter-depth=%d", p->tuQTMaxInterDepth);
     s += sprintf(s, " tu-intra-depth=%d", p->tuQTMaxIntraDepth);
     s += sprintf(s, " qp=%d", p->qp);
+    BOOL(p->bEnableTemporalFilter, "mcstf");
     if (p->filmGrain)
         s += sprintf(s, " film-grain=%s", p->filmGrain); // Film grain characteristics model filename
 
@@ -522,5 +525,6 @@ void x265_copy_params(x265_param* dst, x265_param* src)
     dst->bLowPassDct = src->bLowPassDct;
     dst->filmGrain = src->filmGrain;
     dst->qp = src->qp;
+    dst->bEnableTemporalFilter = src->bEnableTemporalFilter;
 }
 }

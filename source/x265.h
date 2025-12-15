@@ -533,6 +533,7 @@ typedef struct x265_param
     /* Film Grain Characteristic file */
     char* filmGrain;
 
+    int      bEnableTemporalFilter;
     /*Motion compensated temporal filter*/
     double   temporalFilterStrength;
 
@@ -635,7 +636,7 @@ void x265_encoder_parameters(x265_encoder *, x265_param *);
  *      the payloads of all output NALs are guaranteed to be sequential in memory.
  *      To flush the encoder and retrieve delayed output pictures, pass pic_in as NULL.
  *      Once flushing has begun, all subsequent calls must pass pic_in as NULL. */
-int x265_encoder_encode(x265_encoder *encoder, x265_picture *pic_in, x265_picture *pic_out);
+int x265_encoder_encode(x265_encoder *encoder, x265_picture *pic_in, x265_picture *pic_denoised_in, x265_picture *pic_out);
 
 /* x265_encoder_close:
  *      close an encoder handler */
@@ -679,7 +680,7 @@ typedef struct x265_api
     void          (*picture_init)(x265_param*, x265_picture*);
     x265_encoder* (*encoder_open)(x265_param*);
     void          (*encoder_parameters)(x265_encoder*, x265_param*);
-    int           (*encoder_encode)(x265_encoder*, x265_picture*, x265_picture*);
+    int           (*encoder_encode)(x265_encoder*, x265_picture*, x265_picture*, x265_picture*);
     void          (*encoder_close)(x265_encoder*);
     void          (*cleanup)(void);
 

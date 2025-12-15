@@ -495,18 +495,7 @@ void FGAnalyser::initBufs(PicYuv* original, PicYuv *pic)
 {
     m_originalBuf->copyFromFrame(original);
     m_workingBuf->copyFromFrame(pic);
-    //memcpy(m_workingBuf->m_picBuf[0], m_workingBuf->m_picFilBuf[0], (m_workingBuf->m_picHeight + (2 * m_workingBuf->m_lumaMarginY)) * m_workingBuf->m_stride * sizeof(pixel));
-    //m_workingBuf->m_picOrg[0] = m_workingBuf->m_picBuf[0] + m_workingBuf->m_lumaMarginY * m_workingBuf->m_stride + m_workingBuf->m_lumaMarginX;
-    //extendPicBorder(m_workingBuf->m_picOrg[0], m_workingBuf->m_stride, m_workingBuf->m_picWidth, m_workingBuf->m_picHeight, m_workingBuf->m_lumaMarginX, m_workingBuf->m_lumaMarginY);
-    //if( m_workingBuf->m_picCsp != X265_CSP_I400)
-    //{
-    //    memcpy(m_workingBuf->m_picBuf[1], m_workingBuf->m_picFilBuf[1], (m_workingBuf->m_picHeightC + (2 * m_workingBuf->m_chromaMarginY)) * m_workingBuf->m_strideC * sizeof(pixel));
-    //    m_workingBuf->m_picOrg[1] = m_workingBuf->m_picBuf[1] + m_workingBuf->m_chromaMarginY * m_workingBuf->m_strideC + m_workingBuf->m_chromaMarginX;
-    //    extendPicBorder(m_workingBuf->m_picOrg[1], m_workingBuf->m_strideC, m_workingBuf->m_picWidthC, m_workingBuf->m_picHeightC, m_workingBuf->m_chromaMarginX, m_workingBuf->m_chromaMarginY);
-    //    memcpy(m_workingBuf->m_picBuf[2], m_workingBuf->m_picFilBuf[2], (m_workingBuf->m_picHeightC + (2 * m_workingBuf->m_chromaMarginY)) * m_workingBuf->m_strideC * sizeof(pixel));
-    //    m_workingBuf->m_picOrg[2] = m_workingBuf->m_picBuf[2] + m_workingBuf->m_chromaMarginY * m_workingBuf->m_strideC + m_workingBuf->m_chromaMarginX;
-    //    extendPicBorder(m_workingBuf->m_picOrg[2], m_workingBuf->m_strideC, m_workingBuf->m_picWidthC, m_workingBuf->m_picHeightC, m_workingBuf->m_chromaMarginX, m_workingBuf->m_chromaMarginY);
-    //}
+
     findMask();
 }
 
@@ -1942,6 +1931,30 @@ void FGAnalyser::set_film_grain_parameters()
     filmgrain.m_compModel[0] = &m_compModel[0];
     filmgrain.m_compModel[1] = &m_compModel[1];
     filmgrain.m_compModel[2] = &m_compModel[2];
+    // printf("===== Frequency Model Parameters =====\n");
+    // printf("CancelFlag=%d\n", filmgrain.m_filmGrainCharacteristicsCancelFlag);
+    // printf("PersistenceFlag=%d\n", filmgrain.m_filmGrainCharacteristicsPersistenceFlag);
+    // printf("ModelId=%u\n", filmgrain.m_filmGrainModelId);
+    // printf("SeparateColourDescriptionPresentFlag=%d\n", filmgrain.m_separateColourDescriptionPresentFlag);
+    // printf("BlendingModeId=%u\n", filmgrain.m_blendingModeId);
+    // printf("log2ScaleFactor=%u\n", filmgrain.m_log2ScaleFactor);
+
+    // for (int i = 0; i < 3; i++) {
+    //     printf("CompModel[%d].bPresentFlag = %d\n", i, filmgrain.m_compModel[i]->bPresentFlag);
+    //     if (filmgrain.m_compModel[i]->bPresentFlag) {
+    //         printf("  NumIntensityIntervalsMinus1=%u\n", filmgrain.m_compModel[i]->m_filmGrainNumIntensityIntervalMinus1);
+    //         printf("  NumModelValues=%u\n", filmgrain.m_compModel[i]->numModelValues);
+    //         for (int j = 0; j <= filmgrain.m_compModel[i]->m_filmGrainNumIntensityIntervalMinus1; j++) {
+    //             printf("    Interval[%d] = [%u,%u] Values:",
+    //                    j,
+    //                    filmgrain.m_compModel[i]->intensityValues[j].intensityIntervalLowerBound,
+    //                    filmgrain.m_compModel[i]->intensityValues[j].intensityIntervalUpperBound);
+    //             for (int k = 0; k < filmgrain.m_compModel[i]->numModelValues; k++)
+    //                 printf(" %d", filmgrain.m_compModel[i]->intensityValues[j].compModelValue[k]);
+    //             printf("\n");
+    //         }
+    //     }
+    // }
     //memcpy(filmgrain.m_compModel, m_compModel, sizeof(m_compModel));
 }
 

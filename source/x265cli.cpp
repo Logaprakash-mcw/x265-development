@@ -59,6 +59,8 @@ namespace X265_NS {
         H0("-D/--output-depth 8|10|12        Output bit depth (also internal bit depth). Default %d\n", param->internalBitDepth);
         H0("\nInput Options:\n");
         H0("   --input <filename>            Raw YUV or Y4M input file name. `-` for stdin\n");
+        H0("--denoised-input <filename>      Denoised YUV or Y4M input file name. `-` for stdin\n");
+        H0("   --mcstf                       Enable GOP-based temporal filter. Default %d\n", param->bEnableTemporalFilter);
         H1("   --y4m                         Force parsing of input stream as YUV4MPEG2 regardless of file extension\n");
         H0("   --fps <float|rational>        Source frame rate (float or num/denom), auto-detected if Y4M\n");
         H0("   --input-res WxH               Source picture size [w x h], auto-detected if Y4M\n");
@@ -74,7 +76,6 @@ namespace X265_NS {
         H0("   --[no-]wpp                    Enable Wavefront Parallel Processing. Default %s\n", OPT(param->bEnableWavefront));
         H0("\nSEI Message Options\n");
         H0("   --film-grain <filename>           File containing Film Grain Characteristics to be written as a SEI Message\n");
-
 #undef OPT
 #undef H0
 #undef H1
@@ -84,16 +85,13 @@ namespace X265_NS {
 
     void CLIOptions::destroy()
     {
-        if (isAbrLadderConfig)
-        {
-            for (int idx = 1; idx < argCnt; idx++)
-                free(argString[idx]);
-            free(argString);
-        }
 
         if (input)
             input->release();
         input = NULL;
+        if(denoisedInput)
+            denoisedInput->release();
+        denoisedInput = NULL;
         if (recon)
             recon->release();
         recon = NULL;
@@ -109,9 +107,6 @@ namespace X265_NS {
         if (dolbyVisionRpu)
             fclose(dolbyVisionRpu);
         dolbyVisionRpu = NULL;
-        //if (output)
-        //    output->release();
-        //output = NULL;
     }
 
     void CLIOptions::printStatus(uint32_t frameNum)
@@ -171,98 +166,6 @@ namespace X265_NS {
             }
         }
     }
-    //bool CLIOptions::parseZoneParam(int argc, char **argv, x265_param* globalParam, int zonefileCount)
-    //{
-    //    bool bError = false;
-    //    int bShowHelp = false;
-    //    int outputBitDepth = 0;
-    //    const char *profile = NULL;
-
-    //    /* Presets are applied before all other options. */
-    //    for (optind = 0;;)
-    //    {
-    //        int c = getopt_long(argc, argv, short_options, long_options, NULL);
-    //        if (c == -1)
-    //            break;
-    //        else if (c == 'D')
-    //            outputBitDepth = atoi(optarg);
-    //        else if (c == 'P')
-    //            profile = optarg;
-    //        else if (c == '?')
-    //            bShowHelp = true;
-    //    }
-
-    //    if (!outputBitDepth && profile)
-    //    {
-    //        /* try to derive the output bit depth from the requested profile */
-    //        if (strstr(profile, "10"))
-    //            outputBitDepth = 10;
-    //        else if (strstr(profile, "12"))
-    //            outputBitDepth = 12;
-    //        else
-    //            outputBitDepth = 8;
-    //    }
-
-    //    api = x265_api_get(outputBitDepth);
-    //    if (!api)
-    //    {
-    //        x265_log(X265_LOG_WARNING, "falling back to default bit-depth\n");
-    //        api = x265_api_get(0);
-    //    }
-
-    //    if (bShowHelp)
-    //    {
-    //        printVersion(api);
-    //        showHelp(globalParam);
-    //    }
-
-    //    for (optind = 0;;)
-    //    {
-    //        int long_options_index = -1;
-    //        int c = getopt_long(argc, argv, short_options, long_options, &long_options_index);
-    //        if (c == -1)
-    //            break;
-
-    //        if (long_options_index < 0 && c > 0)
-    //        {
-    //            for (size_t i = 0; i < sizeof(long_options) / sizeof(long_options[0]); i++)
-    //            {
-    //                if (long_options[i].val == c)
-    //                {
-    //                    long_options_index = (int)i;
-    //                    break;
-    //                }
-    //            }
-
-    //            if (long_options_index < 0)
-    //            {
-    //                /* getopt_long might have already printed an error message */
-    //                if (c != 63)
-    //                    x265_log(X265_LOG_WARNING, "internal error: short option '%c' has no long option\n", c);
-    //                return true;
-    //            }
-    //        }
-    //        if (long_options_index < 0)
-    //        {
-    //            x265_log(X265_LOG_WARNING, "short option '%c' unrecognized\n", c);
-    //            return true;
-    //        }
-
-    //        if (bError)
-    //        {
-    //            const char *name = long_options_index > 0 ? long_options[long_options_index].name : argv[optind - 2];
-    //            x265_log(X265_LOG_ERROR, "invalid argument: %s = %s\n", name, optarg);
-    //            return true;
-    //        }
-    //    }
-
-    //    if (optind < argc)
-    //    {
-    //        x265_log(X265_LOG_WARNING, "extra unused command arguments given <%s>\n", argv[optind]);
-    //        return true;
-    //    }
-    //    return false;
-    //}
 
     bool CLIOptions::parse(int argc, char **argv)
     {
@@ -272,8 +175,7 @@ namespace X265_NS {
         int outputBitDepth = X265_DEPTH;
         int reconFileBitDepth = 0;
         const char *inputfn = NULL;
-        const char *reconfn = NULL;
-        const char *outputfn = NULL;
+        const char *denoisedInputfn = NULL;
         argCnt = argc;
         argString = argv;
 
@@ -372,9 +274,8 @@ namespace X265_NS {
                 if (0);
                 OPT2("frame-skip", "seek") this->seek = (uint32_t)x265_atoi(optarg, bError);
                 OPT("frames") this->framesToBeEncoded = (uint32_t)x265_atoi(optarg, bError);
-                OPT("output") reconfn = optarg;
                 OPT("input") inputfn = optarg;
-                //OPT("recon") reconfn = optarg;
+                OPT("denoised-input") denoisedInputfn = optarg;
                 OPT("input-depth") inputBitDepth = (uint32_t)x265_atoi(optarg, bError);
                 OPT("dither") this->bDither = true;
                 OPT("recon-depth") reconFileBitDepth = (uint32_t)x265_atoi(optarg, bError);
@@ -396,8 +297,8 @@ namespace X265_NS {
 
         if (optind < argc && !inputfn)
             inputfn = argv[optind++];
-        if (optind < argc && !outputfn)
-            outputfn = argv[optind++];
+        if (optind < argc && !denoisedInputfn)
+            denoisedInputfn = argv[optind++];
         if (optind < argc)
         {
             x265_log(X265_LOG_WARNING, "extra unused command arguments given <%s>\n", argv[optind]);
@@ -411,9 +312,14 @@ namespace X265_NS {
             showHelp(param);
         }
 
-        if (!inputfn || !reconfn)
+        if (!inputfn)
         {
-            x265_log(X265_LOG_ERROR, "input or output file not specified, try --help for help\n");
+            x265_log(X265_LOG_ERROR, "input file not specified, try --help for help\n");
+            return true;
+        }
+        if (!denoisedInputfn)
+        {
+            x265_log(X265_LOG_ERROR, "denoised input file not specified, try --help for help\n");
             return true;
         }
 
@@ -426,6 +332,7 @@ namespace X265_NS {
         }
         InputFileInfo info;
         info.filename = inputfn;
+        info.denoisedfilename = denoisedInputfn;
         info.depth = inputBitDepth;
         info.csp = param->internalCsp;
         info.width = param->sourceWidth;
@@ -434,14 +341,21 @@ namespace X265_NS {
         info.fpsDenom = param->fpsDenom;
         info.skipFrames = seek;
         info.frameCount = 0;
-        //getParamAspectRatio(param, info.sarWidth, info.sarHeight);
 
-
-        this->input = InputFile::open(info, this->bForceY4m);
+        this->input = InputFile::open(info, info.filename, this->bForceY4m);
+        if (!param->bEnableTemporalFilter)
+        {
+            this->denoisedInput = InputFile::open(info, info.denoisedfilename, this->bForceY4m);
+        }
         if (!this->input || this->input->isFail())
         {
             x265_log_file(X265_LOG_ERROR, "unable to open input file <%s>\n", inputfn);
             return true;
+        }
+        if (!param->bEnableTemporalFilter && denoisedInputfn && (!this->denoisedInput || this->denoisedInput->isFail()))
+        {
+            x265_log_file(X265_LOG_ERROR, "unable to open denoised input file <%s>. Enabling MCSTF denoiser.\n", denoisedInputfn);
+            param->bEnableTemporalFilter = true;
         }
 
         if (info.depth < 8 || info.depth > 16)
@@ -471,15 +385,20 @@ namespace X265_NS {
         info.timebaseDenom = param->fpsNum;
 
         this->input->startReader();
+        if(!param->bEnableTemporalFilter && this->denoisedInput)
+            this->denoisedInput->startReader();
         reconFileBitDepth = param->internalBitDepth;
-        this->recon = ReconFile::open(reconfn, param->sourceWidth, param->sourceHeight, reconFileBitDepth,
-                param->fpsNum, param->fpsDenom, param->internalCsp);
-        if (this->recon->isFail())
+        if(param->bEnableTemporalFilter)
         {
-            x265_log_file(X265_LOG_ERROR, "failed to open output file <%s> for writing\n", reconfn);
-            return true;
+            this->recon = ReconFile::open(denoisedInputfn, param->sourceWidth, param->sourceHeight, reconFileBitDepth,
+                    param->fpsNum, param->fpsDenom, param->internalCsp);
+            if (!this->recon || this->recon->isFail())
+            {
+                x265_log_file(X265_LOG_ERROR, "failed to open output file <%s> for writing\n", denoisedInputfn);
+                return true;
+            }
+            general_log_file(this->recon->getName(), X265_LOG_INFO, "output file: %s\n", denoisedInputfn);
         }
-        general_log_file(this->recon->getName(), X265_LOG_INFO, "output file: %s\n", reconfn);
         return false;
     }
 

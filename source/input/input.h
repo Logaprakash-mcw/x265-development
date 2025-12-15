@@ -54,6 +54,7 @@ struct InputFileInfo
     /* user supplied */
     int skipFrames;
     const char *filename;
+    const char *denoisedfilename;
 };
 
 class InputFile
@@ -66,7 +67,7 @@ public:
 
     InputFile()           {}
 
-    static InputFile* open(InputFileInfo& info, bool bForceY4m);
+    static InputFile* open(InputFileInfo& info, const char* filename, bool bForceY4m);
 
     virtual void startReader() = 0;
 

@@ -58,17 +58,17 @@ static const struct option long_options[] =
     { "numa-pools",     required_argument, NULL, 0 },
     { "frame-threads",  required_argument, NULL, 'F' },
     { "y4m",                  no_argument, NULL, 0 },
-    { "output",         required_argument, NULL, 'o' },
     { "output-depth",   required_argument, NULL, 'D' },
     { "input",          required_argument, NULL, 0 },
+    { "denoised-input", required_argument, NULL, 0 },
+    { "model-file",     required_argument, NULL, '0' },
+    { "qpfile",         required_argument, NULL, 'p' },
     { "input-depth",    required_argument, NULL, 0 },
     { "input-res",      required_argument, NULL, 0 },
     { "input-csp",      required_argument, NULL, 0 },
     { "fps",            required_argument, NULL, 0 },
     { "frame-skip",     required_argument, NULL, 0 },
     { "frames",         required_argument, NULL, 'f' },
-    { "recon",          required_argument, NULL, 'r' },
-    { "recon-depth",    required_argument, NULL, 0 },
     { "no-wpp",               no_argument, NULL, 0 },
     { "wpp",                  no_argument, NULL, 0 },
     { "qp",             required_argument, NULL, 'q' },
@@ -85,6 +85,7 @@ static const struct option long_options[] =
     struct CLIOptions
     {
         InputFile* input;
+        InputFile* denoisedInput;
         ReconFile* recon;
         //OutputFile* output;
         FILE*       qpfile;
@@ -125,6 +126,7 @@ static const struct option long_options[] =
         {
             input = NULL;
             recon = NULL;
+            denoisedInput = NULL;
             //output = NULL;
             qpfile = NULL;
             zoneFile = NULL;

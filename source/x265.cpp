@@ -86,166 +86,6 @@ static int get_argv_utf8(int *argc_ptr, char ***argv_ptr)
 }
 #endif
 
-/* Checks for abr-ladder config file in the command line.
- * Returns true if abr-config file is present. Returns 
- * false otherwise */
-
-static bool checkAbrLadder(int argc, char **argv, FILE **abrConfig)
-{
-    for (optind = 0;;)
-    {
-        int long_options_index = -1;
-        int c = getopt_long(argc, argv, short_options, long_options, &long_options_index);
-        if (c == -1)
-            break;
-        if (long_options_index < 0 && c > 0)
-        {
-            for (size_t i = 0; i < sizeof(long_options) / sizeof(long_options[0]); i++)
-            {
-                if (long_options[i].val == c)
-                {
-                    long_options_index = (int)i;
-                    break;
-                }
-            }
-
-            if (long_options_index < 0)
-            {
-                /* getopt_long might have already printed an error message */
-                if (c != 63)
-                    x265_log(X265_LOG_WARNING, "internal error: short option '%c' has no long option\n", c);
-                return false;
-            }
-        }
-        if (long_options_index < 0)
-        {
-            x265_log(X265_LOG_WARNING, "short option '%c' unrecognized\n", c);
-            return false;
-        }
-        if (!strcmp(long_options[long_options_index].name, "abr-ladder"))
-        {
-            *abrConfig = x265_fopen(optarg, "rb");
-            if (!abrConfig)
-                x265_log_file(X265_LOG_ERROR, "%s abr-ladder config file not found or error in opening zone file\n", optarg);
-            return true;
-        }
-    }
-    return false;
-}
-
-static uint8_t getNumAbrEncodes(FILE* abrConfig)
-{
-    char line[1024];
-    uint8_t numEncodes = 0;
-
-    while (fgets(line, sizeof(line), abrConfig))
-    {
-        if (strcmp(line, "\n") == 0)
-            continue;
-        else if (!(*line == '#'))
-            numEncodes++;
-    }
-    rewind(abrConfig);
-    return numEncodes;
-}
-
-static bool parseAbrConfig(FILE* abrConfig, CLIOptions cliopt[], uint8_t numEncodes)
-{
-    char line[1024];
-    char* argLine;
-
-    for (uint32_t i = 0; i < numEncodes; i++)
-    {
-        fgets(line, sizeof(line), abrConfig);
-        if (*line == '#' || (strcmp(line, "\r\n") == 0))
-            continue;
-        int index = (int)strcspn(line, "\r\n");
-        line[index] = '\0';
-        argLine = line;
-        char* start = strchr(argLine, ' ');
-        while (isspace((unsigned char)*start)) start++;
-        int argc = 0;
-        char **argv = (char**)malloc(256 * sizeof(char *));
-        // Adding a dummy string to avoid file parsing error
-        argv[argc++] = (char *)"x265";
-
-        /* Parse CLI header to identify the ID of the load encode and the reuse level */
-        char *header = strtok(argLine, "[]");
-        uint32_t idCount = 0;
-        char *id = strtok(header, ":");
-        char *head[X265_HEAD_ENTRIES];
-        cliopt[i].encId = i;
-        cliopt[i].isAbrLadderConfig = true;
-
-        while (id && (idCount <= X265_HEAD_ENTRIES))
-        {
-            head[idCount] = id;
-            id = strtok(NULL, ":");
-            idCount++;
-        }
-        if (idCount != X265_HEAD_ENTRIES)
-        {
-            x265_log(X265_LOG_ERROR, "Incorrect number of arguments in ABR CLI header at line %d\n", i);
-            return false;
-        }
-        else
-        {
-            cliopt[i].encName = strdup(head[0]);
-            cliopt[i].loadLevel = atoi(head[1]);
-            cliopt[i].reuseName = strdup(head[2]);
-        }
-
-        char* token = strtok(start, " ");
-        while (token)
-        {
-            argv[argc++] = strdup(token);
-            token = strtok(NULL, " ");
-        }
-        argv[argc] = NULL;
-        if (cliopt[i].parse(argc++, argv))
-        {
-            cliopt[i].destroy();
-            if (cliopt[i].api)
-                cliopt[i].api->param_free(cliopt[i].param);
-            exit(1);
-        }
-    }
-    return true;
-}
-
-static bool setRefContext(CLIOptions cliopt[], uint32_t numEncodes)
-{
-    bool hasRef = false;
-    bool isRefFound = false;
-
-    /* Identify reference encode IDs and set save/load reuse levels */
-    for (uint32_t curEnc = 0; curEnc < numEncodes; curEnc++)
-    {
-        isRefFound = false;
-        hasRef = !strcmp(cliopt[curEnc].reuseName, "nil") ? false : true;
-        if (hasRef)
-        {
-            for (uint32_t refEnc = 0; refEnc < numEncodes; refEnc++)
-            {
-                if (!strcmp(cliopt[curEnc].reuseName, cliopt[refEnc].encName))
-                {
-                    cliopt[curEnc].refId = refEnc;
-                    cliopt[refEnc].numRefs++;
-                    cliopt[refEnc].saveLevel = X265_MAX(cliopt[refEnc].saveLevel, cliopt[curEnc].loadLevel);
-                    isRefFound = true;
-                    break;
-                }
-            }
-            if (!isRefFound)
-            {
-                x265_log(X265_LOG_ERROR, "Reference encode (%s) not found for %s\n", cliopt[curEnc].reuseName,
-                    cliopt[curEnc].encName);
-                return false;
-            }
-        }
-    }
-    return true;
-}
 /* CLI return codes:
  *
  * 0 - encode successful
@@ -272,21 +112,10 @@ int main(int argc, char **argv)
 
     uint8_t numEncodes = 1;
     FILE *abrConfig = NULL;
-    bool isAbrLadder = checkAbrLadder(argc, argv, &abrConfig);
-
-    if (isAbrLadder)
-        numEncodes = getNumAbrEncodes(abrConfig);
 
     CLIOptions* cliopt = new CLIOptions[numEncodes];
 
-    if (isAbrLadder)
-    {
-        if (!parseAbrConfig(abrConfig, cliopt, numEncodes))
-            exit(1);
-        if (!setRefContext(cliopt, numEncodes))
-            exit(1);
-    }
-    else if (cliopt[0].parse(argc, argv))
+    if (cliopt[0].parse(argc, argv))
     {
         cliopt[0].destroy();
         if (cliopt[0].api)
@@ -305,8 +134,6 @@ int main(int argc, char **argv)
         {
             if (abrEnc->m_passEnc[idx]->m_ret)
             {
-                if (isAbrLadder)
-                    x265_log(X265_LOG_INFO, "Error generating ABR-ladder \n");
                 ret = abrEnc->m_passEnc[idx]->m_ret;
                 threadsActive = 0;
                 break;
