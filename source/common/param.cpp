@@ -211,7 +211,7 @@ void x265_param_default(x265_param* param)
     param->bEnableSceneCutAwareQp = 0;
     param->fwdMaxScenecutWindow = 1200;
     param->bwdMaxScenecutWindow = 600;
-    param->mcstfFrameRange = 2;
+    param->mcstfFrameRange = 4;
     for (int i = 0; i < 6; i++)
     {
         int deltas[6] = { 5, 4, 3, 2, 1, 0 };
@@ -554,7 +554,7 @@ int x265_param_default_preset(x265_param* param, const char* preset, const char*
         }
         else if (!strcmp(preset, "medium"))
         {
-            param->mcstfFrameRange = 1;
+            param->mcstfFrameRange = 4;
             /* defaults */
         }
         else if (!strcmp(preset, "slow"))
