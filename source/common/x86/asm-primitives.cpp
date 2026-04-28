@@ -1089,9 +1089,9 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main10
 
         LUMA_VSS_FILTERS(sse2);
 
-        p.frameInitLowres = PFX(frame_init_lowres_core_sse2);
-        p.frameInitLowerRes = PFX(frame_init_lowres_core_sse2);
-        p.frameSubSampleLuma = PFX(frame_subsample_luma_sse2);
+        // p.frameInitLowres = PFX(frame_init_lowres_core_sse2);
+        // p.frameInitLowerRes = PFX(frame_init_lowres_core_sse2);
+        // p.frameSubSampleLuma = PFX(frame_subsample_luma_sse2);
         // TODO: the planecopy_sp is really planecopy_SC now, must be fix it 
         //p.planecopy_sp = PFX(downShift_16_sse2);
         p.planecopy_sp_shl = PFX(upShift_16_sse2);
@@ -1134,8 +1134,8 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main10
         p.dst4x4 = PFX(dst4_ssse3);
         p.cu[BLOCK_8x8].idct = PFX(idct8_ssse3);
 
-        p.frameInitLowres = PFX(frame_init_lowres_core_ssse3);
-        p.frameInitLowerRes = PFX(frame_init_lowres_core_ssse3);
+        // p.frameInitLowres = PFX(frame_init_lowres_core_ssse3);
+        // p.frameInitLowerRes = PFX(frame_init_lowres_core_ssse3);
 
         ALL_LUMA_PU(convert_p2s[ALIGNED], filterPixelToShort, ssse3);
         ALL_LUMA_PU(convert_p2s[NONALIGNED], filterPixelToShort, ssse3);
@@ -1456,8 +1456,8 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main10
         // 64 X N
         p.cu[BLOCK_64x64].copy_sp = (copy_sp_t)PFX(blockcopy_ss_64x64_avx);
 
-        p.frameInitLowres = PFX(frame_init_lowres_core_avx);
-        p.frameInitLowerRes = PFX(frame_init_lowres_core_avx);
+        // p.frameInitLowres = PFX(frame_init_lowres_core_avx);
+        // p.frameInitLowerRes = PFX(frame_init_lowres_core_avx);
 
         p.pu[LUMA_64x16].copy_pp = (copy_pp_t)PFX(blockcopy_ss_64x16_avx);
         p.pu[LUMA_64x32].copy_pp = (copy_pp_t)PFX(blockcopy_ss_64x32_avx);
@@ -1474,9 +1474,9 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main10
         ASSIGN_SA8D(xop);
 #endif
         LUMA_VAR(xop);
-        p.frameInitLowres = PFX(frame_init_lowres_core_xop);
-        p.frameInitLowerRes = PFX(frame_init_lowres_core_xop);
-        p.frameSubSampleLuma = PFX(frame_subsample_luma_xop);
+        // p.frameInitLowres = PFX(frame_init_lowres_core_xop);
+        // p.frameInitLowerRes = PFX(frame_init_lowres_core_xop);
+        // p.frameSubSampleLuma = PFX(frame_subsample_luma_xop);
     }
     if (cpuMask & X265_CPU_AVX2)
     {
@@ -2303,8 +2303,8 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main10
         p.chroma[X265_CSP_I444].pu[LUMA_64x48].filter_vsp = PFX(interp_4tap_vert_sp_64x48_avx2);
         p.chroma[X265_CSP_I444].pu[LUMA_64x64].filter_vsp = PFX(interp_4tap_vert_sp_64x64_avx2);
 
-        p.frameInitLowres = PFX(frame_init_lowres_core_avx2);
-        p.frameInitLowerRes = PFX(frame_init_lowres_core_avx2);
+        // p.frameInitLowres = PFX(frame_init_lowres_core_avx2);
+        // p.frameInitLowerRes = PFX(frame_init_lowres_core_avx2);
 
         p.frameSubSampleLuma = PFX(frame_subsample_luma_avx2);
 
@@ -3305,9 +3305,9 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main
         p.pu[LUMA_8x8].luma_hvpp = PFX(interp_8tap_hv_pp_8x8_sse3);
 
         //p.frameInitLowres = PFX(frame_init_lowres_core_mmx2);
-        p.frameInitLowres = PFX(frame_init_lowres_core_sse2);
-        p.frameInitLowerRes = PFX(frame_init_lowres_core_sse2);
-        p.frameSubSampleLuma = PFX(frame_subsample_luma_sse2);
+        // p.frameInitLowres = PFX(frame_init_lowres_core_sse2);
+        // p.frameInitLowerRes = PFX(frame_init_lowres_core_sse2);
+        // p.frameSubSampleLuma = PFX(frame_subsample_luma_sse2);
 
         ALL_LUMA_TU(blockfill_s[NONALIGNED], blockfill_s, sse2);
         ALL_LUMA_TU(blockfill_s[ALIGNED], blockfill_s, sse2);
@@ -3427,8 +3427,8 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main
         // MUST be done after LUMA_FILTERS() to overwrite default version
         p.pu[LUMA_8x8].luma_hvpp = PFX(interp_8tap_hv_pp_8x8_ssse3);
 
-        p.frameInitLowres = PFX(frame_init_lowres_core_ssse3);
-        p.frameInitLowerRes = PFX(frame_init_lowres_core_ssse3);
+        // p.frameInitLowres = PFX(frame_init_lowres_core_ssse3);
+        // p.frameInitLowerRes = PFX(frame_init_lowres_core_ssse3);
         ASSIGN2(p.scale1D_128to64, scale1D_128to64_ssse3);
         p.scale2D_64to32 = PFX(scale2D_64to32_ssse3);
 
@@ -3698,10 +3698,10 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main
 
         p.pu[LUMA_48x64].copy_pp = PFX(blockcopy_pp_48x64_avx);
 
-        p.frameInitLowres = PFX(frame_init_lowres_core_avx);
-        p.frameInitLowerRes = PFX(frame_init_lowres_core_avx);
+        // p.frameInitLowres = PFX(frame_init_lowres_core_avx);
+        // p.frameInitLowerRes = PFX(frame_init_lowres_core_avx);
         p.propagateCost = PFX(mbtree_propagate_cost_avx);
-        p.frameSubSampleLuma = PFX(frame_subsample_luma_avx);
+        // p.frameSubSampleLuma = PFX(frame_subsample_luma_avx);
     }
     if (cpuMask & X265_CPU_XOP)
     {
@@ -3711,9 +3711,9 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main
         LUMA_VAR(xop);
         p.cu[BLOCK_8x8].sse_pp = PFX(pixel_ssd_8x8_xop);
         p.cu[BLOCK_16x16].sse_pp = PFX(pixel_ssd_16x16_xop);
-        p.frameInitLowres = PFX(frame_init_lowres_core_xop);
-        p.frameInitLowerRes = PFX(frame_init_lowres_core_xop);
-        p.frameSubSampleLuma = PFX(frame_subsample_luma_xop);
+        // p.frameInitLowres = PFX(frame_init_lowres_core_xop);
+        // p.frameInitLowerRes = PFX(frame_init_lowres_core_xop);
+        // p.frameSubSampleLuma = PFX(frame_subsample_luma_xop);
 
     }
 #if X86_64
@@ -4688,8 +4688,8 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main
         p.chroma[X265_CSP_I444].pu[LUMA_64x32].filter_vpp = PFX(interp_4tap_vert_pp_64x32_avx2);
         p.chroma[X265_CSP_I444].pu[LUMA_64x16].filter_vpp = PFX(interp_4tap_vert_pp_64x16_avx2);
 
-        p.frameInitLowres = PFX(frame_init_lowres_core_avx2);
-        p.frameInitLowerRes = PFX(frame_init_lowres_core_avx2);
+        // p.frameInitLowres = PFX(frame_init_lowres_core_avx2);
+        // p.frameInitLowerRes = PFX(frame_init_lowres_core_avx2);
         p.propagateCost = PFX(mbtree_propagate_cost_avx2);
         p.saoCuStatsE0 = PFX(saoCuStatsE0_avx2);
         p.saoCuStatsE1 = PFX(saoCuStatsE1_avx2);

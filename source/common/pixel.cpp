@@ -604,7 +604,7 @@ void frame_init_lowres_core(const pixel* src0, pixel* dst0, pixel* dsth, pixel* 
         for (int x = 0; x < width; x++)
         {
             // slower than naive bilinear, but matches asm
-#define FILTER(a, b, c, d) ((((a + b + 1) >> 1) + ((c + d + 1) >> 1) + 1) >> 1)
+#define FILTER(a, b, c, d) ((a + b + c + d + 2) >> 2)
             dst0[x] = FILTER(src0[2 * x], src1[2 * x], src0[2 * x + 1], src1[2 * x + 1]);
             dsth[x] = FILTER(src0[2 * x + 1], src1[2 * x + 1], src0[2 * x + 2], src1[2 * x + 2]);
             dstv[x] = FILTER(src1[2 * x], src2[2 * x], src1[2 * x + 1], src2[2 * x + 1]);
@@ -629,7 +629,7 @@ void frame_subsample_luma(const pixel* src0, pixel* dst0, intptr_t src_stride, i
         pixel *target = dst0;
         for (int x = 0; x < width; x++)
         {
-            target[x] = (((inRow[0] + inRowBelow[0] + 1) >> 1) + ((inRow[1] + inRowBelow[1] + 1) >> 1) + 1) >> 1;
+            target[x] = (inRow[0] + inRowBelow[0] + inRow[1] + inRowBelow[1] + 2) >> 2;
             inRow += 2;
             inRowBelow += 2;
         }

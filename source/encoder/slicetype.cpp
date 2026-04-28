@@ -1878,18 +1878,18 @@ bool Lookahead::generatemcstf(Frame * frameEnc, PicList refPic, int poclast)
                     if (iterPOC >= poclast)
                          {
 
-                    TemporalFilter * mcstf = frameEnc->m_mcstf;
-                    while (mcstf->m_numRef)
-                    {
-                        memset(frameEnc->m_mcstfRefList[mcstf->m_numRef].mvs0, 0, sizeof(MV) * ((mcstf->m_sourceWidth / 16) * (mcstf->m_sourceHeight / 16)));
-                        memset(frameEnc->m_mcstfRefList[mcstf->m_numRef].mvs1, 0, sizeof(MV) * ((mcstf->m_sourceWidth / 16) * (mcstf->m_sourceHeight / 16)));
-                        memset(frameEnc->m_mcstfRefList[mcstf->m_numRef].mvs2, 0, sizeof(MV) * ((mcstf->m_sourceWidth / 16) * (mcstf->m_sourceHeight / 16)));
-                        memset(frameEnc->m_mcstfRefList[mcstf->m_numRef].mvs, 0, sizeof(MV) * ((mcstf->m_sourceWidth / 4) * (mcstf->m_sourceHeight / 4)));
-                        memset(frameEnc->m_mcstfRefList[mcstf->m_numRef].noise, 0, sizeof(int) * ((mcstf->m_sourceWidth / 4) * (mcstf->m_sourceHeight / 4)));
-                        memset(frameEnc->m_mcstfRefList[mcstf->m_numRef].error, 0, sizeof(int) * ((mcstf->m_sourceWidth / 4) * (mcstf->m_sourceHeight / 4)));
+                    // TemporalFilter * mcstf = frameEnc->m_mcstf;
+                    // while (mcstf->m_numRef)
+                    // {
+                    //     memset(frameEnc->m_mcstfRefList[mcstf->m_numRef].mvs0, 0, sizeof(MV) * ((mcstf->m_sourceWidth / 16) * (mcstf->m_sourceHeight / 16)));
+                    //     memset(frameEnc->m_mcstfRefList[mcstf->m_numRef].mvs1, 0, sizeof(MV) * ((mcstf->m_sourceWidth / 16) * (mcstf->m_sourceHeight / 16)));
+                    //     memset(frameEnc->m_mcstfRefList[mcstf->m_numRef].mvs2, 0, sizeof(MV) * ((mcstf->m_sourceWidth / 16) * (mcstf->m_sourceHeight / 16)));
+                    //     memset(frameEnc->m_mcstfRefList[mcstf->m_numRef].mvs, 0, sizeof(MV) * ((mcstf->m_sourceWidth / 4) * (mcstf->m_sourceHeight / 4)));
+                    //     memset(frameEnc->m_mcstfRefList[mcstf->m_numRef].noise, 0, sizeof(int) * ((mcstf->m_sourceWidth / 4) * (mcstf->m_sourceHeight / 4)));
+                    //     memset(frameEnc->m_mcstfRefList[mcstf->m_numRef].error, 0, sizeof(int) * ((mcstf->m_sourceWidth / 4) * (mcstf->m_sourceHeight / 4)));
 
-                        mcstf->m_numRef--;
-                    }
+                    //     mcstf->m_numRef--;
+                    // }
 
                     break;
                     }
@@ -2191,7 +2191,7 @@ void Lookahead::slicetypeDecide()
                     int i = ref->poc;
 
                     /* Skip search if already done */
-                    if (frames[b + 1]->lowresMcstfMvs[0][j - 1][0].x != 0x7FFF)
+                    if (frameEnc->m_lowres.lowresMcstfMvs[0][j - 1][0].x != 0x7FFF)
                         continue;
 
                     estGroup.add(j - 1, i, frameEnc->m_poc);

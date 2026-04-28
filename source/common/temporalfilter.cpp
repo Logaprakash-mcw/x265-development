@@ -145,7 +145,7 @@ TemporalFilter::TemporalFilter()
     m_sliceTypeConfig = 3;
     m_numRef = 0;
 
-    m_range = 2;
+    m_range = 4;
     m_chromaFactor = 0.55;
     m_sigmaMultiplier = 9.0;
     m_sigmaZeroPoint = 10.0;
@@ -215,20 +215,23 @@ int MotionEstimatorTLD::motionErrorLumaSAD(MotionEstimatorTLD& m_metld,
         dx /= m_motionVectorFactor;
         dy /= m_motionVectorFactor;
 
-        const pixel* bufferRowStart = buffOrigin + (y + dy) * buffStride + (x + dx);
-#if 0
-        const pixel* origRowStart = origOrigin + y *origStride + x;
-
+#if 1
         for (int y1 = 0; y1 < bs; y1++)
         {
-            for (int x1 = 0; x1 < bs; x1++)
+            const pixel* origRowStart = origOrigin + (y + y1) * origStride + x;
+            const pixel* bufferRowStart = buffOrigin + (y + y1 + dy) * buffStride + (x + dx);
+            for (int x1 = 0; x1 < bs; x1+=2)
             {
-                int diff = origRowStart[x1] - bufferRowStart[x1];
-                error += abs(diff);
+                 int diff = origRowStart[x1] - bufferRowStart[x1];
+                 error += diff * diff;
+                diff = origRowStart[x1+1] - bufferRowStart[x1+1];
+                error += diff * diff;
+            }
+            if(error > besterror)
+            {
+                return error;
             }
 
-            origRowStart += origStride;
-            bufferRowStart += buffStride;
         }
 #else
         int partEnum = partitionFromSizes(bs, bs);
@@ -511,16 +514,10 @@ void TemporalFilter::bilateralFilter(Frame* frame,
         applyMotion(m_mcstfRefList[i].mvs, m_mcstfRefList[i].mvsStride, m_mcstfRefList[i].picBuffer, ref->compensatedPic);
     }
 
-    int refStrengthRow = 2;
-    if (numRefs == m_range * 2)
-    {
-        refStrengthRow = 0;
-    }
-    else if (numRefs == m_range)
-    {
-        refStrengthRow = 1;
-    }
+    int refStrengthRow = 0;
 
+    if (frame->m_poc % 16 == 0)
+        overallStrength = 1.5;
     const double lumaSigmaSq = (m_QP - m_sigmaZeroPoint) * (m_QP - m_sigmaZeroPoint) * m_sigmaMultiplier;
     const double chromaSigmaSq = 30 * 30;
 
@@ -580,32 +577,39 @@ void TemporalFilter::bilateralFilter(Frame* frame,
                             correctedPicsStride = refPicInfo->compensatedPic->m_strideC;
 
                         const intptr_t pelOffset = y * correctedPicsStride + x;
-                        primitives.pu[1].copy_pp(m_metld->me.fencPUYuv.m_buf[0], FENC_STRIDE, refPicInfo->compensatedPic->m_picOrg[c] + pelOffset, correctedPicsStride);
+                        // primitives.pu[1].copy_pp(m_metld->me.fencPUYuv.m_buf[0], FENC_STRIDE, refPicInfo->compensatedPic->m_picOrg[c] + pelOffset, correctedPicsStride);
 
                         double variance = 0, diffsum = 0;
-                        for (int y1 = 0; y1 < blkSize - 1; y1++)
+                        const pixel *refPel = refPicInfo->compensatedPic->m_picOrg[c] +y * correctedPicsStride + x;
+                        for (int y1 = 0; y1 < blkSize; y1++)
                         {
-                            for (int x1 = 0; x1 < blkSize - 1; x1++)
+                            for (int x1 = 0; x1 < blkSize; x1++)
                             {
-                                int pix = *(srcPel + x1);
-                                int pixR = *(srcPel + x1 + 1);
-                                int pixD = *(srcPel + x1 + srcStride);
-
-                                int ref = *(m_metld->me.fencPUYuv.m_buf[0] + ((y1)*FENC_STRIDE + x1));
-                                int refR = *(m_metld->me.fencPUYuv.m_buf[0] + ((y1)*FENC_STRIDE + x1 + 1));
-                                int refD = *(m_metld->me.fencPUYuv.m_buf[0] + ((y1 + 1) * FENC_STRIDE + x1));
-
+                                int pix  = *(srcPel + srcStride * y1 + x1);
+                                int ref  = *(refPel + correctedPicsStride * y1 + x1);
                                 int diff = pix - ref;
-                                int diffR = pixR - refR;
-                                int diffD = pixD - refD;
 
                                 variance += diff * diff;
-                                diffsum += (diffR - diff) * (diffR - diff);
-                                diffsum += (diffD - diff) * (diffD - diff);
+
+                                if (x1 != blkSize - 1)
+                                {
+                                    int pixR  = *(srcPel + srcStride * y1 + x1 + 1);
+                                    int refR  = *(refPel + correctedPicsStride * y1 + x1 + 1);
+                                    int diffR = pixR - refR;
+                                    diffsum += (diffR - diff) * (diffR - diff);
+                                }
+                                if (y1 != blkSize - 1)
+                                {
+                                    int pixD  = *(srcPel + srcStride * y1 + x1 + srcStride);
+                                    int refD  = *(refPel + correctedPicsStride * y1 + x1 + correctedPicsStride);
+                                    int diffD = pixD - refD;
+                                    diffsum += (diffD - diff) * (diffD - diff);
+                                }
                             }
                         }
-
-                        refPicInfo->noise[(y / blkSize) * refPicInfo->mvsStride + (x / blkSize)] = (int)round((300 * variance + 50) / (10 * diffsum + 50));
+                        const int cntV = blkSize * blkSize;
+                        const int cntD = 2 * cntV - blkSize - blkSize;
+                        refPicInfo->noise[(y / blkSize) * refPicInfo->mvsStride + (x / blkSize)] = (int)round((15.0 * cntD / cntV * variance + 5.0) / (diffsum + 5.0));
                     }
                 }
 
@@ -895,7 +899,26 @@ void MotionEstimatorTLD::motionEstimationLumaDoubleRes(MotionEstimatorTLD& m_met
             }
 
             prevBest = best;
-            int doubleRange = 3;
+            int doubleRange = 3 * 4;
+            for (int y2 = prevBest.y - doubleRange; y2 <= prevBest.y + doubleRange; y2+=4)
+            {
+                for (int x2 = prevBest.x - doubleRange; x2 <= prevBest.x + doubleRange; x2+=4)
+                {
+                    if (m_useSADinME)
+                        error = motionErrorLumaSAD(m_metld, orig->m_picOrg[0], (int)orig->m_stride, buffer->m_picOrg[0], blockX, blockY, x2, y2, blockSize, leastError);
+                    else
+                        error = motionErrorLumaSSD(m_metld, orig->m_picOrg[0], (int)orig->m_stride, buffer->m_picOrg[0], blockX, blockY, x2, y2, blockSize, leastError);
+
+                    if (error < leastError)
+                    {
+                        best.set(x2, y2);
+                        leastError = error;
+                    }
+                }
+            }
+
+            prevBest = best;
+            doubleRange = 3;
             for (int y2 = prevBest.y - doubleRange; y2 <= prevBest.y + doubleRange; y2++)
             {
                 for (int x2 = prevBest.x - doubleRange; x2 <= prevBest.x + doubleRange; x2++)
