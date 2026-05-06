@@ -390,6 +390,7 @@ namespace X265_NS {
         H0("   --[no-]frame-dup              Enable Frame duplication. Default %s\n", OPT(param->bEnableFrameDuplication));
         H0("   --dup-threshold <integer>     PSNR threshold for Frame duplication. Default %d\n", param->dupThreshold);
         H0("   --[no-]mcstf                  Enable GOP-based temporal filter. Default %d\n", param->bEnableTemporalFilter);
+        H0("   --[no-]row-me                      Enable Block Row split parallel ME for temporal filter. Default %d\n", param->bEnableRowME);
 #if ENABLE_ALPHA
         H0("   --alpha                       Enable alpha channel support. Default %d\n", param->bEnableAlpha);
 #endif

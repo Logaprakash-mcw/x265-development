@@ -2535,6 +2535,8 @@ int Encoder::encode(const x265_picture* pic_in, x265_picture* pic_out)
             // Generate MCSTF References and perform HME
             if (m_param->bEnableTemporalFilter && isFilterThisframe(frameEnc[0]->m_mcstf->m_sliceTypeConfig, frameEnc[0]->m_lowres.sliceType))
             {
+                m_lookahead->runMCSTF(frameEnc[0]);
+
                 for (int i = 0; i < frameEnc[0]->m_mcstf->m_numRef; i++)
                 {
                     TemporalFilterRefPicInfo* ref = &frameEnc[0]->m_mcstfRefList[i];

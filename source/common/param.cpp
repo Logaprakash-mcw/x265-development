@@ -418,6 +418,7 @@ void x265_param_default(x265_param* param)
 
     /* MCSTF */
     param->bEnableTemporalFilter = 0;
+    param->bEnableRowME = 0;
     param->temporalFilterStrength = 0.95;
     param->searchRangeForLayer0 = 3;
     param->searchRangeForLayer1 = 3;
@@ -1500,6 +1501,7 @@ int x265_param_parse(x265_param* p, const char* name, const char* value)
         OPT("film-grain") p->filmGrain = (char* )value;
         OPT("aom-film-grain") p->aomFilmGrain = (char*)value;
         OPT("mcstf") p->bEnableTemporalFilter = atobool(value);
+        OPT("row-me") p->bEnableRowME = atobool(value);
         OPT("sbrc") p->bEnableSBRC = atobool(value);
 #if ENABLE_ALPHA
         OPT("alpha")
@@ -2493,6 +2495,7 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     if (p->aomFilmGrain)
         s += snprintf(s, bufSize - (s - buf), " aom-film-grain=%s", p->aomFilmGrain);
     BOOL(p->bEnableTemporalFilter, "mcstf");
+    BOOL(p->bEnableRowME, "row-me");
 #if ENABLE_ALPHA
     BOOL(p->bEnableAlpha, "alpha");
 #endif
@@ -3025,6 +3028,7 @@ void x265_copy_params(x265_param* dst, x265_param* src)
     }
     dst->bField = src->bField;
     dst->bEnableTemporalFilter = src->bEnableTemporalFilter;
+    dst->bEnableRowME = src->bEnableRowME;
     dst->temporalFilterStrength = src->temporalFilterStrength;
     dst->searchRangeForLayer0 = src->searchRangeForLayer0;
     dst->searchRangeForLayer1 = src->searchRangeForLayer1;
