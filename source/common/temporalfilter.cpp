@@ -1011,30 +1011,6 @@ void MotionEstimatorTLD::motionEstimationLuma(MotionEstimatorTLD& m_metld, MV *m
                 }
             }
 
-            // calculate average
-            double avg = 0.0;
-            for (int x1 = 0; x1 < blockSize; x1++)
-            {
-                for (int y1 = 0; y1 < blockSize; y1++)
-                {
-                    avg = avg + *(src + (blockX + x1 + stride * (blockY + y1)));
-                }
-            }
-            avg = avg / (blockSize * blockSize);
-
-            // calculate variance
-            double variance = 0;
-            for (int x1 = 0; x1 < blockSize; x1++)
-            {
-                for (int y1 = 0; y1 < blockSize; y1++)
-                {
-                    int pix = *(src + (blockX + x1 + stride * (blockY + y1)));
-                    variance = variance + (pix - avg) * (pix - avg);
-                }
-            }
-
-            leastError = (int)(20 * ((leastError + 5.0) / (variance + 5.0)) + (leastError / (blockSize * blockSize)) / 50);
-
             int mvIdx = (blockY / stepSize) * mvStride + (blockX / stepSize);
             mvs[mvIdx] = best;
         }
