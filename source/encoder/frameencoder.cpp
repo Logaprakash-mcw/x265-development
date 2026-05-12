@@ -660,10 +660,13 @@ void FrameEncoder::compressFrame(int layer)
             }
         }
     }
-    if (m_param->bEnableTemporalFilter)
+    if (m_param->bEnableTemporalFilter && m_frame[layer]->m_mcstf->m_numRef > 0)
     {
         m_frame[layer]->m_mcstf->m_QP = m_param->rc.qp;
-        m_frame[layer]->m_mcstf->bilateralFilter(m_frame[layer], m_frame[layer]->m_mcstfRefList, m_param->temporalFilterStrength);
+        if (m_param->bEnableBilateralRowME)
+            m_frame[layer]->m_mcstf->bilateralFilter(m_frame[layer], m_frame[layer]->m_mcstfRefList, m_param->temporalFilterStrength, m_pool);
+        else
+            m_frame[layer]->m_mcstf->bilateralFilter_core(m_frame[layer], m_frame[layer]->m_mcstfRefList, m_param->temporalFilterStrength);
     }
 
     if (m_nr)

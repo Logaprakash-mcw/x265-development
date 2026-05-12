@@ -211,7 +211,7 @@ void x265_param_default(x265_param* param)
     param->bEnableSceneCutAwareQp = 0;
     param->fwdMaxScenecutWindow = 1200;
     param->bwdMaxScenecutWindow = 600;
-    param->mcstfFrameRange = 4;
+    param->mcstfFrameRange = 2;
     for (int i = 0; i < 6; i++)
     {
         int deltas[6] = { 5, 4, 3, 2, 1, 0 };
@@ -418,6 +418,9 @@ void x265_param_default(x265_param* param)
 
     /* MCSTF */
     param->bEnableTemporalFilter = 0;
+    param->bEnableEncoderRowME = 0;
+    param->bEnableLookaheadRowME = 0;
+    param->bEnableBilateralRowME = 0;
     param->temporalFilterStrength = 0.95;
     param->searchRangeForLayer0 = 3;
     param->searchRangeForLayer1 = 3;
@@ -554,7 +557,7 @@ int x265_param_default_preset(x265_param* param, const char* preset, const char*
         }
         else if (!strcmp(preset, "medium"))
         {
-            param->mcstfFrameRange = 4;
+            param->mcstfFrameRange = 1;
             /* defaults */
         }
         else if (!strcmp(preset, "slow"))
@@ -1500,6 +1503,9 @@ int x265_param_parse(x265_param* p, const char* name, const char* value)
         OPT("film-grain") p->filmGrain = (char* )value;
         OPT("aom-film-grain") p->aomFilmGrain = (char*)value;
         OPT("mcstf") p->bEnableTemporalFilter = atobool(value);
+        OPT("encoder-row-me") p->bEnableEncoderRowME = atobool(value);
+        OPT("lookahead-row-me") p->bEnableLookaheadRowME = atobool(value);
+        OPT("bilateral-row-me") p->bEnableBilateralRowME = atobool(value);
         OPT("sbrc") p->bEnableSBRC = atobool(value);
 #if ENABLE_ALPHA
         OPT("alpha")
@@ -1965,6 +1971,11 @@ int x265_check_params(x265_param* param)
             CHECK(param->hmeRange[level] < 0 || param->hmeRange[level] >= 32768,
                 "Search Range for HME levels must be between 0 and 32768");
     }
+    if(param->bEnableEncoderRowME && param->bEnableLookaheadRowME)
+    {
+        param->bEnableEncoderRowME = 0;
+        x265_log(param, X265_LOG_WARNING, "Encoder row parallelism disabled. Lookahead parallelism enabled");
+    }
 #if !X86_64 && !X265_ARCH_ARM64 && !X265_ARCH_RISCV64
     CHECK(param->searchMethod == X265_SEA && (param->sourceWidth > 840 || param->sourceHeight > 480),
         "SEA motion search does not support resolutions greater than 480p in 32 bit build");
@@ -2230,6 +2241,12 @@ void x265_print_params(x265_param* param)
 #endif
     if(param->bEnableTemporalFilter)
         TOOLOPT(param->bEnableTemporalFilter, "mcstf");
+    if(param->bEnableEncoderRowME)
+        TOOLOPT(param->bEnableEncoderRowME, "MCSTF ME row parallelism in Encoder");
+    if(param->bEnableLookaheadRowME)
+        TOOLOPT(param->bEnableLookaheadRowME, "MCSTF ME row parallelism in Lookahead");
+    if(param->bEnableBilateralRowME)
+        TOOLOPT(param->bEnableBilateralRowME, "Bilateral filter row parallelism");
     x265_log(param, X265_LOG_INFO, "tools:%s\n", buf);
     fflush(stderr);
 }
@@ -2493,6 +2510,9 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     if (p->aomFilmGrain)
         s += snprintf(s, bufSize - (s - buf), " aom-film-grain=%s", p->aomFilmGrain);
     BOOL(p->bEnableTemporalFilter, "mcstf");
+    BOOL(p->bEnableEncoderRowME, "encoder-row-me ");
+    BOOL(p->bEnableLookaheadRowME, "lookahead-row-me ");
+    BOOL(p->bEnableBilateralRowME, "bilateral-row-me ");
 #if ENABLE_ALPHA
     BOOL(p->bEnableAlpha, "alpha");
 #endif
@@ -3025,6 +3045,9 @@ void x265_copy_params(x265_param* dst, x265_param* src)
     }
     dst->bField = src->bField;
     dst->bEnableTemporalFilter = src->bEnableTemporalFilter;
+    dst->bEnableEncoderRowME = src->bEnableEncoderRowME;
+    dst->bEnableLookaheadRowME = src->bEnableLookaheadRowME;
+    dst->bEnableBilateralRowME = src->bEnableBilateralRowME;
     dst->temporalFilterStrength = src->temporalFilterStrength;
     dst->searchRangeForLayer0 = src->searchRangeForLayer0;
     dst->searchRangeForLayer1 = src->searchRangeForLayer1;
