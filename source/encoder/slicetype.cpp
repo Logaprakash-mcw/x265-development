@@ -2012,7 +2012,6 @@ void CostEstimateGroup::estimatelowresmotion_doubleres(MotionEstimatorTLD& metld
                 }
             }
 
-            // Above MV — safe because m_rowDone guarantees row above is complete
             if (blockY > 0)
             {
                 int idx = ((blockY - stepSize) / stepSize) * mvStride + (blockX / stepSize);
@@ -2060,24 +2059,26 @@ void CostEstimateGroup::estimatelowresmotion_doubleres(MotionEstimatorTLD& metld
             // Variance normalisation (unchanged from motionEstimationLumaDoubleRes)
             double avg = 0.0;
             for (int x1 = 0; x1 < blockSize; x1++)
+            {
                 for (int y1 = 0; y1 < blockSize; y1++)
-                    avg += orig->m_picOrg[0][blockX + x1
-                                            + orig->m_stride * (blockY + y1)];
-            avg /= (blockSize * blockSize);
+                {
+                    avg = avg + *(orig->m_picOrg[0] + (blockX + x1 + orig->m_stride * (blockY + y1)));
+                }
+            }
+            avg = avg / (blockSize * blockSize);
 
-            double variance = 0.0;
+            // calculate variance
+            double variance = 0;
             for (int x1 = 0; x1 < blockSize; x1++)
             {
                 for (int y1 = 0; y1 < blockSize; y1++)
                 {
-                    int pix = orig->m_picOrg[0][blockX + x1
-                                                + orig->m_stride * (blockY + y1)];
-                    variance += (pix - avg) * (pix - avg);
+                    int pix = *(orig->m_picOrg[0] + (blockX + x1 + orig->m_stride * (blockY + y1)));
+                    variance = variance + (pix - avg) * (pix - avg);
                 }
             }
 
-            leastError = (int)(20.0 * ((leastError + 5.0) / (variance + 5.0))
-                        + (leastError / (double)(blockSize * blockSize)) / 50.0);
+            leastError = (int)(20 * ((leastError + 5.0) / (variance + 5.0)) + (leastError / (blockSize * blockSize)) / 50);
 
             int mvIdx = (blockY / stepSize) * mvStride + (blockX / stepSize);
             mvs[mvIdx] = best;
