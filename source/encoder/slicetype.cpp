@@ -40,7 +40,7 @@
 #else
 #define ProfileLookaheadTime(elapsed, count)
 #endif
-
+// #include <chrono>
 using namespace X265_NS;
 
 namespace {
@@ -1825,7 +1825,7 @@ void CostEstimateGroup::estimatelowresmotion(MotionEstimatorTLD& m_metld, Frame*
     }
 }
 
-void CostEstimateGroup::estimatelowresmotion_doubleres(MotionEstimatorTLD& metld, Frame* curFrame, int refId, int row)
+void CostEstimateGroup::estimatelowresmotion_doubleres(MotionEstimatorTLD& metld, Frame* curFrame, int refId, int row, volatile int& atomicBlockX, volatile int* prevAtomicBlockX)
 {
     metld.m_bitDepth = curFrame->m_param->internalBitDepth;
 
@@ -1859,17 +1859,22 @@ void CostEstimateGroup::estimatelowresmotion_doubleres(MotionEstimatorTLD& metld
     //     }
     // }
     int rowEnd = X265_MIN(rowStart + rowSize, origHeight);
-    for (int blockY = rowStart; blockY + blockSize <= rowEnd; blockY += stepSize)
-    {
-        for (int blockX = 0; blockX + blockSize <= origWidth; blockX += stepSize)
-        {
-            const intptr_t pelOffset = blockY * orig->m_stride + blockX;
-            metld.me.setSourcePU(orig->m_picOrg[0], orig->m_stride, pelOffset, blockSize, blockSize, X265_HEX_SEARCH, 1);
 
-            MV  best(0, 0);
-            int leastError = INT_MAX;
-            int range      = 0;
-            int error;
+    for (int blockXBase = 0; blockXBase + blockSize <= origWidth; blockXBase += stepSize * 2, atomicBlockX = blockXBase + stepSize * 2 )
+    {
+        for (int blockY = rowStart; blockY + blockSize <= rowEnd; blockY += stepSize)
+        {
+            for (int blockX = blockXBase; blockX < blockXBase + stepSize * 2 && blockX + blockSize <= origWidth; blockX += stepSize)
+            {
+                const intptr_t pelOffset = blockY * orig->m_stride + blockX;
+                metld.me.setSourcePU(orig->m_picOrg[0], orig->m_stride,
+                                    pelOffset, blockSize, blockSize,
+                                    X265_HEX_SEARCH, 1);
+
+                MV  best(0, 0);
+                int leastError = INT_MAX;
+                int range      = 0;
+                int error;
 
             if (previous == NULL)
             {
@@ -1896,14 +1901,14 @@ void CostEstimateGroup::estimatelowresmotion_doubleres(MotionEstimatorTLD& metld
                             else
                                 error = metld.motionErrorLumaSSD(metld, orig->m_picOrg[0], (int)orig->m_stride, buffer->m_picOrg[0], blockX, blockY, old.x * factor, old.y * factor, blockSize, leastError);
 
-                            if (error < leastError)
-                            {
-                                best.set(old.x * factor, old.y * factor);
-                                leastError = error;
+                                if (error < leastError)
+                                {
+                                    best.set(old.x * factor, old.y * factor);
+                                    leastError = error;
+                                }
                             }
                         }
                     }
-                }
 
                 if (metld.m_useSADinME)
                     error = metld.motionErrorLumaSAD(metld, orig->m_picOrg[0], (int)orig->m_stride, buffer->m_picOrg[0], blockX, blockY, 0, 0, blockSize, leastError);
@@ -1966,30 +1971,57 @@ void CostEstimateGroup::estimatelowresmotion_doubleres(MotionEstimatorTLD& metld
                     else
                         error = metld.motionErrorLumaSSD(metld, orig->m_picOrg[0], (int)orig->m_stride, buffer->m_picOrg[0], blockX, blockY, x2, y2, blockSize, leastError);
 
+                        if (error < leastError)
+                        {
+                            best.set(x2, y2);
+                            leastError = error;
+                        }
+                    }
+                }
+
+                if (blockY > 0)
+                {
+                    // using Clock = std::chrono::steady_clock;
+
+                    // Clock::time_point start;
+                    // if(curFrame->m_poc == 0 && refId == 0)
+                    // {
+                    //     start = Clock::now();
+                    // }
+
+                     if (prevAtomicBlockX && blockY == rowStart)
+                     {
+                        while (*prevAtomicBlockX <= blockXBase + stepSize * 2)
+                           ;
+                     }
+                    //  if(curFrame->m_poc == 0 && refId == 0)
+                    //  {
+                    //     auto end = Clock::now();
+
+                    //     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
+                    //             end - start
+                    //         ).count();
+                    //     if (duration > 0 && blockX == 0)
+                    //     printf("elapsed wait dur for %d row %d block: %lld microseconds\n", blockY, blockX, duration);
+                    //  }
+                    int idx = ((blockY - stepSize) / stepSize) * mvStride + (blockX / stepSize);
+                    MV aboveMV = mvs[idx];
+                    error = metld.m_useSADinME
+                        ? metld.motionErrorLumaSAD(metld,
+                            orig->m_picOrg[0], (int)orig->m_stride,
+                            buffer->m_picOrg[0], blockX, blockY,
+                            aboveMV.x, aboveMV.y, blockSize, leastError)
+                        : metld.motionErrorLumaSSD(metld,
+                            orig->m_picOrg[0], (int)orig->m_stride,
+                            buffer->m_picOrg[0], blockX, blockY,
+                            aboveMV.x, aboveMV.y, blockSize, leastError);
+
                     if (error < leastError)
                     {
-                        best.set(x2, y2);
+                        best.set(aboveMV.x, aboveMV.y);
                         leastError = error;
                     }
                 }
-            }
-
-            if (blockY > 0)
-            {
-                int idx = ((blockY - stepSize) / stepSize) * mvStride + (blockX / stepSize);
-                MV aboveMV = mvs[idx];
-
-                if (metld.m_useSADinME)
-                    error = metld.motionErrorLumaSAD(metld, orig->m_picOrg[0], (int)orig->m_stride, buffer->m_picOrg[0], blockX, blockY, aboveMV.x, aboveMV.y, blockSize, leastError);
-                else
-                    error = metld.motionErrorLumaSSD(metld, orig->m_picOrg[0], (int)orig->m_stride, buffer->m_picOrg[0], blockX, blockY, aboveMV.x, aboveMV.y, blockSize, leastError);
-
-                if (error < leastError)
-                {
-                    best.set(aboveMV.x, aboveMV.y);
-                    leastError = error;
-                }
-            }
 
             if (blockX > 0)
             {
@@ -2001,12 +2033,12 @@ void CostEstimateGroup::estimatelowresmotion_doubleres(MotionEstimatorTLD& metld
                 else
                     error = metld.motionErrorLumaSSD(metld, orig->m_picOrg[0], (int)orig->m_stride, buffer->m_picOrg[0], blockX, blockY, leftMV.x, leftMV.y, blockSize, leastError);
 
-                if (error < leastError)
-                {
-                    best.set(leftMV.x, leftMV.y);
-                    leastError = error;
+                    if (error < leastError)
+                    {
+                        best.set(leftMV.x, leftMV.y);
+                        leastError = error;
+                    }
                 }
-            }
 
             // calculate average
             double avg = 0.0;
@@ -2019,27 +2051,25 @@ void CostEstimateGroup::estimatelowresmotion_doubleres(MotionEstimatorTLD& metld
             }
             avg = avg / (blockSize * blockSize);
 
-            // calculate variance
-            double variance = 0;
-            for (int x1 = 0; x1 < blockSize; x1++)
-            {
-                for (int y1 = 0; y1 < blockSize; y1++)
+                // calculate variance
+                double variance = 0;
+                for (int x1 = 0; x1 < blockSize; x1++)
                 {
-                    int pix = *(orig->m_picOrg[0] + (blockX + x1 + orig->m_stride * (blockY + y1)));
-                    variance = variance + (pix - avg) * (pix - avg);
+                    for (int y1 = 0; y1 < blockSize; y1++)
+                    {
+                        int pix = *(orig->m_picOrg[0] + (blockX + x1 + orig->m_stride * (blockY + y1)));
+                        variance = variance + (pix - avg) * (pix - avg);
+                    }
                 }
+
+                leastError = (int)(20 * ((leastError + 5.0) / (variance + 5.0)) + (leastError / (blockSize * blockSize)) / 50);
+
+                int mvIdx = (blockY / stepSize) * mvStride + (blockX / stepSize);
+                mvs[mvIdx] = best;
+                minError[mvIdx] = leastError;
             }
-
-            leastError = (int)(20 * ((leastError + 5.0) / (variance + 5.0)) + (leastError / (blockSize * blockSize)) / 50);
-
-            int mvIdx = (blockY / stepSize) * mvStride + (blockX / stepSize);
-            mvs[mvIdx] = best;
-            minError[mvIdx] = leastError;
         }
     }
-
-    // m_rowDone[refId][row] = 1;
-
     // Mark the whole reference done after the last row
     if (row == m_numBlockRows - 1)
         curFrame->m_lowres.lowresMcstfMvs[0][refId][0].x = 1;
@@ -4372,8 +4402,10 @@ void CostEstimateGroup::add_row(int refIdx, int poc, int curPoc,
     e.p1         = poc;
     e.b          = curPoc;
     e.frame      = pic;
-    e.bRowMode   = true;     // ← doubleRes ME, row-parallel
+    e.bRowMode   = true;
     e.blockRow   = blockRow;
+    e.atomicBlockX     = 0;
+    e.prevAtomicBlockX = (blockRow == 0 || m_jobTotal == 1) ? NULL : &m_estimates[m_jobTotal - 2].atomicBlockX;
 
     if (m_jobTotal == MAX_BATCH_SIZE)
         finishBatch();
@@ -4419,7 +4451,7 @@ void CostEstimateGroup::processTasks(int workerThreadID)
                 }
                 else
                 {
-                    estimatelowresmotion_doubleres(m_metld, curFrame, e.p0, e.blockRow);
+                    estimatelowresmotion_doubleres(m_metld, curFrame, e.p0, e.blockRow, e.atomicBlockX, e.prevAtomicBlockX);
                 }
             }
             else

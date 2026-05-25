@@ -289,9 +289,8 @@ public:
     Lookahead& m_lookahead;
     Lowres**   m_frames;
     bool       m_batchMode;
-    // volatile int m_rowDone[8][135];
-    int              m_numBlockRows;   // live row count for this frame
-    int              m_mctfUnitSize;   // block size in pixels
+    int        m_numBlockRows;
+    int        m_mctfUnitSize;
 
     CostEstimateGroup(Lookahead& l, Lowres** f) : m_lookahead(l), m_frames(f), m_batchMode(false) {}
 
@@ -320,6 +319,8 @@ public:
         Frame *frame = NULL;
         bool   bRowMode;
         int    blockRow;
+        volatile int    atomicBlockX;
+        volatile int*   prevAtomicBlockX;
     } m_estimates[MAX_BATCH_SIZE];
     void add(int p0, int p1, int b);
     void add_row(int refIdx, int poc, int curPoc, Frame* pic, int blockRow);
@@ -336,7 +337,7 @@ protected:
     void    estimateCUCost(LookaheadTLD& tld, int cux, int cuy, int p0, int p1, int b, bool bDoSearch[2], bool lastRow, int slice, bool hme);
 
     void    estimatelowresmotion(MotionEstimatorTLD& m_metld, Frame* curframe, int refId);
-    void    estimatelowresmotion_doubleres(MotionEstimatorTLD& m_metld, Frame* curframe, int refId, int blockRow);
+    void    estimatelowresmotion_doubleres(MotionEstimatorTLD& m_metld, Frame* curframe, int refId, int blockRow, volatile int& atomicBlockX, volatile int* prevAtomicBlockX);
 
     CostEstimateGroup& operator=(const CostEstimateGroup&);
 };
