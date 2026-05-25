@@ -393,6 +393,7 @@ namespace X265_NS {
         H0("   --[no-]encoder-row-me         Enable Block Row split parallel ME for MCSTF in Encoder. Default %d\n", param->bEnableEncoderRowME);
         H0("   --[no-]lookahead-row-me       Enable Block Row split parallel ME for MCSTF in Lookahead. Default %d\n", param->bEnableLookaheadRowME);
         H0("   --[no-]bilateral-row-me       Enable Block Row split parallel for Bilateral filter. Default %d\n", param->bEnableBilateralRowME);
+        H0("   --mcstf-ref-range <0..4>      Maximum number of range for MCSTF. Default %d\n", param->mcstfFrameRange);
 
 #if ENABLE_ALPHA
         H0("   --alpha                       Enable alpha channel support. Default %d\n", param->bEnableAlpha);

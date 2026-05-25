@@ -1506,6 +1506,7 @@ int x265_param_parse(x265_param* p, const char* name, const char* value)
         OPT("encoder-row-me") p->bEnableEncoderRowME = atobool(value);
         OPT("lookahead-row-me") p->bEnableLookaheadRowME = atobool(value);
         OPT("bilateral-row-me") p->bEnableBilateralRowME = atobool(value);
+        OPT("mcstf-ref-range") p->mcstfFrameRange = atoi(value);
         OPT("sbrc") p->bEnableSBRC = atobool(value);
 #if ENABLE_ALPHA
         OPT("alpha")
@@ -2241,6 +2242,7 @@ void x265_print_params(x265_param* param)
 #endif
     if(param->bEnableTemporalFilter)
         TOOLOPT(param->bEnableTemporalFilter, "mcstf");
+        TOOLVAL(param->mcstfFrameRange, "mcstf-ref-range=%d");
     if(param->bEnableEncoderRowME)
         TOOLOPT(param->bEnableEncoderRowME, "MCSTF ME row parallelism in Encoder");
     if(param->bEnableLookaheadRowME)
@@ -2309,6 +2311,7 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     s += snprintf(s, bufSize - (s - buf), " keyint=%d", p->keyframeMax);
     s += snprintf(s, bufSize - (s - buf), " gop-lookahead=%d", p->gopLookahead);
     s += snprintf(s, bufSize - (s - buf), " bframes=%d", p->bframes);
+    s += snprintf(s, bufSize - (s - buf), " mcstf-ref-range=%d", p->mcstfFrameRange);
     s += snprintf(s, bufSize - (s - buf), " b-adapt=%d", p->bFrameAdaptive);
     BOOL(p->bBPyramid, "b-pyramid");
     s += snprintf(s, bufSize - (s - buf), " bframe-bias=%d", p->bFrameBias);

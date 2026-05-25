@@ -155,6 +155,7 @@ static const struct option long_options[] =
     { "lookahead-slices", required_argument, NULL, 0 },
     { "lookahead-threads", required_argument, NULL, 0 },
     { "bframes",        required_argument, NULL, 'b' },
+    { "mcstf-ref-range",        required_argument, NULL, 0 },
     { "bframe-bias",    required_argument, NULL, 0 },
     { "b-adapt",        required_argument, NULL, 0 },
     { "no-b-adapt",           no_argument, NULL, 0 },
