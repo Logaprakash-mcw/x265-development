@@ -411,7 +411,7 @@ int MotionEstimatorTLD::motionErrorLumaSSD(MotionEstimatorTLD& m_metld,
     return error;
 }
 
-void TemporalFilter::applyMotion(MV *mvs, uint32_t mvsStride, PicYuv *input, PicYuv *output)
+void TemporalFilter::applyMotion(MV *mvs, uint32_t mvsStride, PicYuv *input, PicYuv *output, const int blockRow, const int rowSize)
 {
     static const int lumaBlockSize = 8;
     int srcStride = 0;
@@ -441,7 +441,15 @@ void TemporalFilter::applyMotion(MV *mvs, uint32_t mvsStride, PicYuv *input, Pic
         const int height = input->m_picHeight >> csy;
         const int width = input->m_picWidth >> csx;
 
-        for (int y = 0, blockNumY = 0; y + blockSizeY <= height; y += blockSizeY, blockNumY++)
+        const int vShift       = (!c) ? 0 : csy;
+        const int blkRowStart = (blockRow * rowSize) >> vShift;
+        const int blkRowEnd   = X265_MIN((blockRow * rowSize + rowSize) >> vShift, height);
+
+        const int rowStart  = (!rowSize) ? 0 : blkRowStart;
+        const int rowEnd    = (!rowSize) ? height : blkRowEnd;
+        int blockNumY       = (!rowSize) ? 0 : blkRowStart / blockSizeY;
+
+        for (int y = rowStart; y + blockSizeY <= rowEnd; y += blockSizeY, blockNumY++)
         {
             for (int x = 0, blockNumX = 0; x + blockSizeX <= width; x += blockSizeX, blockNumX++)
             {
@@ -658,63 +666,12 @@ void TemporalFilter::bilateralFilter_core(Frame* frame,
     }
 }
 
-void TemporalFilter::applyMotionBlock(const pixel *pSrc, const int srcStride, pixel *dst, const intptr_t dstStride, const int w, const int h, const int *xFilter, const int *yFilter)
-{
-    
-    const int numFilterTaps = 7;
-    const int centreTapOffset = 3;
-
-    int tempArray[8 + numFilterTaps][8];
-    const pixel maxValue = (1 << X265_DEPTH) - 1;
-
-    for (int y = 1; y < h + numFilterTaps; y++)
-    {
-        const int yOffset = y - centreTapOffset;
-        const pixel *sourceRow = pSrc + yOffset * srcStride;
-        for (int x = 0; x < w; x++)
-        {
-            int iBase = x - centreTapOffset;
-            const pixel *rowStart = sourceRow + iBase;
-
-            int iSum = 0;
-            iSum += xFilter[1] * rowStart[1];
-            iSum += xFilter[2] * rowStart[2];
-            iSum += xFilter[3] * rowStart[3];
-            iSum += xFilter[4] * rowStart[4];
-            iSum += xFilter[5] * rowStart[5];
-            iSum += xFilter[6] * rowStart[6];
-
-            tempArray[y][x] = iSum;
-        }
-    }
-
-    for (int y = 0; y < h; y++, dst += dstStride)
-    {
-        pixel *pDstPel = dst;
-        for (int x = 0; x < w; x++, pDstPel++)
-        {
-            int iSum = 0;
-
-            iSum += yFilter[1] * tempArray[y + 1][x];
-            iSum += yFilter[2] * tempArray[y + 2][x];
-            iSum += yFilter[3] * tempArray[y + 3][x];
-            iSum += yFilter[4] * tempArray[y + 4][x];
-            iSum += yFilter[5] * tempArray[y + 5][x];
-            iSum += yFilter[6] * tempArray[y + 6][x];
-
-            iSum = (iSum + (1 << 11)) >> 12;
-            iSum = iSum < 0 ? 0 : (iSum > maxValue ? maxValue : iSum);
-            *pDstPel = (pixel)iSum;
-        }
-    }
-}
-
 void TemporalFilter::bilateralFilterBlock(
     Frame*                    frame,
     TemporalFilterRefPicInfo* m_mcstfRefList,
     int                       numRefs,
     int                       blockRow,
-    int                       blockSize,
+    int                       rowSize,
     double                    overallStrength)
 {
 
@@ -726,6 +683,12 @@ void TemporalFilter::bilateralFilterBlock(
     const double chromaSigmaSq = 30 * 30;
 
     PicYuv* orgPic = frame->m_fencPic;
+
+    for (int i = 0; i < numRefs; i++)
+    {
+        TemporalFilterRefPicInfo *ref = &m_mcstfRefList[i];
+        applyMotion(m_mcstfRefList[i].mvs, m_mcstfRefList[i].mvsStride, m_mcstfRefList[i].picBuffer, ref->compensatedPic, blockRow, rowSize);
+    }
 
     for (int c = 0; c < m_numComponents; c++)
     {
@@ -760,8 +723,8 @@ void TemporalFilter::bilateralFilterBlock(
         const int blkSize = (!c) ? 8 : 4;
 
         const int vShift       = (!c) ? 0 : csy;
-        const int planeRowStart = (blockRow * blockSize) >> vShift;
-        const int planeRowEnd   = X265_MIN((blockRow * blockSize + blockSize) >> vShift, height);
+        const int planeRowStart = (blockRow * rowSize) >> vShift;
+        const int planeRowEnd   = X265_MIN((blockRow * rowSize + rowSize) >> vShift, height);
 
         const int blkRowStart = (planeRowStart / blkSize) * blkSize;
         const int blkRowEnd   = X265_MIN(((planeRowEnd + blkSize - 1) / blkSize) * blkSize, height);
@@ -788,25 +751,6 @@ void TemporalFilter::bilateralFilterBlock(
 
                     // const intptr_t pelOffset = by * correctedPicsStride + bx;
                     // primitives.pu[1].copy_pp(m_metld->me.fencPUYuv.m_buf[0], FENC_STRIDE, refPicInfo->compensatedPic->m_picOrg[c] + pelOffset, correctedPicsStride);
-
-                    
-                    int mvIdx = blockNumY * m_mcstfRefList[i].mvsStride + blockNumX;
-                    const MV &mv = m_mcstfRefList[i].mvs[mvIdx];
-                    const int dx = mv.x >> csx;
-                    const int dy = mv.y >> csy;
-                    const int xInt = mv.x >> (4 + csx);
-                    const int yInt = mv.y >> (4 + csy);
-
-                    const int yOffset = by + yInt;
-                    const int xOffset = bx + xInt;
-
-                    const pixel* src = refPicInfo->picBuffer->m_picOrg[c] + yOffset * srcStride + xOffset;
-                    const int    refStride = (int) ((!c) ? refPicInfo->picBuffer->m_stride : refPicInfo->picBuffer->m_strideC);
-                    pixel* dst = refPicInfo->compensatedPic->m_picOrg[c] + by * correctedPicsStride + bx;
-                    const int *xFilter = s_interpolationFilter[dx & 0xf];
-                    const int *yFilter = s_interpolationFilter[dy & 0xf];
-
-                    applyMotionBlock(src, refStride, dst, correctedPicsStride, blkSize, blkSize, xFilter, yFilter);
 
                     double variance = 0, diffsum = 0;
                     const pixel *refPel = refPicInfo->compensatedPic->m_picOrg[c] + by * correctedPicsStride + bx;

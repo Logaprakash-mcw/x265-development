@@ -361,8 +361,7 @@ static const struct option long_options[] =
     { "no-mcstf",              no_argument, NULL, 0 },
     { "encoder-row-me",                no_argument, NULL, 0 },
     { "no-encoder-row-me",             no_argument, NULL, 0 },
-    { "lookahead-row-me",                no_argument, NULL, 0 },
-    { "no-lookahead-row-me",             no_argument, NULL, 0 },
+    { "lookahead-row-me",              required_argument, NULL, 0 },
     { "bilateral-row-me",                no_argument, NULL, 0 },
     { "no-bilateral-row-me",             no_argument, NULL, 0 },
 #if ENABLE_ALPHA

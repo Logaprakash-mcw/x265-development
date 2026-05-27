@@ -1504,7 +1504,7 @@ int x265_param_parse(x265_param* p, const char* name, const char* value)
         OPT("aom-film-grain") p->aomFilmGrain = (char*)value;
         OPT("mcstf") p->bEnableTemporalFilter = atobool(value);
         OPT("encoder-row-me") p->bEnableEncoderRowME = atobool(value);
-        OPT("lookahead-row-me") p->bEnableLookaheadRowME = atobool(value);
+        OPT("lookahead-row-me") p->bEnableLookaheadRowME = atoi(value);
         OPT("bilateral-row-me") p->bEnableBilateralRowME = atobool(value);
         OPT("mcstf-ref-range") p->mcstfFrameRange = atoi(value);
         OPT("sbrc") p->bEnableSBRC = atobool(value);
@@ -2246,7 +2246,7 @@ void x265_print_params(x265_param* param)
     if(param->bEnableEncoderRowME)
         TOOLOPT(param->bEnableEncoderRowME, "MCSTF ME row parallelism in Encoder");
     if(param->bEnableLookaheadRowME)
-        TOOLOPT(param->bEnableLookaheadRowME, "MCSTF ME row parallelism in Lookahead");
+        TOOLVAL(param->bEnableLookaheadRowME, "MCSTF ME row parallelism in Lookahead with level=%d");
     if(param->bEnableBilateralRowME)
         TOOLOPT(param->bEnableBilateralRowME, "Bilateral filter row parallelism");
     x265_log(param, X265_LOG_INFO, "tools:%s\n", buf);
@@ -2514,7 +2514,7 @@ char *x265_param2string(x265_param* p, int padx, int pady)
         s += snprintf(s, bufSize - (s - buf), " aom-film-grain=%s", p->aomFilmGrain);
     BOOL(p->bEnableTemporalFilter, "mcstf");
     BOOL(p->bEnableEncoderRowME, "encoder-row-me ");
-    BOOL(p->bEnableLookaheadRowME, "lookahead-row-me ");
+    s += snprintf(s, bufSize - (s - buf), " mcstf-ref-range=%d", "lookahead-row-me ");
     BOOL(p->bEnableBilateralRowME, "bilateral-row-me ");
 #if ENABLE_ALPHA
     BOOL(p->bEnableAlpha, "alpha");

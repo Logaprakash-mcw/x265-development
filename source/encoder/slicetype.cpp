@@ -1814,18 +1814,177 @@ void CostEstimateGroup::estimatelowresmotion(MotionEstimatorTLD& m_metld, Frame*
 {
     m_metld.m_bitDepth = curframe->m_param->internalBitDepth;
     TemporalFilterRefPicInfo* ref = &curframe->m_mcstfRefList[refId];
+    if (curframe->m_param->bEnableLookaheadRowME < 4)
+        m_metld.motionEstimationLuma(m_metld, ref->mvs0, ref->mvsStride0, curframe->m_lowres.lowerResPlane[0], (int)(curframe->m_lowres.lumaStride / 2), (curframe->m_lowres.lines / 2), (curframe->m_lowres.width / 2), ref->lowerRes, 16, curframe->m_param->searchRangeForLayer2);
+    
+    if (curframe->m_param->bEnableLookaheadRowME < 3)
+        m_metld.motionEstimationLuma(m_metld, ref->mvs1, ref->mvsStride1, curframe->m_lowres.lowresPlane[0], (int)(curframe->m_lowres.lumaStride), (curframe->m_lowres.lines), (curframe->m_lowres.width), ref->lowres, 16, curframe->m_param->searchRangeForLayer1, ref->mvs0, ref->mvsStride0, 2);
 
-    m_metld.motionEstimationLuma(m_metld, ref->mvs0, ref->mvsStride0, curframe->m_lowres.lowerResPlane[0], (int)(curframe->m_lowres.lumaStride / 2), (curframe->m_lowres.lines / 2), (curframe->m_lowres.width / 2), ref->lowerRes, 16, curframe->m_param->searchRangeForLayer2);
-    m_metld.motionEstimationLuma(m_metld, ref->mvs1, ref->mvsStride1, curframe->m_lowres.lowresPlane[0], (int)(curframe->m_lowres.lumaStride), (curframe->m_lowres.lines), (curframe->m_lowres.width), ref->lowres, 16, curframe->m_param->searchRangeForLayer1, ref->mvs0, ref->mvsStride0, 2);
-    m_metld.motionEstimationLuma(m_metld, ref->mvs2, ref->mvsStride2, curframe->m_fencPic->m_picOrg[0], (int)curframe->m_fencPic->m_stride, curframe->m_fencPic->m_picHeight, curframe->m_fencPic->m_picWidth, ref->picBuffer->m_picOrg[0], 16, curframe->m_param->searchRangeForLayer0, ref->mvs1, ref->mvsStride1, 2);
-    if(!(curframe->m_param->bEnableEncoderRowME || curframe->m_param->bEnableLookaheadRowME))
+    if(curframe->m_param->bEnableLookaheadRowME < 2)
+        m_metld.motionEstimationLuma(m_metld, ref->mvs2, ref->mvsStride2, curframe->m_fencPic->m_picOrg[0], (int)curframe->m_fencPic->m_stride, curframe->m_fencPic->m_picHeight, curframe->m_fencPic->m_picWidth, ref->picBuffer->m_picOrg[0], 16, curframe->m_param->searchRangeForLayer0, ref->mvs1, ref->mvsStride1, 2);
+
+    if(!(curframe->m_param->bEnableEncoderRowME || curframe->m_param->bEnableLookaheadRowME ))
     {
         m_metld.motionEstimationLumaDoubleRes(m_metld, ref->mvs, ref->mvsStride, curframe->m_fencPic, ref->picBuffer, 8, ref->mvs2, ref->mvsStride2, 1, ref->error);
         curframe->m_lowres.lowresMcstfMvs[0][refId][0].x = 1;
     }
 }
 
-void CostEstimateGroup::estimatelowresmotion_doubleres(MotionEstimatorTLD& metld, Frame* curFrame, int refId, int row, volatile int& atomicBlockX, volatile int* prevAtomicBlockX)
+void CostEstimateGroup::motionestimation_luma_row(MotionEstimatorTLD& metld, MV *mvs, uint32_t mvStride, pixel* src,int stride, int height, int width, pixel* buf, int blockSize,
+    int sRange, int row, volatile int& atomicBlockX, volatile int* prevAtomicBlockX, MV* previous, uint32_t prevMvStride, int factor)
+{
+    const int rowSize    = m_mctfUnitSize;
+    const int stepSize   = blockSize;
+
+    int rowStart = row * rowSize;
+
+    if (rowStart > height)
+        return;
+
+    int rowEnd = X265_MIN(rowStart + rowSize, height);
+    int range = sRange;
+    int error;
+
+    for (int blockY = rowStart; blockY + blockSize <= rowEnd; blockY += stepSize)
+    {
+        for (int blockX = 0; blockX + blockSize <= width; blockX += stepSize, atomicBlockX = blockX + stepSize)
+        {
+            const intptr_t pelOffset = blockY * stride + blockX;
+            metld.me.setSourcePU(src, stride, pelOffset, blockSize, blockSize, X265_HEX_SEARCH, 1);
+
+            MV  best(0, 0);
+            int leastError = INT_MAX;
+
+            if (previous == NULL)
+            {
+                range = sRange;
+            }
+            else
+            {
+                for (int py = -1; py <= 1; py++)
+                {
+                    int testy = blockY / (2 * blockSize) + py;
+
+                    for (int px = -1; px <= 1; px++)
+                    {
+                        int testx = blockX / (2 * blockSize) + px;
+                        if ((testx >= 0) && (testx < width / (2 * blockSize)) &&
+                            (testy >= 0) && (testy < height / (2 * blockSize)))
+                        {
+                            int mvIdx = testy * prevMvStride + testx;
+                            MV old = previous[mvIdx];
+
+                            if (metld.m_useSADinME)
+                                error = metld.motionErrorLumaSAD(metld, src, stride, buf, blockX, blockY, old.x * factor, old.y * factor, blockSize, leastError);
+                            else
+                                error = metld.motionErrorLumaSSD(metld, src, stride, buf, blockX, blockY, old.x * factor, old.y * factor, blockSize, leastError);
+
+                            if (error < leastError)
+                            {
+                                best.set(old.x * factor, old.y * factor);
+                                leastError = error;
+                            }
+                        }
+                    }
+                }
+
+                if (metld.m_useSADinME)
+                    error = metld.motionErrorLumaSAD(metld, src, stride, buf, blockX, blockY, 0, 0, blockSize, leastError);
+                else
+                    error = metld.motionErrorLumaSSD(metld, src, stride, buf, blockX, blockY, 0, 0, blockSize, leastError);
+
+                if (error < leastError)
+                {
+                    best.set(0, 0);
+                    leastError = error;
+                }
+            }
+
+            MV prevBest = best;
+            for (int y2 = prevBest.y / metld.m_motionVectorFactor - range; y2 <= prevBest.y / metld.m_motionVectorFactor + range; y2++)
+            {
+                for (int x2 = prevBest.x / metld.m_motionVectorFactor - range; x2 <= prevBest.x / metld.m_motionVectorFactor + range; x2++)
+                {
+                    if (metld.m_useSADinME)
+                        error = metld.motionErrorLumaSAD(metld, src, stride, buf, blockX, blockY, x2 * metld.m_motionVectorFactor, y2 * metld.m_motionVectorFactor, blockSize, leastError);
+                    else
+                        error = metld.motionErrorLumaSSD(metld, src, stride, buf, blockX, blockY, x2 * metld.m_motionVectorFactor, y2 * metld.m_motionVectorFactor, blockSize, leastError);
+
+                    if (error < leastError)
+                    {
+                        best.set(x2 * metld.m_motionVectorFactor, y2 * metld.m_motionVectorFactor);
+                        leastError = error;
+                    }
+                }
+            }
+
+            if (blockY > 0)
+            {
+                if (prevAtomicBlockX)
+                {
+                    while (*prevAtomicBlockX <= blockX + stepSize)
+                        ;
+                }
+
+                int idx = ((blockY - stepSize) / stepSize) * mvStride + (blockX / stepSize);
+                MV aboveMV = mvs[idx];
+
+                if (metld.m_useSADinME)
+                    error = metld.motionErrorLumaSAD(metld, src, stride, buf, blockX, blockY, aboveMV.x, aboveMV.y, blockSize, leastError);
+                else
+                    error = metld.motionErrorLumaSSD(metld, src, stride, buf, blockX, blockY, aboveMV.x, aboveMV.y, blockSize, leastError);
+
+                if (error < leastError)
+                {
+                    best.set(aboveMV.x, aboveMV.y);
+                    leastError = error;
+                }
+            }
+
+            if (blockX > 0)
+            {
+                int idx = (blockY / stepSize) * mvStride + (blockX - stepSize) / stepSize;
+                MV leftMV = mvs[idx];
+
+                if (metld.m_useSADinME)
+                    error = metld.motionErrorLumaSAD(metld, src, stride, buf, blockX, blockY, leftMV.x, leftMV.y, blockSize, leastError);
+                else
+                    error = metld.motionErrorLumaSSD(metld, src, stride, buf, blockX, blockY, leftMV.x, leftMV.y, blockSize, leastError);
+
+                if (error < leastError)
+                {
+                    best.set(leftMV.x, leftMV.y);
+                    leastError = error;
+                }
+            }
+
+            // calculate average
+            double avg = 0.0;
+            for (int x1 = 0; x1 < blockSize; x1++)
+                for (int y1 = 0; y1 < blockSize; y1++)
+                    avg += *(src + (blockX + x1 + stride * (blockY + y1)));
+            avg /= (blockSize * blockSize);
+
+            // calculate variance
+            double variance = 0;
+            for (int x1 = 0; x1 < blockSize; x1++)
+            {
+                for (int y1 = 0; y1 < blockSize; y1++)
+                {
+                    int pix = *(src + (blockX + x1 + stride * (blockY + y1)));
+                    variance += (pix - avg) * (pix - avg);
+                }
+            }
+
+            leastError = (int)(20 * ((leastError + 5.0) / (variance + 5.0)) + (leastError / (blockSize * blockSize)) / 50);
+
+            int mvIdx = (blockY / stepSize) * mvStride + (blockX / stepSize);
+            mvs[mvIdx] = best;
+        }
+    }
+}
+
+void CostEstimateGroup::motionestimation_doubleres_row(MotionEstimatorTLD& metld, Frame* curFrame, int refId, int row, volatile int& atomicBlockX, volatile int* prevAtomicBlockX)
 {
     metld.m_bitDepth = curFrame->m_param->internalBitDepth;
 
@@ -1851,13 +2010,6 @@ void CostEstimateGroup::estimatelowresmotion_doubleres(MotionEstimatorTLD& metld
     if (row * rowSize > origHeight)
         return;   // row beyond frame edge — nothing to do
 
-    // if (blockRow > 0)
-    // {
-    //     while (m_rowDone[refId][blockRow - 1] == 0)
-    //     {
-    //         GIVE_UP_TIME();
-    //     }
-    // }
     int rowEnd = X265_MIN(rowStart + rowSize, origHeight);
 
     for (int blockXBase = 0; blockXBase + blockSize <= origWidth; blockXBase += stepSize * 2, atomicBlockX = blockXBase + stepSize * 2 )
@@ -1923,7 +2075,7 @@ void CostEstimateGroup::estimatelowresmotion_doubleres(MotionEstimatorTLD& metld
 
             }
 
-             MV prevBest = best;
+            MV prevBest = best;
             for (int y2 = prevBest.y / metld.m_motionVectorFactor - range; y2 <= prevBest.y / metld.m_motionVectorFactor + range; y2++)
             {
                 for (int x2 = prevBest.x / metld.m_motionVectorFactor - range; x2 <= prevBest.x / metld.m_motionVectorFactor + range; x2++)
@@ -1971,57 +2123,42 @@ void CostEstimateGroup::estimatelowresmotion_doubleres(MotionEstimatorTLD& metld
                     else
                         error = metld.motionErrorLumaSSD(metld, orig->m_picOrg[0], (int)orig->m_stride, buffer->m_picOrg[0], blockX, blockY, x2, y2, blockSize, leastError);
 
-                        if (error < leastError)
-                        {
-                            best.set(x2, y2);
-                            leastError = error;
-                        }
-                    }
-                }
-
-                if (blockY > 0)
-                {
-                    // using Clock = std::chrono::steady_clock;
-
-                    // Clock::time_point start;
-                    // if(curFrame->m_poc == 0 && refId == 0)
-                    // {
-                    //     start = Clock::now();
-                    // }
-
-                     if (prevAtomicBlockX && blockY == rowStart)
-                     {
-                        while (*prevAtomicBlockX <= blockXBase + stepSize * 2)
-                           ;
-                     }
-                    //  if(curFrame->m_poc == 0 && refId == 0)
-                    //  {
-                    //     auto end = Clock::now();
-
-                    //     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
-                    //             end - start
-                    //         ).count();
-                    //     if (duration > 0 && blockX == 0)
-                    //     printf("elapsed wait dur for %d row %d block: %lld microseconds\n", blockY, blockX, duration);
-                    //  }
-                    int idx = ((blockY - stepSize) / stepSize) * mvStride + (blockX / stepSize);
-                    MV aboveMV = mvs[idx];
-                    error = metld.m_useSADinME
-                        ? metld.motionErrorLumaSAD(metld,
-                            orig->m_picOrg[0], (int)orig->m_stride,
-                            buffer->m_picOrg[0], blockX, blockY,
-                            aboveMV.x, aboveMV.y, blockSize, leastError)
-                        : metld.motionErrorLumaSSD(metld,
-                            orig->m_picOrg[0], (int)orig->m_stride,
-                            buffer->m_picOrg[0], blockX, blockY,
-                            aboveMV.x, aboveMV.y, blockSize, leastError);
-
                     if (error < leastError)
                     {
-                        best.set(aboveMV.x, aboveMV.y);
+                        best.set(x2, y2);
                         leastError = error;
                     }
                 }
+            }
+
+
+            if (blockY > 0)
+            {
+
+                if (prevAtomicBlockX && blockY == rowStart)
+                {
+                    while (*prevAtomicBlockX <= blockXBase + stepSize * 2)
+                        ;
+                }
+
+                int idx = ((blockY - stepSize) / stepSize) * mvStride + (blockX / stepSize);
+                MV aboveMV = mvs[idx];
+                error = metld.m_useSADinME
+                    ? metld.motionErrorLumaSAD(metld,
+                        orig->m_picOrg[0], (int)orig->m_stride,
+                        buffer->m_picOrg[0], blockX, blockY,
+                        aboveMV.x, aboveMV.y, blockSize, leastError)
+                    : metld.motionErrorLumaSSD(metld,
+                        orig->m_picOrg[0], (int)orig->m_stride,
+                        buffer->m_picOrg[0], blockX, blockY,
+                        aboveMV.x, aboveMV.y, blockSize, leastError);
+
+                if (error < leastError)
+                {
+                    best.set(aboveMV.x, aboveMV.y);
+                    leastError = error;
+                }
+            }
 
             if (blockX > 0)
             {
@@ -2184,7 +2321,7 @@ void Lookahead::runMCSTF(Frame* pic)
 
            for (int row = 0; row < numBlockRows; row++)
                phase2.add_row(j, pic->m_mcstfRefList[j].poc,
-                              pic->m_poc, pic, row);
+                              pic->m_poc, pic, row, 4);
        }
 
        phase2.finishBatch();
@@ -2454,7 +2591,6 @@ void Lookahead::slicetypeDecide()
     if (m_bBatchMotionSearch && m_param->bEnableTemporalFilter)
     {
         /* pre-calculate all motion searches, using many worker threads */
-        CostEstimateGroup estGroup(*this, frames);
         Frame* frameEnc = m_inputQueue.first();
         for (int b = 0; b < m_inputQueue.size(); b++)
         {
@@ -2466,35 +2602,9 @@ void Lookahead::slicetypeDecide()
                     fflush(stderr);
                 }
 
-                for (int j = 1; j <= frameEnc->m_mcstf->m_numRef; j++)
+                if (m_param->bEnableLookaheadRowME < 4)
                 {
-                    TemporalFilterRefPicInfo* ref = &frameEnc->m_mcstfRefList[j - 1];
-                    int i = ref->poc;
-
-                    /* Skip search if already done */
-                    if (frameEnc->m_lowres.lowresMcstfMvs[0][j - 1][0].x != 0x7FFF)
-                        continue;
-
-                    estGroup.add(j - 1, i, frameEnc->m_poc);
-                }
-            }
-            frameEnc = frameEnc->m_next;
-        }
-
-        /* auto-disable after the first batch if pool is small */
-        m_bBatchMotionSearch &= m_pool->m_numWorkers >= 4;
-        estGroup.finishBatch();
-        if (m_param->bEnableLookaheadRowME)
-        {
-            CostEstimateGroup estGroup2(*this, frames);
-            frameEnc = m_inputQueue.first();
-            const int blockSize    = 16;
-            const int numBlockRows = (frameEnc->m_fencPic->m_picHeight + blockSize - 1) / blockSize;
-            for (int b = 0; b < m_inputQueue.size(); b++)
-            {
-                if (m_param->bEnableTemporalFilter && isFilterThisframe(frameEnc->m_mcstf->m_sliceTypeConfig, frameEnc->m_lowres.sliceType))
-                {
-                    estGroup2.initRowSync(frameEnc->m_mcstf->m_numRef, numBlockRows, blockSize);
+                    CostEstimateGroup estGroup(*this, frames);
                     for (int j = 1; j <= frameEnc->m_mcstf->m_numRef; j++)
                     {
                         TemporalFilterRefPicInfo* ref = &frameEnc->m_mcstfRefList[j - 1];
@@ -2504,17 +2614,43 @@ void Lookahead::slicetypeDecide()
                         if (frameEnc->m_lowres.lowresMcstfMvs[0][j - 1][0].x != 0x7FFF)
                             continue;
 
-                        for (int row = 0; row < numBlockRows; row++)
-                                estGroup2.add_row(j - 1, i, frameEnc->m_poc, frameEnc, row);
+                        estGroup.add(j - 1, i, frameEnc->m_poc);
+                    }
+                    estGroup.finishBatch();
+                }
+                if (m_param->bEnableLookaheadRowME)
+                {
+                    const int rowMELevels     = m_param->bEnableLookaheadRowME;
+                    const int rowLevelBlockSize[4]    = {16, 16, 16, 16};
+                    const int origHeight       = frameEnc->m_fencPic->m_picHeight;
+                    const int levelHeight[4]   = {origHeight, origHeight, origHeight /2, origHeight / 4};
+                    for(int i = rowMELevels; i > 0; i--)
+                    {
+                        const int numBlockRows = (levelHeight[i-1] + rowLevelBlockSize[i-1] - 1) / rowLevelBlockSize[i-1];
+                        CostEstimateGroup estGroup(*this, frames);
+
+                        estGroup.initRowSync(frameEnc->m_mcstf->m_numRef, numBlockRows, rowLevelBlockSize[i-1]);
+                        for (int j = 1; j <= frameEnc->m_mcstf->m_numRef; j++)
+                        {
+                            TemporalFilterRefPicInfo* ref = &frameEnc->m_mcstfRefList[j - 1];
+                            int refpoc = ref->poc;
+
+                            /* Skip search if already done */
+                            if (frameEnc->m_lowres.lowresMcstfMvs[0][j - 1][0].x != 0x7FFF)
+                                continue;
+
+                            for (int row = 0; row < numBlockRows; row++)
+                                    estGroup.add_row(j - 1, refpoc, frameEnc->m_poc, frameEnc, row, i);
+                        }
+                        estGroup.finishBatch();
                     }
                 }
-                frameEnc = frameEnc->m_next;
             }
-
-            /* auto-disable after the first batch if pool is small */
-            m_bBatchMotionSearch &= m_pool->m_numWorkers >= 4;
-            estGroup2.finishBatch();
+            frameEnc = frameEnc->m_next;
         }
+
+        /* auto-disable after the first batch if pool is small */
+        m_bBatchMotionSearch &= m_pool->m_numWorkers >= 4;
     }
 
     if (m_param->bEnableTemporalSubLayers > 2)
@@ -4391,7 +4527,7 @@ void CostEstimateGroup::initRowSync(int numRefs, int numBlockRows,
 }
 
 void CostEstimateGroup::add_row(int refIdx, int poc, int curPoc,
-                                Frame* pic, int blockRow)
+                                Frame* pic, int blockRow, int level)
 {
     X265_CHECK(m_batchMode || !m_jobTotal,
                "single CostEstimateGroup instance cannot mix batch modes\n");
@@ -4404,6 +4540,7 @@ void CostEstimateGroup::add_row(int refIdx, int poc, int curPoc,
     e.frame      = pic;
     e.bRowMode   = true;
     e.blockRow   = blockRow;
+    e.MElevel    = level;
     e.atomicBlockX     = 0;
     e.prevAtomicBlockX = (blockRow == 0 || m_jobTotal == 1) ? NULL : &m_estimates[m_jobTotal - 2].atomicBlockX;
 
@@ -4451,7 +4588,16 @@ void CostEstimateGroup::processTasks(int workerThreadID)
                 }
                 else
                 {
-                    estimatelowresmotion_doubleres(m_metld, curFrame, e.p0, e.blockRow, e.atomicBlockX, e.prevAtomicBlockX);
+                    m_metld.m_bitDepth = curFrame->m_param->internalBitDepth;
+                    TemporalFilterRefPicInfo* ref = &curFrame->m_mcstfRefList[e.p0];
+                    if (e.MElevel == 4)
+                        motionestimation_luma_row(m_metld, ref->mvs0, ref->mvsStride0, curFrame->m_lowres.lowerResPlane[0], (int)(curFrame->m_lowres.lumaStride / 2), (curFrame->m_lowres.lines / 2), (curFrame->m_lowres.width / 2), ref->lowerRes, 16, curFrame->m_param->searchRangeForLayer2, e.blockRow, e.atomicBlockX, e.prevAtomicBlockX);
+                    else if (e.MElevel == 3)
+                        motionestimation_luma_row(m_metld, ref->mvs1, ref->mvsStride1, curFrame->m_lowres.lowresPlane[0], (int)(curFrame->m_lowres.lumaStride), (curFrame->m_lowres.lines), (curFrame->m_lowres.width), ref->lowres, 16, curFrame->m_param->searchRangeForLayer1, e.blockRow, e.atomicBlockX, e.prevAtomicBlockX, ref->mvs0, ref->mvsStride0, 2);
+                    else if (e.MElevel == 2)
+                        motionestimation_luma_row(m_metld, ref->mvs2, ref->mvsStride2, curFrame->m_fencPic->m_picOrg[0], (int)curFrame->m_fencPic->m_stride, curFrame->m_fencPic->m_picHeight, curFrame->m_fencPic->m_picWidth, ref->picBuffer->m_picOrg[0], 16, curFrame->m_param->searchRangeForLayer0, e.blockRow, e.atomicBlockX, e.prevAtomicBlockX, ref->mvs1, ref->mvsStride1, 2);
+                    else 
+                        motionestimation_doubleres_row(m_metld, curFrame, e.p0, e.blockRow, e.atomicBlockX, e.prevAtomicBlockX);
                 }
             }
             else

@@ -206,8 +206,8 @@ namespace X265_NS {
 
         void destroyRefPicInfo(TemporalFilterRefPicInfo* curFrame);
 
-        void applyMotion(MV *mvs, uint32_t mvsStride, PicYuv *input, PicYuv *output);
-        void applyMotionBlock(const pixel *pSrc, const int srcStride, pixel *dst, const intptr_t dstStride, const int w, const int h, const int *xFilter, const int *yFilter);
+        void applyMotion(MV *mvs, uint32_t mvsStride, PicYuv *input, PicYuv *output, const int blockRow = 0, const int rowSize = 0);
+        // void applyMotionBlock(const pixel *pSrc, const int srcStride, pixel *dst, const intptr_t dstStride, const int w, const int h, const int *xFilter, const int *yFilter);
 
 
     };
