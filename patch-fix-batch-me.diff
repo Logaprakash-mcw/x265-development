@@ -1,0 +1,98 @@
+From 5d9f608a86f5f578fe5aa6efa707d2b5a2fcc71a Mon Sep 17 00:00:00 2001
+From: Kirithika7 <kirithika@multicorewareinc.com>
+Date: Fri, 22 May 2026 19:56:11 +0530
+Subject: [PATCH] Lookahead:Fix batch ME
+
+---
+ source/encoder/slicetype.cpp | 17 +++++++++++------
+ source/encoder/slicetype.h   |  3 ++-
+ 2 files changed, 13 insertions(+), 7 deletions(-)
+
+diff --git a/source/encoder/slicetype.cpp b/source/encoder/slicetype.cpp
+index c0faced71..8d66ffabb 100644
+--- a/source/encoder/slicetype.cpp
++++ b/source/encoder/slicetype.cpp
+@@ -2493,7 +2493,7 @@ void Lookahead::slicetypeDecide()
+                     if (frameEnc->m_lowres.lowresMcstfMvs[0][j - 1][0].x != 0x7FFF)
+                         continue;
+ 
+-                    estGroup.add(j - 1, i, frameEnc->m_poc);
++                    estGroup.add(j - 1, i, frameEnc->m_poc, 1);
+                 }
+             }
+             frameEnc = frameEnc->m_next;
+@@ -3172,7 +3172,7 @@ void Lookahead::slicetypeAnalyse(Lowres **frames, bool bKeyframe)
+                     if (p1 >= numFrames || frames[b]->lowresMvs[1][i][0].x != 0x7FFF)
+                         p1 = b;
+ 
+-                    estGroup.add(p0, p1, b);
++                    estGroup.add(p0, p1, b, 0);
+                 }
+             }
+             /* auto-disable after the first batch if pool is small */
+@@ -3210,7 +3210,7 @@ void Lookahead::slicetypeAnalyse(Lowres **frames, bool bKeyframe)
+                             if (frames[b]->costEst[i][j] >= 0)
+                                 continue;
+ 
+-                            estGroup.add(p0, p1, b);
++                            estGroup.add(p0, p1, b, 0);
+                         }
+                     }
+                 }
+@@ -4383,7 +4383,7 @@ int64_t CostEstimateGroup::singleCost(int p0, int p1, int b, bool intraPenalty)
+     return estimateFrameCost(tld, p0, p1, b, intraPenalty);
+ }
+ 
+-void CostEstimateGroup::add(int p0, int p1, int b)
++void CostEstimateGroup::add(int p0, int p1, int b, bool isMcstfJob)
+ {
+     X265_CHECK(m_batchMode || !m_jobTotal, "single CostEstimateGroup instance cannot mix batch modes\n");
+     m_batchMode = true;
+@@ -4395,6 +4395,7 @@ void CostEstimateGroup::add(int p0, int p1, int b)
+     e.bRowMode = false;
+     e.frame = NULL;
+     e.blockRow = -1;
++    e.mcstfJob = isMcstfJob;
+ 
+     if (m_jobTotal == MAX_BATCH_SIZE)
+         finishBatch();
+@@ -4463,7 +4464,7 @@ void CostEstimateGroup::processTasks(int workerThreadID)
+             Estimate& e = m_estimates[i];
+             Frame* curFrame = e.frame ? e.frame : m_lookahead.m_inputQueue.getPOC(e.b);
+ 
+-            if (m_lookahead.m_param->bEnableTemporalFilter && curFrame && (curFrame->m_lowres.sliceType == X265_TYPE_IDR || curFrame->m_lowres.sliceType == X265_TYPE_I || curFrame->m_lowres.sliceType == X265_TYPE_P))
++            if (e.mcstfJob && m_lookahead.m_param->bEnableTemporalFilter && curFrame && (curFrame->m_lowres.sliceType == X265_TYPE_IDR || curFrame->m_lowres.sliceType == X265_TYPE_I || curFrame->m_lowres.sliceType == X265_TYPE_P))
+             {
+                 if (!e.bRowMode)
+                 {
+@@ -4475,7 +4476,11 @@ void CostEstimateGroup::processTasks(int workerThreadID)
+                 }
+             }
+             else
+-                estimateFrameCost(tld, e.p0, e.p1, e.b, false);
++            {
++                if(e.mcstfJob == 0)
++                    estimateFrameCost(tld, e.p0, e.p1, e.b, false);
++            }
++                
+         }
+         else
+         {
+diff --git a/source/encoder/slicetype.h b/source/encoder/slicetype.h
+index 043fad7e1..c9c0c4b67 100644
+--- a/source/encoder/slicetype.h
++++ b/source/encoder/slicetype.h
+@@ -320,8 +320,9 @@ public:
+         Frame *frame = NULL;
+         bool   bRowMode;
+         int    blockRow;
++        bool   mcstfJob;
+     } m_estimates[MAX_BATCH_SIZE];
+-    void add(int p0, int p1, int b);
++    void add(int p0, int p1, int b, bool isMCSTFJob);
+     void add_row(int refIdx, int poc, int curPoc, Frame* pic, int blockRow);
+     void initRowSync(int numRefs, int numBlockRows, int mctfUnitSize);
+     void finishBatch();
+-- 
+2.51.0.windows.1
+

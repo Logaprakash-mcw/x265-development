@@ -585,7 +585,7 @@ ThreadPool* ThreadPool::allocThreadPools(x265_param* p, int& numPools, bool isTh
         {
             int maxProviders = (p->bThreadedME && i == 0) // threadpool 0 is dedicated to ThreadedME
                 ? 1
-                : (p->frameNumThreads + poolCount - 1) / poolCount + !isThreadsReserved; // +1 is Lookahead, always assigned to threadpool 0
+                : (p->frameNumThreads + poolCount - 1) / poolCount + !isThreadsReserved + 1; // +1 is Lookahead, always assigned to threadpool 0
             
             while (!threadsPerPool[node])
                 node++;

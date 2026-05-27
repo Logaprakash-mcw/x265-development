@@ -158,7 +158,7 @@ namespace X265_NS {
         int        slicetype;
     };
 
-    class TemporalFilter
+    class TemporalFilter : public JobProvider
     {
     public:
         TemporalFilter();
@@ -208,10 +208,17 @@ namespace X265_NS {
 
         void applyMotion(MV *mvs, uint32_t mvsStride, PicYuv *input, PicYuv *output);
         void applyMotionBlock(const pixel *pSrc, const int srcStride, pixel *dst, const intptr_t dstStride, const int w, const int h, const int *xFilter, const int *yFilter);
+        void    create(x265_param* param, ThreadPool*);
+        void runMCSTF(Frame* pic);
+        void    destroy();
+        void    stopJobs();
+    protected:
+        void    findJob(int workerThreadID) override {
+            printf("hehehe");
 
-
+        }
     };
-    
+
     class BilateralFilterGroup : public BondedTaskGroup
     {
     public:
@@ -277,5 +284,40 @@ namespace X265_NS {
             m_lock.release();
         }
     };
+
+    class MCSTFMEGroup : public BondedTaskGroup
+    {
+    public:
+        TemporalFilter& m_mcstf;
+        ThreadPool* m_pool;
+        int              m_numBlockRows;   // live row count for this frame
+        int              m_mctfUnitSize;   // block size in pixels
+
+        MCSTFMEGroup(TemporalFilter& t) : m_mcstf(t){
+            m_mctfUnitSize = 16;
+        }
+
+
+        /* Batch cost estimates, using one worker thread per estimateFrameCost() call */
+        enum { MAX_BATCH_SIZE = 512 };
+        struct Estimate
+        {
+            int  p0, b, p1;
+            int    blockRow;
+            Frame* frame = NULL;
+        } m_estimates[MAX_BATCH_SIZE];
+        void add_row(int refIdx, int poc, int curPoc, Frame* pic, int blockRow);
+        void processTasks(int workerThreadID);
+        void finishBatch();
+        void    initRowSync(int numRef, int numBlockRows, int blockSize);
+
+    protected:
+
+        void    estimatelowresmotion(MotionEstimatorTLD& m_metld, Frame* curframe, int refId);
+        void    estimatelowresmotion_doubleres(MotionEstimatorTLD& m_metld, Frame* curframe, int refId, int blockRow);
+
+        MCSTFMEGroup& operator=(const MCSTFMEGroup&);
+    };
+
 }
 #endif

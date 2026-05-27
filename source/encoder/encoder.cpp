@@ -141,6 +141,7 @@ Encoder::Encoder()
     m_param = NULL;
     m_latestParam = NULL;
     m_threadPool = NULL;
+    m_mcstf = NULL;
     m_analysisFileIn = NULL;
     m_analysisFileOut = NULL;
     m_filmGrainIn = NULL;
@@ -328,9 +329,21 @@ void Encoder::create()
         m_threadedME = new ThreadedME(m_param, *this);
     }
 
+
     if (m_numPools)
     {
         // First threadpool belongs to ThreadedME, if the feature is enabled
+
+        if (p->bEnableTemporalFilter && p->bEnableEncoderRowME)
+        {
+            m_mcstf = new TemporalFilter;
+            m_mcstf->create(m_param, m_threadPool);
+            m_mcstf->m_pool = &m_threadPool[0];
+            m_mcstf->m_jpId = 0;
+            m_threadPool[0].m_numProviders++;
+            m_threadPool[0].m_jpTable[m_mcstf->m_jpId] = m_mcstf;
+            printf("haha");
+        }
         if (p->bThreadedME)
         {
             m_threadedME->m_pool = &m_threadPool[0];
@@ -349,6 +362,7 @@ void Encoder::create()
             m_frameEncoder[i]->m_pool = &m_threadPool[pool];
             m_frameEncoder[i]->m_jpId = m_threadPool[pool].m_numProviders++;
             m_threadPool[pool].m_jpTable[m_frameEncoder[i]->m_jpId] = m_frameEncoder[i];
+            printf("haha");
         }
 
 
@@ -2536,7 +2550,7 @@ int Encoder::encode(const x265_picture* pic_in, x265_picture* pic_out)
             if (m_param->bEnableTemporalFilter && isFilterThisframe(frameEnc[0]->m_mcstf->m_sliceTypeConfig, frameEnc[0]->m_lowres.sliceType))
             {
                 if (m_param->bEnableEncoderRowME)
-                    m_lookahead->runMCSTF(frameEnc[0]);
+                    m_mcstf->runMCSTF(frameEnc[0]);
 
                 for (int i = 0; i < frameEnc[0]->m_mcstf->m_numRef; i++)
                 {
