@@ -61,6 +61,28 @@ const double s_refStrengths[3][4] =
 };
 
 namespace X265_NS {
+
+    /* MCSTF runtime SIMD dispatch
+     * Function-pointer table for MCSTF SIMD kernels. Defaults are scalar
+     * implementations defined in temporalfilter.cpp; setupMCTFPrimitives_x86
+     * (in common/x86/temporalfilter_simd.cpp) overrides them with SSE4.1/AVX2
+     * variants when the runtime CPU supports the required ISA.*/
+
+    struct MCTFPrimitives
+    {
+        int  (*motionErrorLumaFrac)(const pixel* origOrigin, intptr_t origStride,
+            const pixel* buffOrigin, intptr_t buffStride,
+            int x, int y, int dx, int dy,
+            int bs, int besterror, int bitDepth, int errorMode);
+    };
+
+    extern MCTFPrimitives mctfPrim;
+
+    void setupMCTFPrimitives_scalar(MCTFPrimitives& p);
+#if X265_ARCH_X86
+    void setupMCTFPrimitives_x86(MCTFPrimitives& p, int cpuMask);
+#endif
+
     class OrigPicBuffer
     {
     public:
