@@ -2621,7 +2621,7 @@ void Lookahead::slicetypeDecide()
                 if (m_param->bEnableLookaheadRowME)
                 {
                     const int rowMELevels     = m_param->bEnableLookaheadRowME;
-                    const int rowLevelBlockSize[4]    = {16, 16, 16, 16};
+                    const int rowLevelBlockSize[4]    = {m_param->L1Size, m_param->L2Size, m_param->L3Size, m_param->L4Size};
                     const int origHeight       = frameEnc->m_fencPic->m_picHeight;
                     const int levelHeight[4]   = {origHeight, origHeight, origHeight /2, origHeight / 4};
                     for(int i = rowMELevels; i > 0; i--)

@@ -421,6 +421,10 @@ void x265_param_default(x265_param* param)
     param->bEnableEncoderRowME = 0;
     param->bEnableLookaheadRowME = 0;
     param->bEnableBilateralRowME = 0;
+    param->L1Size = 16;
+    param->L2Size = 16;
+    param->L3Size = 16;
+    param->L4Size = 16;
     param->temporalFilterStrength = 0.95;
     param->searchRangeForLayer0 = 3;
     param->searchRangeForLayer1 = 3;
@@ -1505,6 +1509,10 @@ int x265_param_parse(x265_param* p, const char* name, const char* value)
         OPT("mcstf") p->bEnableTemporalFilter = atobool(value);
         OPT("encoder-row-me") p->bEnableEncoderRowME = atobool(value);
         OPT("lookahead-row-me") p->bEnableLookaheadRowME = atoi(value);
+        OPT("l1-rowsize") p->L1Size = atoi(value);
+        OPT("l2-rowsize") p->L2Size = atoi(value);
+        OPT("l3-rowsize") p->L3Size = atoi(value);
+        OPT("l4-rowsize") p->L4Size = atoi(value);
         OPT("bilateral-row-me") p->bEnableBilateralRowME = atobool(value);
         OPT("mcstf-ref-range") p->mcstfFrameRange = atoi(value);
         OPT("sbrc") p->bEnableSBRC = atobool(value);
@@ -2514,7 +2522,7 @@ char *x265_param2string(x265_param* p, int padx, int pady)
         s += snprintf(s, bufSize - (s - buf), " aom-film-grain=%s", p->aomFilmGrain);
     BOOL(p->bEnableTemporalFilter, "mcstf");
     BOOL(p->bEnableEncoderRowME, "encoder-row-me ");
-    s += snprintf(s, bufSize - (s - buf), " mcstf-ref-range=%d", "lookahead-row-me ");
+    s += snprintf(s, bufSize - (s - buf), " mcstf-ref-range=%d", p->mcstfFrameRange);
     BOOL(p->bEnableBilateralRowME, "bilateral-row-me ");
 #if ENABLE_ALPHA
     BOOL(p->bEnableAlpha, "alpha");
@@ -3051,6 +3059,10 @@ void x265_copy_params(x265_param* dst, x265_param* src)
     dst->bEnableEncoderRowME = src->bEnableEncoderRowME;
     dst->bEnableLookaheadRowME = src->bEnableLookaheadRowME;
     dst->bEnableBilateralRowME = src->bEnableBilateralRowME;
+    dst->L1Size = src->L1Size;
+    dst->L2Size = src->L2Size;
+    dst->L3Size = src->L3Size;
+    dst->L4Size = src->L4Size;
     dst->temporalFilterStrength = src->temporalFilterStrength;
     dst->searchRangeForLayer0 = src->searchRangeForLayer0;
     dst->searchRangeForLayer1 = src->searchRangeForLayer1;

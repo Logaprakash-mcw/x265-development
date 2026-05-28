@@ -362,6 +362,10 @@ static const struct option long_options[] =
     { "encoder-row-me",                no_argument, NULL, 0 },
     { "no-encoder-row-me",             no_argument, NULL, 0 },
     { "lookahead-row-me",              required_argument, NULL, 0 },
+    { "l1-rowsize",              required_argument, NULL, 0 },
+    { "l2-rowsize",              required_argument, NULL, 0 },
+    { "l3-rowsize",              required_argument, NULL, 0 },
+    { "l4-rowsize",              required_argument, NULL, 0 },
     { "bilateral-row-me",                no_argument, NULL, 0 },
     { "no-bilateral-row-me",             no_argument, NULL, 0 },
 #if ENABLE_ALPHA
