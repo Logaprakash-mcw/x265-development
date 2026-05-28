@@ -40,7 +40,6 @@
 #else
 #define ProfileLookaheadTime(elapsed, count)
 #endif
-// #include <chrono>
 using namespace X265_NS;
 
 namespace {
@@ -1918,28 +1917,28 @@ void CostEstimateGroup::motionestimation_luma_row(MotionEstimatorTLD& metld, MV 
                 }
             }
 
-            if (blockY > 0)
-            {
-                if (prevAtomicBlockX)
-                {
-                    while (*prevAtomicBlockX <= blockX + stepSize)
-                        ;
-                }
+            // if (blockY > 0)
+            // {
+            //     if (prevAtomicBlockX)
+            //     {
+            //         while (*prevAtomicBlockX <= blockX + stepSize)
+            //             ;
+            //     }
 
-                int idx = ((blockY - stepSize) / stepSize) * mvStride + (blockX / stepSize);
-                MV aboveMV = mvs[idx];
+            //     int idx = ((blockY - stepSize) / stepSize) * mvStride + (blockX / stepSize);
+            //     MV aboveMV = mvs[idx];
 
-                if (metld.m_useSADinME)
-                    error = metld.motionErrorLumaSAD(metld, src, stride, buf, blockX, blockY, aboveMV.x, aboveMV.y, blockSize, leastError);
-                else
-                    error = metld.motionErrorLumaSSD(metld, src, stride, buf, blockX, blockY, aboveMV.x, aboveMV.y, blockSize, leastError);
+            //     if (metld.m_useSADinME)
+            //         error = metld.motionErrorLumaSAD(metld, src, stride, buf, blockX, blockY, aboveMV.x, aboveMV.y, blockSize, leastError);
+            //     else
+            //         error = metld.motionErrorLumaSSD(metld, src, stride, buf, blockX, blockY, aboveMV.x, aboveMV.y, blockSize, leastError);
 
-                if (error < leastError)
-                {
-                    best.set(aboveMV.x, aboveMV.y);
-                    leastError = error;
-                }
-            }
+            //     if (error < leastError)
+            //     {
+            //         best.set(aboveMV.x, aboveMV.y);
+            //         leastError = error;
+            //     }
+            // }
 
             if (blockX > 0)
             {
@@ -2093,27 +2092,27 @@ void CostEstimateGroup::motionestimation_doubleres_row(MotionEstimatorTLD& metld
                 }
             }
 
-            prevBest = best;
-            int doubleRange = 3 * 4;
-            for (int y2 = prevBest.y - doubleRange; y2 <= prevBest.y + doubleRange; y2+=4)
-            {
-                for (int x2 = prevBest.x - doubleRange; x2 <= prevBest.x + doubleRange; x2+=4)
-                {
-                    if (metld.m_useSADinME)
-                        error = metld.motionErrorLumaSAD(metld, orig->m_picOrg[0], (int)orig->m_stride, buffer->m_picOrg[0], blockX, blockY, x2, y2, blockSize, leastError);
-                    else
-                        error = metld.motionErrorLumaSSD(metld, orig->m_picOrg[0], (int)orig->m_stride, buffer->m_picOrg[0], blockX, blockY, x2, y2, blockSize, leastError);
+            // prevBest = best;
+            // int doubleRange = 3 * 4;
+            // for (int y2 = prevBest.y - doubleRange; y2 <= prevBest.y + doubleRange; y2+=4)
+            // {
+            //     for (int x2 = prevBest.x - doubleRange; x2 <= prevBest.x + doubleRange; x2+=4)
+            //     {
+            //         if (metld.m_useSADinME)
+            //             error = metld.motionErrorLumaSAD(metld, orig->m_picOrg[0], (int)orig->m_stride, buffer->m_picOrg[0], blockX, blockY, x2, y2, blockSize, leastError);
+            //         else
+            //             error = metld.motionErrorLumaSSD(metld, orig->m_picOrg[0], (int)orig->m_stride, buffer->m_picOrg[0], blockX, blockY, x2, y2, blockSize, leastError);
 
-                    if (error < leastError)
-                    {
-                        best.set(x2, y2);
-                        leastError = error;
-                    }
-                }
-            }
+            //         if (error < leastError)
+            //         {
+            //             best.set(x2, y2);
+            //             leastError = error;
+            //         }
+            //     }
+            // }
 
             prevBest = best;
-            doubleRange = 3;
+            int doubleRange = 3;
             for (int y2 = prevBest.y - doubleRange; y2 <= prevBest.y + doubleRange; y2++)
             {
                 for (int x2 = prevBest.x - doubleRange; x2 <= prevBest.x + doubleRange; x2++)
@@ -2132,33 +2131,33 @@ void CostEstimateGroup::motionestimation_doubleres_row(MotionEstimatorTLD& metld
             }
 
 
-            if (blockY > 0)
-            {
+            // if (blockY > 0)
+            // {
 
-                if (prevAtomicBlockX && blockY == rowStart)
-                {
-                    while (*prevAtomicBlockX <= blockXBase + stepSize * 2)
-                        ;
-                }
+            //     if (prevAtomicBlockX && blockY == rowStart)
+            //     {
+            //         while (*prevAtomicBlockX <= blockXBase + stepSize * 2)
+            //             ;
+            //     }
 
-                int idx = ((blockY - stepSize) / stepSize) * mvStride + (blockX / stepSize);
-                MV aboveMV = mvs[idx];
-                error = metld.m_useSADinME
-                    ? metld.motionErrorLumaSAD(metld,
-                        orig->m_picOrg[0], (int)orig->m_stride,
-                        buffer->m_picOrg[0], blockX, blockY,
-                        aboveMV.x, aboveMV.y, blockSize, leastError)
-                    : metld.motionErrorLumaSSD(metld,
-                        orig->m_picOrg[0], (int)orig->m_stride,
-                        buffer->m_picOrg[0], blockX, blockY,
-                        aboveMV.x, aboveMV.y, blockSize, leastError);
+            //     int idx = ((blockY - stepSize) / stepSize) * mvStride + (blockX / stepSize);
+            //     MV aboveMV = mvs[idx];
+            //     error = metld.m_useSADinME
+            //         ? metld.motionErrorLumaSAD(metld,
+            //             orig->m_picOrg[0], (int)orig->m_stride,
+            //             buffer->m_picOrg[0], blockX, blockY,
+            //             aboveMV.x, aboveMV.y, blockSize, leastError)
+            //         : metld.motionErrorLumaSSD(metld,
+            //             orig->m_picOrg[0], (int)orig->m_stride,
+            //             buffer->m_picOrg[0], blockX, blockY,
+            //             aboveMV.x, aboveMV.y, blockSize, leastError);
 
-                if (error < leastError)
-                {
-                    best.set(aboveMV.x, aboveMV.y);
-                    leastError = error;
-                }
-            }
+            //     if (error < leastError)
+            //     {
+            //         best.set(aboveMV.x, aboveMV.y);
+            //         leastError = error;
+            //     }
+            // }
 
             if (blockX > 0)
             {
