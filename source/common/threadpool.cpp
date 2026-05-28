@@ -64,7 +64,6 @@
 #define SLEEPBITMAP_BSF BSF
 #define SLEEPBITMAP_OR  ATOMIC_OR
 #define SLEEPBITMAP_AND ATOMIC_AND
-
 #endif
 
 /* TODO FIX: Macro __MACH__ ideally should be part of MacOS definition, but adding to Cmake
@@ -585,7 +584,7 @@ ThreadPool* ThreadPool::allocThreadPools(x265_param* p, int& numPools, bool isTh
         {
             int maxProviders = (p->bThreadedME && i == 0) // threadpool 0 is dedicated to ThreadedME
                 ? 1
-                : (p->frameNumThreads + poolCount - 1) / poolCount + !isThreadsReserved + 1; // +1 is Lookahead, always assigned to threadpool 0
+                : (p->frameNumThreads + poolCount - 1) / poolCount + !isThreadsReserved; // +1 is Lookahead, always assigned to threadpool 0
             
             while (!threadsPerPool[node])
                 node++;
@@ -601,6 +600,8 @@ ThreadPool* ThreadPool::allocThreadPools(x265_param* p, int& numPools, bool isTh
             if (isThreadsReserved)
             {
                 numThreads = p->lookaheadThreads;
+                if (p->bEnableEncoderRowME)
+                    numThreads = 64;
                 maxProviders = 1;
             }
             else if (i == 0)
@@ -640,7 +641,6 @@ ThreadPool::ThreadPool()
 bool ThreadPool::create(int numThreads, int maxProviders, uint64_t nodeMask)
 {
     X265_CHECK(numThreads <= MAX_POOL_THREADS, "a single thread pool cannot have more than MAX_POOL_THREADS threads\n");
-
 #if defined(_WIN32_WINNT) && _WIN32_WINNT >= _WIN32_WINNT_WIN7 
     memset(&m_groupAffinity, 0, sizeof(GROUP_AFFINITY));
     for (int i = 0; i < getNumaNodeCount(); i++)

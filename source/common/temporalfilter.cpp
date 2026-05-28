@@ -411,8 +411,7 @@ int MotionEstimatorTLD::motionErrorLumaSSD(MotionEstimatorTLD& m_metld,
 
 void TemporalFilter::create(x265_param* param, ThreadPool* pool)
 {
-        m_pool = &pool[0];
-        int numTLD = 1 + (m_pool ? m_pool->m_numWorkers : 0);
+        int numTLD = 1 + (pool ? pool->m_numWorkers : 0);
         m_metld = new MotionEstimatorTLD[numTLD];
         init(param);
 }
@@ -422,7 +421,7 @@ void TemporalFilter::destroy()
     delete m_metld;
 }
 
-void TemporalFilter::runMCSTF(Frame* pic)
+void TemporalFilter::runMCSTF(Frame* pic, ThreadPool* pool)
 {
     const int numRef = pic->m_mcstf->m_numRef;
     if (numRef == 0)
@@ -431,7 +430,7 @@ void TemporalFilter::runMCSTF(Frame* pic)
     const int blockSize = 16;
     const int numBlockRows = (pic->m_fencPic->m_picHeight + blockSize - 1) / blockSize;
     {
-        MCSTFMEGroup phase2(*this);
+        MCSTFMEGroup phase2(*this, pool);
         phase2.initRowSync(numRef, numBlockRows, blockSize);
 
         for (int j = 0; j < numRef; j++)
@@ -448,15 +447,6 @@ void TemporalFilter::runMCSTF(Frame* pic)
     }
 }
 
-//void TemporalFilter::findJob(int workerID) override{}
-
-void TemporalFilter::stopJobs()
-{
-    if (m_pool)
-    {
-            m_pool->stopWorkers();
-    }
-}
 void TemporalFilter::applyMotion(MV *mvs, uint32_t mvsStride, PicYuv *input, PicYuv *output)
 {
     static const int lumaBlockSize = 8;
@@ -553,7 +543,7 @@ void TemporalFilter::applyMotion(MV *mvs, uint32_t mvsStride, PicYuv *input, Pic
 
 void MCSTFMEGroup::processTasks(int workerThreadID)
 {
-    ThreadPool* pool = m_mcstf.m_pool;
+    ThreadPool* pool = m_pool;
     int id = workerThreadID;
     if (workerThreadID < 0)
         id = pool ? pool->m_numWorkers : 0;
@@ -871,8 +861,8 @@ void MCSTFMEGroup::initRowSync(int numRefs, int numBlockRows,
 
 void MCSTFMEGroup::finishBatch()
 {
-    if (m_mcstf.m_pool)
-        tryBondPeers(*m_mcstf.m_pool, m_jobTotal);
+    if (m_pool)
+        tryBondPeers(*m_pool, m_jobTotal);
     processTasks(-1);
     waitForExit();
     m_jobTotal = m_jobAcquired = 0;
@@ -890,6 +880,8 @@ void TemporalFilter::bilateralFilter_core(Frame* frame,
         TemporalFilterRefPicInfo *ref = &m_mcstfRefList[i];
         applyMotion(m_mcstfRefList[i].mvs, m_mcstfRefList[i].mvsStride, m_mcstfRefList[i].picBuffer, ref->compensatedPic);
     }
+
+
 
     int refStrengthRow = 0;
 

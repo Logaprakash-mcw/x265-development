@@ -158,7 +158,7 @@ namespace X265_NS {
         int        slicetype;
     };
 
-    class TemporalFilter : public JobProvider
+    class TemporalFilter 
     {
     public:
         TemporalFilter();
@@ -209,14 +209,8 @@ namespace X265_NS {
         void applyMotion(MV *mvs, uint32_t mvsStride, PicYuv *input, PicYuv *output);
         void applyMotionBlock(const pixel *pSrc, const int srcStride, pixel *dst, const intptr_t dstStride, const int w, const int h, const int *xFilter, const int *yFilter);
         void    create(x265_param* param, ThreadPool*);
-        void runMCSTF(Frame* pic);
+        void runMCSTF(Frame* pic, ThreadPool*);
         void    destroy();
-        void    stopJobs();
-    protected:
-        void    findJob(int workerThreadID) override {
-            printf("hehehe");
-
-        }
     };
 
     class BilateralFilterGroup : public BondedTaskGroup
@@ -293,8 +287,8 @@ namespace X265_NS {
         int              m_numBlockRows;   // live row count for this frame
         int              m_mctfUnitSize;   // block size in pixels
 
-        MCSTFMEGroup(TemporalFilter& t) : m_mcstf(t){
-            m_mctfUnitSize = 16;
+        MCSTFMEGroup(TemporalFilter& t, ThreadPool* pool) : m_mcstf(t){
+            m_pool = pool;
         }
 
 
@@ -310,7 +304,6 @@ namespace X265_NS {
         void processTasks(int workerThreadID);
         void finishBatch();
         void    initRowSync(int numRef, int numBlockRows, int blockSize);
-
     protected:
 
         void    estimatelowresmotion(MotionEstimatorTLD& m_metld, Frame* curframe, int refId);

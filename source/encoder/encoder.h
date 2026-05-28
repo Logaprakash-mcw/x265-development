@@ -204,6 +204,7 @@ public:
     uint32_t           m_numDelayedPic;
 
     ThreadPool*        m_threadPool;
+    ThreadPool*        m_MCSTFthreadPool;
     FrameEncoder*      m_frameEncoder[X265_MAX_FRAME_THREADS];
     DPB*               m_dpb;
     Frame*             m_exportedPic[MAX_LAYERS];

@@ -41,6 +41,7 @@ typedef uint32_t sleepbitmap_t;
 #endif
 
 static const sleepbitmap_t ALL_POOL_THREADS = (sleepbitmap_t)-1;
+#define MAX_ROW_ME_JOB 255
 enum { MAX_POOL_THREADS = sizeof(sleepbitmap_t) * 8 };
 enum { INVALID_SLICE_PRIORITY = 10 }; // a value larger than any X265_TYPE_* macro
 

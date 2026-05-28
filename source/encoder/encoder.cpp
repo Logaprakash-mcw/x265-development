@@ -141,6 +141,7 @@ Encoder::Encoder()
     m_param = NULL;
     m_latestParam = NULL;
     m_threadPool = NULL;
+    m_MCSTFthreadPool = NULL;
     m_mcstf = NULL;
     m_analysisFileIn = NULL;
     m_analysisFileOut = NULL;
@@ -271,7 +272,12 @@ void Encoder::create()
 
     m_numPools = 0;
     if (allowPools)
+    {
         m_threadPool = ThreadPool::allocThreadPools(p, m_numPools, 0);
+        if(p->bEnableTemporalFilter && p->bEnableEncoderRowME)
+            m_MCSTFthreadPool = ThreadPool::allocThreadPools(p, m_numPools, 1);
+        //m_threadPool = ThreadPool::allocThreadPools(p, m_numPools, 0);
+    }
     else
     {
         if (!p->frameNumThreads)
@@ -337,12 +343,7 @@ void Encoder::create()
         if (p->bEnableTemporalFilter && p->bEnableEncoderRowME)
         {
             m_mcstf = new TemporalFilter;
-            m_mcstf->create(m_param, m_threadPool);
-            m_mcstf->m_pool = &m_threadPool[0];
-            m_mcstf->m_jpId = 0;
-            m_threadPool[0].m_numProviders++;
-            m_threadPool[0].m_jpTable[m_mcstf->m_jpId] = m_mcstf;
-            printf("haha");
+            m_mcstf->create(m_param, m_MCSTFthreadPool);
         }
         if (p->bThreadedME)
         {
@@ -362,7 +363,6 @@ void Encoder::create()
             m_frameEncoder[i]->m_pool = &m_threadPool[pool];
             m_frameEncoder[i]->m_jpId = m_threadPool[pool].m_numProviders++;
             m_threadPool[pool].m_jpTable[m_frameEncoder[i]->m_jpId] = m_frameEncoder[i];
-            printf("haha");
         }
 
 
@@ -987,6 +987,10 @@ void Encoder::destroy()
     // thread pools can be cleaned up now that all the JobProviders are
     // known to be shutdown
     delete [] m_threadPool;
+    if (m_param->bEnableTemporalFilter && m_param->bEnableEncoderRowME)
+    {
+        delete[] m_MCSTFthreadPool;
+    }
 
     if (m_lookahead)
     {
@@ -2550,7 +2554,7 @@ int Encoder::encode(const x265_picture* pic_in, x265_picture* pic_out)
             if (m_param->bEnableTemporalFilter && isFilterThisframe(frameEnc[0]->m_mcstf->m_sliceTypeConfig, frameEnc[0]->m_lowres.sliceType))
             {
                 if (m_param->bEnableEncoderRowME)
-                    m_mcstf->runMCSTF(frameEnc[0]);
+                    m_mcstf->runMCSTF(frameEnc[0], m_MCSTFthreadPool);
 
                 for (int i = 0; i < frameEnc[0]->m_mcstf->m_numRef; i++)
                 {
