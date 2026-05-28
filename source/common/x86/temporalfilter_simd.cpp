@@ -135,7 +135,7 @@ namespace X265_NS {
     }
 
     MCSTF_TARGET_AVX2
-        static int motionErrorLumaFrac_SIMD(
+        static int motionErrorLumaFrac_AVX2(
             const pixel* origOrigin, intptr_t origStride,
             const pixel* buffOrigin, intptr_t buffStride,
             int x, int y, int dx, int dy,
@@ -289,12 +289,202 @@ namespace X265_NS {
         return hsum_epi32_avx(xerror);
     }
 
+    /* Per-block separable 6-tap filter worker */
+    MCSTF_TARGET_AVX2
+        static void applyMotionBlock_AVX2(
+            const pixel* pSrcImage, int srcStride,
+            pixel* pDstImage, int dstStride,
+            int x, int y,
+            int blockSizeX, int blockSizeY,
+            int xInt, int yInt,
+            const int* xFilter,
+            const int* yFilter)
+    {
+        int tempArray[15][8];
+
+        const __m256i xf1 = _mm256_set1_epi32(xFilter[1]);
+        const __m256i xf2 = _mm256_set1_epi32(xFilter[2]);
+        const __m256i xf3 = _mm256_set1_epi32(xFilter[3]);
+        const __m256i xf4 = _mm256_set1_epi32(xFilter[4]);
+        const __m256i xf5 = _mm256_set1_epi32(xFilter[5]);
+        const __m256i xf6 = _mm256_set1_epi32(xFilter[6]);
+
+        const __m256i yf1 = _mm256_set1_epi32(yFilter[1]);
+        const __m256i yf2 = _mm256_set1_epi32(yFilter[2]);
+        const __m256i yf3 = _mm256_set1_epi32(yFilter[3]);
+        const __m256i yf4 = _mm256_set1_epi32(yFilter[4]);
+        const __m256i yf5 = _mm256_set1_epi32(yFilter[5]);
+        const __m256i yf6 = _mm256_set1_epi32(yFilter[6]);
+
+        const __m256i vround = _mm256_set1_epi32(1 << 11);
+        const __m256i vmin = _mm256_setzero_si256();
+        const __m256i vmax = _mm256_set1_epi32((1 << X265_DEPTH) - 1);
+
+        const int hColBase = x + xInt - 3;
+        const int hRowEnd = blockSizeY + 6;
+
+        /* H-PASS */
+        if (blockSizeX == 8)
+        {
+            for (int by = 1; by <= hRowEnd; by++)
+            {
+                const pixel* srcRow = pSrcImage + (y + by + yInt - 3) * srcStride;
+
+                __m256i s1 = load8px_epi32(srcRow + hColBase + 1);
+                __m256i s2 = load8px_epi32(srcRow + hColBase + 2);
+                __m256i s3 = load8px_epi32(srcRow + hColBase + 3);
+                __m256i s4 = load8px_epi32(srcRow + hColBase + 4);
+                __m256i s5 = load8px_epi32(srcRow + hColBase + 5);
+                __m256i s6 = load8px_epi32(srcRow + hColBase + 6);
+
+                __m256i acc = _mm256_mullo_epi32(s1, xf1);
+                acc = _mm256_add_epi32(acc, _mm256_mullo_epi32(s2, xf2));
+                acc = _mm256_add_epi32(acc, _mm256_mullo_epi32(s3, xf3));
+                acc = _mm256_add_epi32(acc, _mm256_mullo_epi32(s4, xf4));
+                acc = _mm256_add_epi32(acc, _mm256_mullo_epi32(s5, xf5));
+                acc = _mm256_add_epi32(acc, _mm256_mullo_epi32(s6, xf6));
+
+                _mm256_storeu_si256((__m256i*) & tempArray[by][0], acc);
+            }
+        }
+        else
+        {
+            for (int by = 1; by <= hRowEnd; by++)
+            {
+                const pixel* srcRow = pSrcImage + (y + by + yInt - 3) * srcStride;
+
+                __m256i s1 = load4px_epi32(srcRow + hColBase + 1);
+                __m256i s2 = load4px_epi32(srcRow + hColBase + 2);
+                __m256i s3 = load4px_epi32(srcRow + hColBase + 3);
+                __m256i s4 = load4px_epi32(srcRow + hColBase + 4);
+                __m256i s5 = load4px_epi32(srcRow + hColBase + 5);
+                __m256i s6 = load4px_epi32(srcRow + hColBase + 6);
+
+                __m256i acc = _mm256_mullo_epi32(s1, xf1);
+                acc = _mm256_add_epi32(acc, _mm256_mullo_epi32(s2, xf2));
+                acc = _mm256_add_epi32(acc, _mm256_mullo_epi32(s3, xf3));
+                acc = _mm256_add_epi32(acc, _mm256_mullo_epi32(s4, xf4));
+                acc = _mm256_add_epi32(acc, _mm256_mullo_epi32(s5, xf5));
+                acc = _mm256_add_epi32(acc, _mm256_mullo_epi32(s6, xf6));
+
+                _mm_storeu_si128((__m128i*) & tempArray[by][0],
+                    _mm256_castsi256_si128(acc));
+            }
+        }
+
+        /* V-PASS */
+        if (blockSizeX == 8)
+        {
+            for (int by = 0; by < blockSizeY; by++)
+            {
+                pixel* pDstPel = pDstImage + (y + by) * dstStride + x;
+
+                __m256i t1 = _mm256_loadu_si256((const __m256i*) & tempArray[by + 1][0]);
+                __m256i t2 = _mm256_loadu_si256((const __m256i*) & tempArray[by + 2][0]);
+                __m256i t3 = _mm256_loadu_si256((const __m256i*) & tempArray[by + 3][0]);
+                __m256i t4 = _mm256_loadu_si256((const __m256i*) & tempArray[by + 4][0]);
+                __m256i t5 = _mm256_loadu_si256((const __m256i*) & tempArray[by + 5][0]);
+                __m256i t6 = _mm256_loadu_si256((const __m256i*) & tempArray[by + 6][0]);
+
+                __m256i acc = _mm256_mullo_epi32(t1, yf1);
+                acc = _mm256_add_epi32(acc, _mm256_mullo_epi32(t2, yf2));
+                acc = _mm256_add_epi32(acc, _mm256_mullo_epi32(t3, yf3));
+                acc = _mm256_add_epi32(acc, _mm256_mullo_epi32(t4, yf4));
+                acc = _mm256_add_epi32(acc, _mm256_mullo_epi32(t5, yf5));
+                acc = _mm256_add_epi32(acc, _mm256_mullo_epi32(t6, yf6));
+
+                acc = _mm256_add_epi32(acc, vround);
+                acc = _mm256_srai_epi32(acc, 12);
+
+                acc = _mm256_max_epi32(acc, vmin);
+                acc = _mm256_min_epi32(acc, vmax);
+
+                store8px(pDstPel, acc);
+            }
+        }
+        else
+        {
+            for (int by = 0; by < blockSizeY; by++)
+            {
+                pixel* pDstPel = pDstImage + (y + by) * dstStride + x;
+
+                __m256i t1 = _mm256_castsi128_si256(_mm_loadu_si128((const __m128i*) & tempArray[by + 1][0]));
+                __m256i t2 = _mm256_castsi128_si256(_mm_loadu_si128((const __m128i*) & tempArray[by + 2][0]));
+                __m256i t3 = _mm256_castsi128_si256(_mm_loadu_si128((const __m128i*) & tempArray[by + 3][0]));
+                __m256i t4 = _mm256_castsi128_si256(_mm_loadu_si128((const __m128i*) & tempArray[by + 4][0]));
+                __m256i t5 = _mm256_castsi128_si256(_mm_loadu_si128((const __m128i*) & tempArray[by + 5][0]));
+                __m256i t6 = _mm256_castsi128_si256(_mm_loadu_si128((const __m128i*) & tempArray[by + 6][0]));
+
+                __m256i acc = _mm256_mullo_epi32(t1, yf1);
+                acc = _mm256_add_epi32(acc, _mm256_mullo_epi32(t2, yf2));
+                acc = _mm256_add_epi32(acc, _mm256_mullo_epi32(t3, yf3));
+                acc = _mm256_add_epi32(acc, _mm256_mullo_epi32(t4, yf4));
+                acc = _mm256_add_epi32(acc, _mm256_mullo_epi32(t5, yf5));
+                acc = _mm256_add_epi32(acc, _mm256_mullo_epi32(t6, yf6));
+
+                acc = _mm256_add_epi32(acc, vround);
+                acc = _mm256_srai_epi32(acc, 12);
+                acc = _mm256_max_epi32(acc, vmin);
+                acc = _mm256_min_epi32(acc, vmax);
+
+                store4px(pDstPel, acc);
+            }
+        }
+    }
+
+    MCSTF_TARGET_AVX2
+        static void applyMotion_AVX2(
+            const pixel* pSrcImage, int srcStride,
+            pixel* pDstImage, int dstStride,
+            int width, int height,
+            int blockSizeX, int blockSizeY,
+            uint32_t mvsStride, const MV* mvs,
+            int csx, int csy,
+            int blockRow, int rowSize, int vShift)
+    {
+        const int blkRowStart = (blockRow * rowSize) >> vShift;
+        const int blkRowEnd = X265_MIN((blockRow * rowSize + rowSize) >> vShift, height);
+        const int rowStart = (!rowSize) ? 0 : blkRowStart;
+        const int rowEnd = (!rowSize) ? height : blkRowEnd;
+        int       blockNumY = (!rowSize) ? 0 : blkRowStart / blockSizeY;
+
+        for (int y = rowStart;
+            y + blockSizeY <= rowEnd;
+            y += blockSizeY, blockNumY++)
+        {
+            for (int x = 0, blockNumX = 0;
+                x + blockSizeX <= width;
+                x += blockSizeX, blockNumX++)
+            {
+                const int  mvIdx = blockNumY * (int)mvsStride + blockNumX;
+                const MV& mv = mvs[mvIdx];
+
+                const int dx = mv.x >> csx;
+                const int dy = mv.y >> csy;
+                const int xInt = mv.x >> (4 + csx);
+                const int yInt = mv.y >> (4 + csy);
+
+                const int* xFilter = s_interpolationFilter[dx & 0xf];
+                const int* yFilter = s_interpolationFilter[dy & 0xf];
+
+                applyMotionBlock_AVX2(
+                    pSrcImage, srcStride,
+                    pDstImage, dstStride,
+                    x, y,
+                    blockSizeX, blockSizeY,
+                    xInt, yInt,
+                    xFilter, yFilter);
+            }
+        }
+    }
+
     /* Dispatch - overrides scalar defaults with SIMD variants at runtime */
     void setupMCTFPrimitives_x86(MCTFPrimitives & p, int cpuMask)
     {
         if (cpuMask & X265_CPU_AVX2)
         {
-            p.motionErrorLumaFrac = motionErrorLumaFrac_SIMD;
+            p.motionErrorLumaFrac = motionErrorLumaFrac_AVX2;
+            p.applyMotion = applyMotion_AVX2;
         }
     }
 } /* namespace X265_NS */
