@@ -166,6 +166,7 @@ void TemporalFilter::init(const x265_param* param)
     m_sourceHeight = param->sourceHeight;
     m_internalCsp = param->internalCsp;
     m_numComponents = (m_internalCsp != X265_CSP_I400) ? MAX_NUM_COMPONENT : 1;
+    m_metld = new MotionEstimatorTLD;
 }
 
 int TemporalFilter::createRefPicInfo(TemporalFilterRefPicInfo* refFrame, x265_param* param)
@@ -413,7 +414,7 @@ void TemporalFilter::create(x265_param* param, ThreadPool* pool)
 {
         int numTLD = 1 + (pool ? pool->m_numWorkers : 0);
         m_metld = new MotionEstimatorTLD[numTLD];
-        init(param);
+        //init(param);
 }
 
 void TemporalFilter::destroy()
