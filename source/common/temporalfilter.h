@@ -81,7 +81,25 @@ namespace X265_NS {
             uint32_t mvsStride, const MV* mvs,
             int csx, int csy,
             int blockRow, int rowSize, int vShift);
+        void (*computeBlockStats)(
+            const pixel* srcPel, intptr_t srcStride,
+            const pixel* refPel, intptr_t refStride,
+            int          blkSize,
+            int* outVariance,
+            int* outDiffsum);
+        void (*bilateralWeightedFilter)(
+            const pixel* srcBlk, intptr_t srcStride,
+            int             numRefs,
+            const pixel* const* refBlks,
+            const intptr_t* refStrides,
+            const double* vww,
+            const double* vsw,
+            double          bdw,
+            double          maxSample,
+            int             blkSize,
+            pixel* dstBlk, intptr_t dstStride);
     };
+#define MCTF_MAX_REFS 16  
 
     extern MCTFPrimitives mctfPrim;
 
