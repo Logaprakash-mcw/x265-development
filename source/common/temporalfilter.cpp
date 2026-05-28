@@ -873,7 +873,7 @@ void TemporalFilter::bilateralFilter(
     ThreadPool*               pool)
 {
     const int numRef       = curFrame->m_mcstf->m_numRef;
-    const int blockSize    = 16;
+    const int blockSize    = 64;
     const int frameHeight  = curFrame->m_fencPic->m_picHeight;
     const int numBlockRows = (frameHeight + blockSize - 1) / blockSize;
 
