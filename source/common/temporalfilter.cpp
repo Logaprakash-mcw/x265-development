@@ -412,7 +412,7 @@ int MotionEstimatorTLD::motionErrorLumaSSD(MotionEstimatorTLD& m_metld,
 
 void TemporalFilter::create(x265_param* param, ThreadPool* pool)
 {
-        int numTLD = 1 + (pool ? pool->m_numWorkers : 0);
+        int numTLD = 1 + (pool ? pool->m_numWorkers + 1 : 0);
         m_metld = new MotionEstimatorTLD[numTLD];
         //init(param);
 }
@@ -550,7 +550,7 @@ void MCSTFMEGroup::processTasks(int workerThreadID)
     if (workerThreadID < 0)
     {
         // Fix: Clamp the master thread to the very last index of the pool array safely
-        id = (pool && pool->m_numWorkers > 0) ? (pool->m_numWorkers - 1) : 0;
+        id = (pool && pool->m_numWorkers > 0) ? (pool->m_numWorkers) : 0;
     }
 
     MotionEstimatorTLD& m_metld = m_mcstf.m_metld[id];
@@ -564,7 +564,7 @@ void MCSTFMEGroup::processTasks(int workerThreadID)
         Estimate& e = m_estimates[i];
 
         // This heavy ME calculation now runs completely lock-free and fully parallelized
-        //estimatelowresmotion_doubleres(m_metld, e.frame, e.p0, e.blockRow);
+        estimatelowresmotion_doubleres(m_metld, e.frame, e.p0, e.blockRow);
 
         // Atomically grab the next available job index without stopping other threads
         i = m_tasksAllocated.getIncr(1);
@@ -605,7 +605,7 @@ void MCSTFMEGroup::estimatelowresmotion_doubleres(MotionEstimatorTLD& metld, Fra
     //         GIVE_UP_TIME();
     //     }
     // }
-    int rowEnd = min(rowStart + rowSize, origHeight);
+    int rowEnd = X265_MIN(rowStart + rowSize, origHeight);
     for (int blockY = rowStart; blockY + blockSize <= rowEnd; blockY += stepSize)
     {
         for (int blockX = 0; blockX + blockSize <= origWidth; blockX += stepSize)

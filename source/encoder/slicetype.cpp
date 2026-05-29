@@ -1858,7 +1858,7 @@ void CostEstimateGroup::estimatelowresmotion_doubleres(MotionEstimatorTLD& metld
     //         GIVE_UP_TIME();
     //     }
     // }
-    int rowEnd = min(rowStart + rowSize, origHeight);
+    int rowEnd = X265_MIN(rowStart + rowSize, origHeight);
     for (int blockY = rowStart; blockY + blockSize <= rowEnd; blockY += stepSize)
     {
         for (int blockX = 0; blockX + blockSize <= origWidth; blockX += stepSize)
