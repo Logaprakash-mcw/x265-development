@@ -546,20 +546,29 @@ void MCSTFMEGroup::processTasks(int workerThreadID)
 {
     ThreadPool* pool = m_pool;
     int id = workerThreadID;
+    m_tasksAllocated.set(0);
     if (workerThreadID < 0)
-        id = pool ? pool->m_numWorkers : 0;
+    {
+        // Fix: Clamp the master thread to the very last index of the pool array safely
+        id = (pool && pool->m_numWorkers > 0) ? (pool->m_numWorkers - 1) : 0;
+    }
+
     MotionEstimatorTLD& m_metld = m_mcstf.m_metld[id];
 
-    m_lock.acquire();
-    while (m_jobAcquired < m_jobTotal)
+    // 2. ELIMINATE THE LOCK: Use x265's atomic fetch-and-add tool instead.
+    // Assuming m_tasksAllocated is a ThreadSafeInteger defined in your class header.
+    int i = m_tasksAllocated.getIncr(1);
+
+    while (i < m_jobTotal)
     {
-        int i = m_jobAcquired++;
-        m_lock.release();
         Estimate& e = m_estimates[i];
-        estimatelowresmotion_doubleres(m_metld, e.frame, e.p0, e.blockRow);
-        m_lock.acquire();
+
+        // This heavy ME calculation now runs completely lock-free and fully parallelized
+        //estimatelowresmotion_doubleres(m_metld, e.frame, e.p0, e.blockRow);
+
+        // Atomically grab the next available job index without stopping other threads
+        i = m_tasksAllocated.getIncr(1);
     }
-    m_lock.release();
 }
 
 

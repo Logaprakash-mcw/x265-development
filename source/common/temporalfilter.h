@@ -232,11 +232,10 @@ namespace X265_NS {
         static const int MAX_FILTER_JOBS = 512;
         FilterJob m_jobs[MAX_FILTER_JOBS];
         int       m_jobTotal;
-        int       m_jobAcquired;
-        Lock      m_lock;
+        ThreadSafeInteger m_tasksAllocated;
 
         BilateralFilterGroup(TemporalFilter& f, ThreadPool* pool)
-            : m_filter(f), m_pool(pool), m_jobTotal(0), m_jobAcquired(0) {}
+            : m_filter(f), m_pool(pool), m_jobTotal(0) {}
 
         void add(Frame* frame, TemporalFilterRefPicInfo* mctfRefList,
                 int numRef, int blockRow, int blockSize, double strength)
@@ -263,19 +262,18 @@ namespace X265_NS {
 
         void processTasks(int /*workerThreadID*/) override
         {
-            m_lock.acquire();
-            while (m_jobAcquired < m_jobTotal)
-            {
-                const int i = m_jobAcquired++;
-                m_lock.release();
+            m_tasksAllocated.set(0);
+            int i = m_tasksAllocated.getIncr(1);
 
+            while (i < m_jobTotal)
+            {
                 const FilterJob& j = m_jobs[i];
                 m_filter.bilateralFilterBlock(j.frame, j.mctfRefList, j.numRef,
-                                            j.blockRow, j.blockSize,
-                                            j.overallStrength);
-                m_lock.acquire();
+                    j.blockRow, j.blockSize,
+                    j.overallStrength);
+
+                i = m_tasksAllocated.getIncr(1);
             }
-            m_lock.release();
         }
     };
 
@@ -284,8 +282,10 @@ namespace X265_NS {
     public:
         TemporalFilter& m_mcstf;
         ThreadPool* m_pool;
+        ThreadSafeInteger m_tasksAllocated;
         int              m_numBlockRows;   // live row count for this frame
-        int              m_mctfUnitSize;   // block size in pixels
+        int              m_mctfUnitSize;   // block size in pixels\
+
 
         MCSTFMEGroup(TemporalFilter& t, ThreadPool* pool) : m_mcstf(t){
             m_pool = pool;
