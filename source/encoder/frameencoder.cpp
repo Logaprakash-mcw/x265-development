@@ -660,7 +660,7 @@ void FrameEncoder::compressFrame(int layer)
             }
         }
     }
-    if (m_param->bEnableTemporalFilter && m_frame[layer]->m_mcstf->m_numRef > 0)
+    if (m_param->bEnableTemporalFilter && m_top->isFilterThisframe(m_frame[layer]->m_mcstf->m_sliceTypeConfig, m_frame[layer]->m_lowres.sliceType))
     {
         m_frame[layer]->m_mcstf->m_QP = m_param->rc.qp;
         if (m_param->bEnableBilateralRowME)
