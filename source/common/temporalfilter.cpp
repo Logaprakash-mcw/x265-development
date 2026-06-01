@@ -546,7 +546,6 @@ void MCSTFMEGroup::processTasks(int workerThreadID)
 {
     ThreadPool* pool = m_pool;
     int id = workerThreadID;
-    m_tasksAllocated.set(0);
     if (workerThreadID < 0)
     {
         // Fix: Clamp the master thread to the very last index of the pool array safely
@@ -563,6 +562,7 @@ void MCSTFMEGroup::processTasks(int workerThreadID)
     {
         Estimate& e = m_estimates[i];
 
+        printf("Job created by thread %d\n", workerThreadID);
         // This heavy ME calculation now runs completely lock-free and fully parallelized
         estimatelowresmotion_doubleres(m_metld, e.frame, e.p0, e.blockRow);
 
@@ -871,8 +871,12 @@ void MCSTFMEGroup::initRowSync(int numRefs, int numBlockRows,
 
 void MCSTFMEGroup::finishBatch()
 {
+    m_tasksAllocated.set(0);
     if (m_pool)
-        tryBondPeers(*m_pool, m_jobTotal);
+    {
+        int num = tryBondPeers(*m_pool, m_jobTotal);
+        printf("num=%d\n", num);
+    }
     processTasks(-1);
     waitForExit();
     m_jobTotal = m_jobAcquired = 0;
@@ -890,8 +894,6 @@ void TemporalFilter::bilateralFilter_core(Frame* frame,
         TemporalFilterRefPicInfo *ref = &m_mcstfRefList[i];
         applyMotion(m_mcstfRefList[i].mvs, m_mcstfRefList[i].mvsStride, m_mcstfRefList[i].picBuffer, ref->compensatedPic);
     }
-
-
 
     int refStrengthRow = 0;
 
