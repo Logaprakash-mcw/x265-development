@@ -252,8 +252,8 @@ struct Lowres : public ReferencePlanes
 
     bool create(x265_param* param, PicYuv *origPic, uint32_t qgSize);
     void destroy(x265_param* param);
-    void init(PicYuv *origPic, int poc);
+    void init(PicYuv *origPic, int poc, bool bEnableTemporalFilter);
 };
 }
 
-#endif // ifndef X265_LOWRES_H
+#endif

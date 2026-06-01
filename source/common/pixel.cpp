@@ -595,7 +595,7 @@ static void scale2D_64to32(pixel* dst, const pixel* src, intptr_t stride)
 
 static
 void frame_init_lowres_core(const pixel* src0, pixel* dst0, pixel* dsth, pixel* dstv, pixel* dstc,
-                            intptr_t src_stride, intptr_t dst_stride, int width, int height)
+    intptr_t src_stride, intptr_t dst_stride, int width, int height)
 {
     for (int y = 0; y < height; y++)
     {
@@ -604,7 +604,7 @@ void frame_init_lowres_core(const pixel* src0, pixel* dst0, pixel* dsth, pixel* 
         for (int x = 0; x < width; x++)
         {
             // slower than naive bilinear, but matches asm
-#define FILTER(a, b, c, d) ((a + b + c + d + 2) >> 2)
+#define FILTER(a, b, c, d) ((((a + b + 1) >> 1) + ((c + d + 1) >> 1) + 1) >> 1)
             dst0[x] = FILTER(src0[2 * x], src1[2 * x], src0[2 * x + 1], src1[2 * x + 1]);
             dsth[x] = FILTER(src0[2 * x + 1], src1[2 * x + 1], src0[2 * x + 2], src1[2 * x + 2]);
             dstv[x] = FILTER(src1[2 * x], src2[2 * x], src1[2 * x + 1], src2[2 * x + 1]);
@@ -1012,6 +1012,31 @@ static pixel planeClipAndMax_c(pixel *src, intptr_t stride, int width, int heigh
 
 namespace X265_NS {
 // x265 private namespace
+
+/* Scalar lowres downscale for MCSTF path — HM-equivalent filter, no SIMD override */
+void frame_init_lowres_core_mcstf(const pixel* src0, pixel* dst0, pixel* dsth, pixel* dstv, pixel* dstc,
+                                  intptr_t src_stride, intptr_t dst_stride, int width, int height)
+{
+    for (int y = 0; y < height; y++)
+    {
+        const pixel* src1 = src0 + src_stride;
+        const pixel* src2 = src1 + src_stride;
+        for (int x = 0; x < width; x++)
+        {
+#define FILTER(a, b, c, d) ((a + b + c + d + 2) >> 2)
+            dst0[x] = FILTER(src0[2 * x], src1[2 * x], src0[2 * x + 1], src1[2 * x + 1]);
+            dsth[x] = FILTER(src0[2 * x + 1], src1[2 * x + 1], src0[2 * x + 2], src1[2 * x + 2]);
+            dstv[x] = FILTER(src1[2 * x], src2[2 * x], src1[2 * x + 1], src2[2 * x + 1]);
+            dstc[x] = FILTER(src1[2 * x + 1], src2[2 * x + 1], src1[2 * x + 2], src2[2 * x + 2]);
+#undef FILTER
+        }
+        src0 += src_stride * 2;
+        dst0 += dst_stride;
+        dsth += dst_stride;
+        dstv += dst_stride;
+        dstc += dst_stride;
+    }
+}
 
 /* Extend the edges of a picture so that it may safely be used for motion
  * compensation. This function assumes the picture is stored in a buffer with
