@@ -274,8 +274,10 @@ void Encoder::create()
     if (allowPools)
     {
         m_threadPool = ThreadPool::allocThreadPools(p, m_numPools, 0);
-        if(p->bEnableTemporalFilter && p->bEnableEncoderRowME)
+        if (p->bEnableTemporalFilter && p->bEnableEncoderRowME)
+        {
             m_MCSTFthreadPool = ThreadPool::allocThreadPools(p, m_numPools, 1);
+        }
         //m_threadPool = ThreadPool::allocThreadPools(p, m_numPools, 0);
     }
     else
@@ -344,6 +346,14 @@ void Encoder::create()
         {
             m_mcstf = new TemporalFilter;
             m_mcstf->create(m_param, m_MCSTFthreadPool);
+            m_mcstf->m_pool = &m_MCSTFthreadPool[0];
+
+            m_mcstf->m_jpId = 0;
+
+            m_MCSTFthreadPool[0].m_jpTable[0] = m_mcstf;
+            m_MCSTFthreadPool[0].m_numProviders = 1;
+            m_MCSTFthreadPool[0].start();
+            //init(param);
         }
         if (p->bThreadedME)
         {

@@ -158,12 +158,64 @@ namespace X265_NS {
         int        slicetype;
     };
 
-    class TemporalFilter 
+    class TemporalFilter;
+    class MCSTFMEGroup
+    {
+    public:
+
+        struct Estimate
+        {
+            int p0, b, p1;
+            int blockRow;
+            Frame* frame;
+        };
+
+        enum { MAX_BATCH_SIZE = 512 };
+
+        TemporalFilter& m_mcstf;
+        ThreadPool* m_pool;
+
+        Estimate        m_estimates[MAX_BATCH_SIZE];
+
+        ThreadSafeInteger m_tasksAllocated;
+        ThreadSafeInteger m_activeWorkers;
+        ThreadSafeInteger m_completedWorkers;
+        int m_numBlockRows = 0;
+        int m_mcstfUnitSize = 0;
+
+        int m_jobTotal;
+
+        MCSTFMEGroup(TemporalFilter& t, ThreadPool* pool)
+            : m_mcstf(t)
+            , m_pool(pool)
+            , m_jobTotal(0)
+        {
+        }
+
+        void add_row(int refIdx, int poc, int curPoc,
+            Frame* pic, int blockRow);
+
+        void processTasks(int workerThreadId);
+
+        void finishBatch();
+
+        void initRowSync(int numRef,
+            int numBlockRows,
+            int blockSize);
+        void    estimatelowresmotion_doubleres(MotionEstimatorTLD& m_metld, Frame* curframe, int refId, int blockRow);
+
+    };
+
+    class TemporalFilter :public JobProvider
     {
     public:
         TemporalFilter();
         ~TemporalFilter();
 
+        MCSTFMEGroup* m_activeGroup;
+        volatile bool m_mcstfWorkAvailable;
+
+        virtual void findJob(int workerThreadId);
         void init(const x265_param* param);
 
         //private:
@@ -276,41 +328,5 @@ namespace X265_NS {
             }
         }
     };
-
-    class MCSTFMEGroup : public BondedTaskGroup
-    {
-    public:
-        TemporalFilter& m_mcstf;
-        ThreadPool* m_pool;
-        ThreadSafeInteger m_tasksAllocated;
-        int              m_numBlockRows;   // live row count for this frame
-        int              m_mctfUnitSize;   // block size in pixels\
-
-
-        MCSTFMEGroup(TemporalFilter& t, ThreadPool* pool) : m_mcstf(t){
-            m_pool = pool;
-        }
-
-
-        /* Batch cost estimates, using one worker thread per estimateFrameCost() call */
-        enum { MAX_BATCH_SIZE = 512 };
-        struct Estimate
-        {
-            int  p0, b, p1;
-            int    blockRow;
-            Frame* frame = NULL;
-        } m_estimates[MAX_BATCH_SIZE];
-        void add_row(int refIdx, int poc, int curPoc, Frame* pic, int blockRow);
-        void processTasks(int workerThreadID);
-        void finishBatch();
-        void    initRowSync(int numRef, int numBlockRows, int blockSize);
-    protected:
-
-        void    estimatelowresmotion(MotionEstimatorTLD& m_metld, Frame* curframe, int refId);
-        void    estimatelowresmotion_doubleres(MotionEstimatorTLD& m_metld, Frame* curframe, int refId, int blockRow);
-
-        MCSTFMEGroup& operator=(const MCSTFMEGroup&);
-    };
-
 }
 #endif

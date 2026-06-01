@@ -337,7 +337,6 @@ protected:
 
     void    estimatelowresmotion(MotionEstimatorTLD& m_metld, Frame* curframe, int refId);
     void    estimatelowresmotion_doubleres(MotionEstimatorTLD& m_metld, Frame* curframe, int refId, int blockRow);
-
     CostEstimateGroup& operator=(const CostEstimateGroup&);
 };
 
