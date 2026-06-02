@@ -181,6 +181,7 @@ namespace X265_NS {
         ThreadSafeInteger m_tasksCompleted;
         ThreadSafeInteger m_activeWorkers;
         ThreadSafeInteger m_completedWorkers;
+        ThreadSafeInteger m_workersInside;
         int m_numBlockRows = 0;
         int m_mcstfUnitSize = 0;
 
@@ -191,6 +192,7 @@ namespace X265_NS {
             , m_pool(pool)
             , m_jobTotal(0)
         {
+            m_workersInside.set(0);
         }
 
         void add_row(int refIdx, int poc, int curPoc,

@@ -678,6 +678,9 @@ void Encoder::stopJobs()
         for (int i = 0; i < m_numPools; i++)
             m_threadPool[i].stopWorkers();
     }
+
+    if (m_MCSTFthreadPool)
+        m_MCSTFthreadPool->stopWorkers();
 }
 
 int Encoder::copySlicetypePocAndSceneCut(int *slicetype, int *poc, int *sceneCut, int sLayer)

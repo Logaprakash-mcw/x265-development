@@ -198,7 +198,7 @@ void TemporalFilter::findJob(int workerThreadId)
         workerThreadId,
         group);
 
-    if (group->m_tasksAllocated.get() >= group->m_jobTotal)
+    if (group->m_tasksCompleted.get() >= group->m_jobTotal)
         return;
 
     group->processTasks(workerThreadId);
@@ -465,10 +465,10 @@ void TemporalFilter::runMCSTF(Frame* pic, ThreadPool* pool)
     const int blockSize = 16;
     const int numBlockRows = (pic->m_fencPic->m_picHeight + blockSize - 1) / blockSize;
     {
-        MCSTFMEGroup phase2(*this, pool);
+        MCSTFMEGroup *phase2 = new MCSTFMEGroup(*this, pool);
         printf("phase2=%p\n", &phase2);
 
-        phase2.initRowSync(numRef, numBlockRows, blockSize);
+        phase2->initRowSync(numRef, numBlockRows, blockSize);
 
         for (int j = 0; j < numRef; j++)
         {
@@ -476,11 +476,11 @@ void TemporalFilter::runMCSTF(Frame* pic, ThreadPool* pool)
                 continue;
 
             for (int row = 0; row < numBlockRows; row++)
-                phase2.add_row(j, pic->m_mcstfRefList[j].poc,
+                phase2->add_row(j, pic->m_mcstfRefList[j].poc,
                     pic->m_poc, pic, row);
         }
 
-        phase2.finishBatch();
+        phase2->finishBatch();
     }
 }
 
@@ -582,6 +582,7 @@ void MCSTFMEGroup::processTasks(int workerThreadId)
 {
     m_activeWorkers.incr();
 
+    m_workersInside.incr();
     int id = workerThreadId;
 
     if (workerThreadId < 0)
@@ -591,6 +592,12 @@ void MCSTFMEGroup::processTasks(int workerThreadId)
     MotionEstimatorTLD& metld = m_mcstf.m_metld[id];
 
     int task = m_tasksAllocated.getIncr(1);
+
+    if (task >= m_jobTotal)
+    {
+        m_workersInside.decr();
+        return;
+    }
 
     while (task < m_jobTotal)
     {
@@ -611,12 +618,13 @@ void MCSTFMEGroup::processTasks(int workerThreadId)
 
     m_completedWorkers.incr();
 
+    m_workersInside.decr();
     if (m_tasksCompleted.get() >= m_jobTotal)
     {
         m_mcstf.m_mcstfWorkAvailable = false;
         return;
     }
-
+    
     printf("worker %d task %d done\n", workerThreadId, task);
 }
 
@@ -923,6 +931,7 @@ void MCSTFMEGroup::finishBatch()
     m_tasksCompleted.set(0);
     m_activeWorkers.set(0);
     m_completedWorkers.set(0);
+    m_workersInside.set(0);
 
     printf("SET activeGroup=%p\n", this);
 
@@ -943,10 +952,13 @@ void MCSTFMEGroup::finishBatch()
 
     while (m_tasksCompleted.get() < m_jobTotal)
         GIVE_UP_TIME();
+    while (m_workersInside.get() > 1) // master still inside
+        GIVE_UP_TIME();
 
     m_mcstf.m_mcstfWorkAvailable = false;
     m_mcstf.m_activeGroup = NULL;
     printf("finishBatch mcstf=%p\n", &m_mcstf);
+    m_mcstf.m_helpWanted = false;
 }
 
 void TemporalFilter::bilateralFilter_core(Frame* frame,
