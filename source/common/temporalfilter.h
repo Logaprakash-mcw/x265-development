@@ -178,6 +178,7 @@ namespace X265_NS {
         Estimate        m_estimates[MAX_BATCH_SIZE];
 
         ThreadSafeInteger m_tasksAllocated;
+        ThreadSafeInteger m_tasksCompleted;
         ThreadSafeInteger m_activeWorkers;
         ThreadSafeInteger m_completedWorkers;
         int m_numBlockRows = 0;
@@ -202,7 +203,7 @@ namespace X265_NS {
         void initRowSync(int numRef,
             int numBlockRows,
             int blockSize);
-        void    estimatelowresmotion_doubleres(MotionEstimatorTLD& m_metld, Frame* curframe, int refId, int blockRow);
+        void estimatelowresmotion_doubleres(MotionEstimatorTLD& m_metld, Frame* curframe, int refId, int blockRow);
 
     };
 

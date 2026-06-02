@@ -1189,7 +1189,7 @@ void Lookahead::destroy()
     if (m_param->lookaheadThreads > 0)
         delete [] m_pool;
 }
-/* The synchronization of slicetypeDecide is managed here.  The findJob() method
+/* The synchronization of slicetypeDecide is managed here.  The f) method
  * polls the occupancy of the input queue. If the queue is
  * full, it will run slicetypeDecide() and output a mini-gop of frames to the
  * output queue. If the flush() method has been called (implying no new pictures

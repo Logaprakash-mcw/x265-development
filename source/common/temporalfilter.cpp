@@ -175,15 +175,30 @@ void TemporalFilter::findJob(int workerThreadId)
 {
     MCSTFMEGroup* group = m_activeGroup;
 
-    printf("activeGroup=%p worker=%d\n",
-        m_activeGroup,
-        workerThreadId);
+    printf("ENTER findJob worker=%d group=%p available=%d\n",
+        workerThreadId,
+        group,
+        m_mcstfWorkAvailable);
 
-    printf("MCSTF findJob thread=%d\n", workerThreadId);
     if (!group)
+    {
+        printf("EXIT findJob worker=%d reason=NULL\n",
+            workerThreadId);
         return;
+    }
 
     if (!m_mcstfWorkAvailable)
+    {
+        printf("EXIT findJob worker=%d reason=NOT_AVAILABLE\n",
+            workerThreadId);
+        return;
+    }
+
+    printf("CALL processTasks worker=%d group=%p\n",
+        workerThreadId,
+        group);
+
+    if (group->m_tasksAllocated.get() >= group->m_jobTotal)
         return;
 
     group->processTasks(workerThreadId);
@@ -581,7 +596,7 @@ void MCSTFMEGroup::processTasks(int workerThreadId)
     {
         Estimate& e = m_estimates[task];
 
-        printf("this =%d MCSTF worker %d processing task %d\n",this,
+        printf("this =%p MCSTF worker %d processing task %d\n",this,
             workerThreadId, task);
 
         estimatelowresmotion_doubleres(
@@ -589,11 +604,20 @@ void MCSTFMEGroup::processTasks(int workerThreadId)
             e.frame,
             e.p0,
             e.blockRow);
+        m_tasksCompleted.incr();
 
         task = m_tasksAllocated.getIncr(1);
     }
 
     m_completedWorkers.incr();
+
+    if (m_tasksCompleted.get() >= m_jobTotal)
+    {
+        m_mcstf.m_mcstfWorkAvailable = false;
+        return;
+    }
+
+    printf("worker %d task %d done\n", workerThreadId, task);
 }
 
 void MCSTFMEGroup::estimatelowresmotion_doubleres(MotionEstimatorTLD& metld, Frame* curFrame, int refId, int row)
@@ -896,6 +920,7 @@ void MCSTFMEGroup::initRowSync(int numRefs, int numBlockRows,
 void MCSTFMEGroup::finishBatch()
 {
     m_tasksAllocated.set(0);
+    m_tasksCompleted.set(0);
     m_activeWorkers.set(0);
     m_completedWorkers.set(0);
 
@@ -916,16 +941,8 @@ void MCSTFMEGroup::finishBatch()
     // master participates
     processTasks(-1);
 
-    // wait until all tasks assigned
-    while (m_tasksAllocated.get() < m_jobTotal)
+    while (m_tasksCompleted.get() < m_jobTotal)
         GIVE_UP_TIME();
-
-    // wait until workers exit
-    int active;
-    do
-    {
-        active = m_activeWorkers.get();
-    } while (m_completedWorkers.get() < active);
 
     m_mcstf.m_mcstfWorkAvailable = false;
     m_mcstf.m_activeGroup = NULL;
