@@ -175,28 +175,28 @@ void TemporalFilter::findJob(int workerThreadId)
 {
     MCSTFMEGroup* group = m_activeGroup;
 
-    printf("ENTER findJob worker=%d group=%p available=%d\n",
-        workerThreadId,
-        group,
-        m_mcstfWorkAvailable);
+    //printf("ENTER findJob worker=%d group=%p available=%d\n",
+        //workerThreadId,
+        //group,
+        //m_mcstfWorkAvailable);
 
     if (!group)
     {
-        printf("EXIT findJob worker=%d reason=NULL\n",
-            workerThreadId);
+        //printf("EXIT findJob worker=%d reason=NULL\n",
+            //workerThreadId);
         return;
     }
 
     if (!m_mcstfWorkAvailable)
     {
-        printf("EXIT findJob worker=%d reason=NOT_AVAILABLE\n",
-            workerThreadId);
+        //printf("EXIT findJob worker=%d reason=NOT_AVAILABLE\n",
+            //workerThreadId);
         return;
     }
 
-    printf("CALL processTasks worker=%d group=%p\n",
-        workerThreadId,
-        group);
+    //printf("CALL processTasks worker=%d group=%p\n",
+        //workerThreadId,
+        //group);
 
     if (group->m_tasksCompleted.get() >= group->m_jobTotal)
         return;
@@ -466,7 +466,7 @@ void TemporalFilter::runMCSTF(Frame* pic, ThreadPool* pool)
     const int numBlockRows = (pic->m_fencPic->m_picHeight + blockSize - 1) / blockSize;
     {
         MCSTFMEGroup *phase2 = new MCSTFMEGroup(*this, pool);
-        printf("phase2=%p\n", &phase2);
+        //printf("phase2=%p\n", &phase2);
 
         phase2->initRowSync(numRef, numBlockRows, blockSize);
 
@@ -603,8 +603,8 @@ void MCSTFMEGroup::processTasks(int workerThreadId)
     {
         Estimate& e = m_estimates[task];
 
-        printf("this =%p MCSTF worker %d processing task %d\n",this,
-            workerThreadId, task);
+        //printf("this =%p MCSTF worker %d processing task %d\n",this,
+            //workerThreadId, task);
 
         estimatelowresmotion_doubleres(
             metld,
@@ -625,7 +625,7 @@ void MCSTFMEGroup::processTasks(int workerThreadId)
         return;
     }
     
-    printf("worker %d task %d done\n", workerThreadId, task);
+    //printf("worker %d task %d done\n", workerThreadId, task);
 }
 
 void MCSTFMEGroup::estimatelowresmotion_doubleres(MotionEstimatorTLD& metld, Frame* curFrame, int refId, int row)
@@ -933,12 +933,12 @@ void MCSTFMEGroup::finishBatch()
     m_completedWorkers.set(0);
     m_workersInside.set(0);
 
-    printf("SET activeGroup=%p\n", this);
+    //printf("SET activeGroup=%p\n", this);
 
     m_mcstf.m_activeGroup = this;
 
-    printf("AFTER SET activeGroup=%p\n",
-        m_mcstf.m_activeGroup);
+    //printf("AFTER SET activeGroup=%p\n",
+        //m_mcstf.m_activeGroup);
     m_mcstf.m_mcstfWorkAvailable = true;
 
     m_mcstf.m_helpWanted = true;
@@ -957,7 +957,7 @@ void MCSTFMEGroup::finishBatch()
 
     m_mcstf.m_mcstfWorkAvailable = false;
     m_mcstf.m_activeGroup = NULL;
-    printf("finishBatch mcstf=%p\n", &m_mcstf);
+    //printf("finishBatch mcstf=%p\n", &m_mcstf);
     m_mcstf.m_helpWanted = false;
 }
 
