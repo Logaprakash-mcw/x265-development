@@ -446,23 +446,20 @@ int MotionEstimatorTLD::motionErrorLumaSAD(MotionEstimatorTLD& m_metld,
         dx /= m_motionVectorFactor;
         dy /= m_motionVectorFactor;
 
-#if 1
+        const pixel* bufferRowStart = buffOrigin + (y + dy) * buffStride + (x + dx);
+#if 0
+        const pixel* origRowStart = origOrigin + y *origStride + x;
+
         for (int y1 = 0; y1 < bs; y1++)
         {
-            const pixel* origRowStart = origOrigin + (y + y1) * origStride + x;
-            const pixel* bufferRowStart = buffOrigin + (y + y1 + dy) * buffStride + (x + dx);
-            for (int x1 = 0; x1 < bs; x1+=2)
+            for (int x1 = 0; x1 < bs; x1++)
             {
-                 int diff = origRowStart[x1] - bufferRowStart[x1];
-                 error += diff * diff;
-                diff = origRowStart[x1+1] - bufferRowStart[x1+1];
-                error += diff * diff;
-            }
-            if(error > besterror)
-            {
-                return error;
+                int diff = origRowStart[x1] - bufferRowStart[x1];
+                error += abs(diff);
             }
 
+            origRowStart += origStride;
+            bufferRowStart += buffStride;
         }
 #else
         int partEnum = partitionFromSizes(bs, bs);
@@ -508,23 +505,20 @@ int MotionEstimatorTLD::motionErrorLumaSSD(MotionEstimatorTLD& m_metld,
         dx /= m_motionVectorFactor;
         dy /= m_motionVectorFactor;
 
-#if 1
+        const pixel* bufferRowStart = buffOrigin + (y + dy) * buffStride + (x + dx);
+#if 0
+        const pixel* origRowStart = origOrigin + y * origStride + x;
+
         for (int y1 = 0; y1 < bs; y1++)
         {
-            const pixel* origRowStart = origOrigin + (y + y1) * origStride + x;
-            const pixel* bufferRowStart = buffOrigin + (y + y1 + dy) * buffStride + (x + dx);
-            for (int x1 = 0; x1 < bs; x1+=2)
+            for (int x1 = 0; x1 < bs; x1++)
             {
                 int diff = origRowStart[x1] - bufferRowStart[x1];
                 error += diff * diff;
-                diff = origRowStart[x1+1] - bufferRowStart[x1+1];
-                error += diff * diff;
-            }
-            if(error > besterror)
-            {
-                return error;
             }
 
+            origRowStart += origStride;
+            bufferRowStart += buffStride;
         }
 #else
         int partEnum = partitionFromSizes(bs, bs);
