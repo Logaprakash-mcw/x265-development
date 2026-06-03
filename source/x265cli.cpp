@@ -391,8 +391,13 @@ namespace X265_NS {
         H0("   --dup-threshold <integer>     PSNR threshold for Frame duplication. Default %d\n", param->dupThreshold);
         H0("   --[no-]mcstf                  Enable GOP-based temporal filter. Default %d\n", param->bEnableTemporalFilter);
         H0("   --[no-]encoder-row-me         Enable Block Row split parallel ME for MCSTF in Encoder. Default %d\n", param->bEnableEncoderRowME);
-        H0("   --[no-]lookahead-row-me       Enable Block Row split parallel ME for MCSTF in Lookahead. Default %d\n", param->bEnableLookaheadRowME);
+        H0("   --lookahead-row-me            Enable Block Row split parallel ME for MCSTF in Lookahead. Default %d\n", param->bEnableLookaheadRowME);
+        H0("   --l1-rowsize                  Block Row split size for double resolution for MCSTF in Lookahead. Default %d\n", param->L1Size);
+        H0("   --l2-rowsize                  Block Row split size for orig resolution for MCSTF in Lookahead. Default %d\n", param->L2Size);
+        H0("   --l3-rowsize                  Block Row split size for half resolution for MCSTF in Lookahead. Default %d\n", param->L3Size);
+        H0("   --l4-rowsize                  Block Row split size for quarter resolution for MCSTF in Lookahead. Default %d\n", param->L4Size);
         H0("   --[no-]bilateral-row-me       Enable Block Row split parallel for Bilateral filter. Default %d\n", param->bEnableBilateralRowME);
+        H0("   --mcstf-ref-range <0..4>      Maximum number of range for MCSTF. Default %d\n", param->mcstfFrameRange);
 
 #if ENABLE_ALPHA
         H0("   --alpha                       Enable alpha channel support. Default %d\n", param->bEnableAlpha);

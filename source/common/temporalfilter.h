@@ -61,6 +61,53 @@ const double s_refStrengths[3][4] =
 };
 
 namespace X265_NS {
+
+    /* MCSTF runtime SIMD dispatch
+     * Function-pointer table for MCSTF SIMD kernels. Defaults are scalar
+     * implementations defined in temporalfilter.cpp; setupMCTFPrimitives_x86
+     * (in common/x86/temporalfilter_simd.cpp) overrides them with SSE4.1/AVX2
+     * variants when the runtime CPU supports the required ISA.*/
+
+    struct MCTFPrimitives
+    {
+        int  (*motionErrorLumaFrac)(const pixel* origOrigin, intptr_t origStride,
+            const pixel* buffOrigin, intptr_t buffStride,
+            int x, int y, int dx, int dy,
+            int bs, int besterror, int bitDepth, int errorMode);
+        void (*applyMotion)(const pixel* pSrcImage, int srcStride,
+            pixel * pDstImage, int dstStride,
+            int width, int height,
+            int blockSizeX, int blockSizeY,
+            uint32_t mvsStride, const MV* mvs,
+            int csx, int csy,
+            int blockRow, int rowSize, int vShift);
+        void (*computeBlockStats)(
+            const pixel* srcPel, intptr_t srcStride,
+            const pixel* refPel, intptr_t refStride,
+            int          blkSize,
+            int* outVariance,
+            int* outDiffsum);
+        void (*bilateralWeightedFilter)(
+            const pixel* srcBlk, intptr_t srcStride,
+            int             numRefs,
+            const pixel* const* refBlks,
+            const intptr_t* refStrides,
+            const double* vww,
+            const double* vsw,
+            double          bdw,
+            double          maxSample,
+            int             blkSize,
+            pixel* dstBlk, intptr_t dstStride);
+    };
+#define MCTF_MAX_REFS 16  
+
+    extern MCTFPrimitives mctfPrim;
+
+    void setupMCTFPrimitives_scalar(MCTFPrimitives& p);
+#if X265_ARCH_X86
+    void setupMCTFPrimitives_x86(MCTFPrimitives& p, int cpuMask);
+#endif
+
     class OrigPicBuffer
     {
     public:
@@ -261,8 +308,8 @@ namespace X265_NS {
 
         void destroyRefPicInfo(TemporalFilterRefPicInfo* curFrame);
 
-        void applyMotion(MV *mvs, uint32_t mvsStride, PicYuv *input, PicYuv *output);
-        void applyMotionBlock(const pixel *pSrc, const int srcStride, pixel *dst, const intptr_t dstStride, const int w, const int h, const int *xFilter, const int *yFilter);
+        void applyMotion(MV * mvs, uint32_t mvsStride, PicYuv * input, PicYuv * output, const int blockRow = 0, const int rowSize = 0);
+        //void applyMotionBlock(const pixel *pSrc, const int srcStride, pixel *dst, const intptr_t dstStride, const int w, const int h, const int *xFilter, const int *yFilter);
         void    create(x265_param* param, ThreadPool*);
         void runMCSTF(Frame* pic, ThreadPool*);
         void    destroy();
@@ -290,7 +337,8 @@ namespace X265_NS {
         ThreadSafeInteger m_tasksAllocated;
 
         BilateralFilterGroup(TemporalFilter& f, ThreadPool* pool)
-            : m_filter(f), m_pool(pool), m_jobTotal(0) {}
+            : m_filter(f), m_pool(pool), m_jobTotal(0) 
+        {};
 
         void add(Frame* frame, TemporalFilterRefPicInfo* mctfRefList,
                 int numRef, int blockRow, int blockSize, double strength)

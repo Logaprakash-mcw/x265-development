@@ -2337,6 +2337,10 @@ typedef struct x265_param
     int      bEnableEncoderRowME;
     int      bEnableLookaheadRowME;
     int      bEnableBilateralRowME;
+    int      L1Size;
+    int      L2Size;
+    int      L3Size;
+    int      L4Size;
     double   temporalFilterStrength;
     /*Search Range for L0, L1 and L2 in MCTF*/
     int      searchRangeForLayer0;

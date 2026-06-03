@@ -32,6 +32,236 @@
 
 using namespace X265_NS;
 
+namespace X265_NS {
+
+    /* MCSTF scalar fallbacks - used when the runtime CPU lacks the required ISA.*/
+
+    static int motionErrorLumaFrac_c(
+        const pixel* origOrigin, intptr_t origStride,
+        const pixel* buffOrigin, intptr_t buffStride,
+        int x, int y, int dx, int dy,
+        int bs, int besterror, int bitDepth, int errorMode)
+    {
+        const int* xFilter = s_interpolationFilter[dx & 0xF];
+        const int* yFilter = s_interpolationFilter[dy & 0xF];
+        int tempArray[64 + 8][64];
+        int error = 0;
+
+        for (int y1 = 1; y1 < bs + 7; y1++)
+        {
+            const int yOffset = y + y1 + (dy >> 4) - 3;
+            const pixel* sourceRow = buffOrigin + yOffset * buffStride;
+            for (int x1 = 0; x1 < bs; x1++)
+            {
+                int iBase = x + x1 + (dx >> 4) - 3;
+                const pixel* rowStart = sourceRow + iBase;
+                int iSum = 0;
+                iSum += xFilter[1] * rowStart[1];
+                iSum += xFilter[2] * rowStart[2];
+                iSum += xFilter[3] * rowStart[3];
+                iSum += xFilter[4] * rowStart[4];
+                iSum += xFilter[5] * rowStart[5];
+                iSum += xFilter[6] * rowStart[6];
+                tempArray[y1][x1] = iSum;
+            }
+        }
+
+        const int maxSampleValue = (1 << bitDepth) - 1;
+        for (int y1 = 0; y1 < bs; y1++)
+        {
+            const pixel* origRow = origOrigin + (y + y1) * origStride;
+            for (int x1 = 0; x1 < bs; x1++)
+            {
+                int iSum = 0;
+                iSum += yFilter[1] * tempArray[y1 + 1][x1];
+                iSum += yFilter[2] * tempArray[y1 + 2][x1];
+                iSum += yFilter[3] * tempArray[y1 + 3][x1];
+                iSum += yFilter[4] * tempArray[y1 + 4][x1];
+                iSum += yFilter[5] * tempArray[y1 + 5][x1];
+                iSum += yFilter[6] * tempArray[y1 + 6][x1];
+                iSum = (iSum + (1 << 11)) >> 12;
+                iSum = iSum < 0 ? 0 : (iSum > maxSampleValue ? maxSampleValue : iSum);
+
+                int diff = iSum - origRow[x + x1];
+                if (errorMode == 0)
+                    error += abs(diff);
+                else
+                    error += diff * diff;
+            }
+            if (error > besterror)
+                return error;
+        }
+        return error;
+    }
+
+    static void applyMotion_c(
+        const pixel* pSrcImage, int srcStride,
+        pixel* pDstImage, int dstStride,
+        int width, int height,
+        int blockSizeX, int blockSizeY,
+        uint32_t mvsStride, const MV* mvs,
+        int csx, int csy,
+        int blockRow, int rowSize, int vShift)
+    {
+        static const int numFilterTaps = 7;
+        static const int centreTapOffset = 3;
+        const int maxValue = (1 << X265_DEPTH) - 1;
+
+        /* Row-slice: mirrors bilateralFilterBlock() threading logic */
+        const int blkRowStart = (blockRow * rowSize) >> vShift;
+        const int blkRowEnd = X265_MIN((blockRow * rowSize + rowSize) >> vShift, height);
+        const int rowStart = (!rowSize) ? 0 : blkRowStart;
+        const int rowEnd = (!rowSize) ? height : blkRowEnd;
+        int       blockNumY = (!rowSize) ? 0 : blkRowStart / blockSizeY;
+
+        for (int y = rowStart;
+            y + blockSizeY <= rowEnd;
+            y += blockSizeY, blockNumY++)
+        {
+            for (int x = 0, blockNumX = 0;
+                x + blockSizeX <= width;
+                x += blockSizeX, blockNumX++)
+            {
+                const int mvIdx = blockNumY * (int)mvsStride + blockNumX;
+                const MV& mv = mvs[mvIdx];
+
+                const int dx = mv.x >> csx;
+                const int dy = mv.y >> csy;
+                const int xInt = mv.x >> (4 + csx);
+                const int yInt = mv.y >> (4 + csy);
+
+                const int* xFilter = s_interpolationFilter[dx & 0xf];
+                const int* yFilter = s_interpolationFilter[dy & 0xf];
+
+                int tempArray[8 + numFilterTaps][8];
+
+                for (int by = 1; by < blockSizeY + numFilterTaps; by++)
+                {
+                    const int yOffset = y + by + yInt - centreTapOffset;
+                    const pixel* sourceRow = pSrcImage + yOffset * srcStride;
+
+                    for (int bx = 0; bx < blockSizeX; bx++)
+                    {
+                        int iBase = x + bx + xInt - centreTapOffset;
+                        const pixel* rowStart = sourceRow + iBase;
+
+                        int iSum = 0;
+                        iSum += xFilter[1] * rowStart[1];
+                        iSum += xFilter[2] * rowStart[2];
+                        iSum += xFilter[3] * rowStart[3];
+                        iSum += xFilter[4] * rowStart[4];
+                        iSum += xFilter[5] * rowStart[5];
+                        iSum += xFilter[6] * rowStart[6];
+
+                        tempArray[by][bx] = iSum;
+                    }
+                }
+
+                pixel* pDstRow = pDstImage + y * dstStride;
+
+                for (int by = 0; by < blockSizeY; by++, pDstRow += dstStride)
+                {
+                    pixel* pDstPel = pDstRow + x;
+
+                    for (int bx = 0; bx < blockSizeX; bx++, pDstPel++)
+                    {
+                        int iSum = 0;
+
+                        iSum += yFilter[1] * tempArray[by + 1][bx];
+                        iSum += yFilter[2] * tempArray[by + 2][bx];
+                        iSum += yFilter[3] * tempArray[by + 3][bx];
+                        iSum += yFilter[4] * tempArray[by + 4][bx];
+                        iSum += yFilter[5] * tempArray[by + 5][bx];
+                        iSum += yFilter[6] * tempArray[by + 6][bx];
+
+                        iSum = (iSum + (1 << 11)) >> 12;
+                        iSum = iSum < 0 ? 0 : (iSum > maxValue ? maxValue : iSum);
+
+                        *pDstPel = (pixel)iSum;
+                    }
+                }
+            }
+        }
+    }
+
+    static void computeBlockStats_c(
+        const pixel* srcPel, intptr_t srcStride,
+        const pixel* refPel, intptr_t refStride,
+        int blkSize, int* outVariance, int* outDiffsum)
+    {
+        int variance = 0, diffsum = 0;
+        for (int y1 = 0; y1 < blkSize; y1++)
+        {
+            for (int x1 = 0; x1 < blkSize; x1++)
+            {
+                int diff = *(srcPel + srcStride * y1 + x1)
+                    - *(refPel + refStride * y1 + x1);
+                variance += diff * diff;
+                if (x1 != blkSize - 1)
+                {
+                    int diffR = *(srcPel + srcStride * y1 + x1 + 1)
+                        - *(refPel + refStride * y1 + x1 + 1);
+                    diffsum += (diffR - diff) * (diffR - diff);
+                }
+                if (y1 != blkSize - 1)
+                {
+                    int diffD = *(srcPel + srcStride * (y1 + 1) + x1)
+                        - *(refPel + refStride * (y1 + 1) + x1);
+                    diffsum += (diffD - diff) * (diffD - diff);
+                }
+            }
+        }
+        *outVariance = variance;
+        *outDiffsum = diffsum;
+    }
+
+    static void bilateralWeightedFilter_c(
+        const pixel* srcBlk, intptr_t srcStride,
+        int             numRefs,
+        const pixel* const* refBlks,
+        const intptr_t* refStrides,
+        const double* vww,
+        const double* vsw,
+        double          bdw,
+        double          maxSample,
+        int             blkSize,
+        pixel* dstBlk, intptr_t dstStride)
+    {
+        for (int y = 0; y < blkSize; y++)
+        {
+            for (int x = 0; x < blkSize; x++)
+            {
+                const int orgVal = (int)srcBlk[y * srcStride + x];
+                double temporalWeightSum = 1.0;
+                double newVal = (double)orgVal;
+                for (int i = 0; i < numRefs; i++)
+                {
+                    const int refVal = (int)refBlks[i][y * refStrides[i] + x];
+                    double diff = (double)(refVal - orgVal) * bdw;
+                    double diffSq = diff * diff;
+                    const double weight = vww[i] * exp(-diffSq / vsw[i]);
+                    newVal += weight * refVal;
+                    temporalWeightSum += weight;
+                }
+                newVal /= temporalWeightSum;
+                double sampleVal = round(newVal);
+                sampleVal = (sampleVal < 0 ? 0 : (sampleVal > maxSample ? maxSample : sampleVal));
+                dstBlk[y * dstStride + x] = (pixel)sampleVal;
+            }
+        }
+    }
+    /* Global MCSTF primitives table */
+    MCTFPrimitives mctfPrim;
+
+    void setupMCTFPrimitives_scalar(MCTFPrimitives& p)
+    {
+        p.motionErrorLumaFrac = motionErrorLumaFrac_c;
+        p.applyMotion = applyMotion_c;
+        p.computeBlockStats = computeBlockStats_c;
+        p.bilateralWeightedFilter = bilateralWeightedFilter_c;
+    }
+}/* namespace X265_NS */
+
 void OrigPicBuffer::addPicture(Frame* inFrame)
 {
     m_mcstfPicList.pushFrontMCSTF(*inFrame);
@@ -250,23 +480,20 @@ int MotionEstimatorTLD::motionErrorLumaSAD(MotionEstimatorTLD& m_metld,
         dx /= m_motionVectorFactor;
         dy /= m_motionVectorFactor;
 
-#if 1
+        const pixel* bufferRowStart = buffOrigin + (y + dy) * buffStride + (x + dx);
+#if 0
+        const pixel* origRowStart = origOrigin + y *origStride + x;
+
         for (int y1 = 0; y1 < bs; y1++)
         {
-            const pixel* origRowStart = origOrigin + (y + y1) * origStride + x;
-            const pixel* bufferRowStart = buffOrigin + (y + y1 + dy) * buffStride + (x + dx);
-            for (int x1 = 0; x1 < bs; x1+=2)
+            for (int x1 = 0; x1 < bs; x1++)
             {
-                 int diff = origRowStart[x1] - bufferRowStart[x1];
-                 error += diff * diff;
-                diff = origRowStart[x1+1] - bufferRowStart[x1+1];
-                error += diff * diff;
-            }
-            if(error > besterror)
-            {
-                return error;
+                int diff = origRowStart[x1] - bufferRowStart[x1];
+                error += abs(diff);
             }
 
+            origRowStart += origStride;
+            bufferRowStart += buffStride;
         }
 #else
         int partEnum = partitionFromSizes(bs, bs);
@@ -282,56 +509,10 @@ int MotionEstimatorTLD::motionErrorLumaSAD(MotionEstimatorTLD& m_metld,
     }
     else
     {
-        const int *xFilter = s_interpolationFilter[dx & 0xF];
-        const int *yFilter = s_interpolationFilter[dy & 0xF];
-        int tempArray[64 + 8][64];
-
-        int iSum, iBase;
-        for (int y1 = 1; y1 < bs + 7; y1++)
-        {
-            const int yOffset = y + y1 + (dy >> 4) - 3;
-            const pixel *sourceRow = buffOrigin + (yOffset)*buffStride + 0;
-            for (int x1 = 0; x1 < bs; x1++)
-            {
-                iSum = 0;
-                iBase = x + x1 + (dx >> 4) - 3;
-                const pixel *rowStart = sourceRow + iBase;
-
-                iSum += xFilter[1] * rowStart[1];
-                iSum += xFilter[2] * rowStart[2];
-                iSum += xFilter[3] * rowStart[3];
-                iSum += xFilter[4] * rowStart[4];
-                iSum += xFilter[5] * rowStart[5];
-                iSum += xFilter[6] * rowStart[6];
-
-                tempArray[y1][x1] = iSum;
-            }
-        }
-
-        const pixel maxSampleValue = (1 << m_bitDepth) - 1;
-        for (int y1 = 0; y1 < bs; y1++)
-        {
-            const pixel *origRow = origOrigin + (y + y1)*origStride + 0;
-            for (int x1 = 0; x1 < bs; x1++)
-            {
-                iSum = 0;
-                iSum += yFilter[1] * tempArray[y1 + 1][x1];
-                iSum += yFilter[2] * tempArray[y1 + 2][x1];
-                iSum += yFilter[3] * tempArray[y1 + 3][x1];
-                iSum += yFilter[4] * tempArray[y1 + 4][x1];
-                iSum += yFilter[5] * tempArray[y1 + 5][x1];
-                iSum += yFilter[6] * tempArray[y1 + 6][x1];
-
-                iSum = (iSum + (1 << 11)) >> 12;
-                iSum = iSum < 0 ? 0 : (iSum > maxSampleValue ? maxSampleValue : iSum);
-
-                error += abs(iSum - origRow[x + x1]);
-            }
-            if (error > besterror)
-            {
-                return error;
-            }
-        }
+        error = mctfPrim.motionErrorLumaFrac(
+            origOrigin, origStride, buffOrigin, buffStride,
+            x, y, dx, dy, bs, besterror, m_bitDepth, 0 /*SAD*/);
+        if (error > besterror) return error;
     }
     return error;
 }
@@ -391,56 +572,10 @@ int MotionEstimatorTLD::motionErrorLumaSSD(MotionEstimatorTLD& m_metld,
     }
     else
     {
-        const int *xFilter = s_interpolationFilter[dx & 0xF];
-        const int *yFilter = s_interpolationFilter[dy & 0xF];
-        int tempArray[64 + 8][64];
-
-        int iSum, iBase;
-        for (int y1 = 1; y1 < bs + 7; y1++)
-        {
-            const int yOffset = y + y1 + (dy >> 4) - 3;
-            const pixel *sourceRow = buffOrigin + (yOffset)*buffStride + 0;
-            for (int x1 = 0; x1 < bs; x1++)
-            {
-                iSum = 0;
-                iBase = x + x1 + (dx >> 4) - 3;
-                const pixel *rowStart = sourceRow + iBase;
-
-                iSum += xFilter[1] * rowStart[1];
-                iSum += xFilter[2] * rowStart[2];
-                iSum += xFilter[3] * rowStart[3];
-                iSum += xFilter[4] * rowStart[4];
-                iSum += xFilter[5] * rowStart[5];
-                iSum += xFilter[6] * rowStart[6];
-
-                tempArray[y1][x1] = iSum;
-            }
-        }
-
-        const pixel maxSampleValue = (1 << m_bitDepth) - 1;
-        for (int y1 = 0; y1 < bs; y1++)
-        {
-            const pixel *origRow = origOrigin + (y + y1)*origStride + 0;
-            for (int x1 = 0; x1 < bs; x1++)
-            {
-                iSum = 0;
-                iSum += yFilter[1] * tempArray[y1 + 1][x1];
-                iSum += yFilter[2] * tempArray[y1 + 2][x1];
-                iSum += yFilter[3] * tempArray[y1 + 3][x1];
-                iSum += yFilter[4] * tempArray[y1 + 4][x1];
-                iSum += yFilter[5] * tempArray[y1 + 5][x1];
-                iSum += yFilter[6] * tempArray[y1 + 6][x1];
-
-                iSum = (iSum + (1 << 11)) >> 12;
-                iSum = iSum < 0 ? 0 : (iSum > maxSampleValue ? maxSampleValue : iSum);
-
-                error += (iSum - origRow[x + x1]) * (iSum - origRow[x + x1]);
-            }
-            if (error > besterror)
-            {
-                return error;
-            }
-        }
+        error = mctfPrim.motionErrorLumaFrac(
+            origOrigin, origStride, buffOrigin, buffStride,
+            x, y, dx, dy, bs, besterror, m_bitDepth, 1 /*SAD*/);
+        if (error > besterror) return error;
     }
     return error;
 }
@@ -484,7 +619,8 @@ void TemporalFilter::runMCSTF(Frame* pic, ThreadPool* pool)
     }
 }
 
-void TemporalFilter::applyMotion(MV *mvs, uint32_t mvsStride, PicYuv *input, PicYuv *output)
+
+void TemporalFilter::applyMotion(MV *mvs, uint32_t mvsStride, PicYuv *input, PicYuv *output, const int blockRow, const int rowSize)
 {
     static const int lumaBlockSize = 8;
     int srcStride = 0;
@@ -514,67 +650,15 @@ void TemporalFilter::applyMotion(MV *mvs, uint32_t mvsStride, PicYuv *input, Pic
         const int height = input->m_picHeight >> csy;
         const int width = input->m_picWidth >> csx;
 
-        for (int y = 0, blockNumY = 0; y + blockSizeY <= height; y += blockSizeY, blockNumY++)
-        {
-            for (int x = 0, blockNumX = 0; x + blockSizeX <= width; x += blockSizeX, blockNumX++)
-            {
-                int mvIdx = blockNumY * mvsStride + blockNumX;
-                const MV &mv = mvs[mvIdx];
-                const int dx = mv.x >> csx;
-                const int dy = mv.y >> csy;
-                const int xInt = mv.x >> (4 + csx);
-                const int yInt = mv.y >> (4 + csy);
+        const int vShift       = (!c) ? 0 : csy;
+        const int blkRowStart = (blockRow * rowSize) >> vShift;
+        const int blkRowEnd   = X265_MIN((blockRow * rowSize + rowSize) >> vShift, height);
 
-                const int *xFilter = s_interpolationFilter[dx & 0xf];
-                const int *yFilter = s_interpolationFilter[dy & 0xf]; // will add 6 bit.
-                const int numFilterTaps = 7;
-                const int centreTapOffset = 3;
+        const int rowStart  = (!rowSize) ? 0 : blkRowStart;
+        const int rowEnd    = (!rowSize) ? height : blkRowEnd;
+        int blockNumY       = (!rowSize) ? 0 : blkRowStart / blockSizeY;
 
-                int tempArray[lumaBlockSize + numFilterTaps][lumaBlockSize];
-
-                for (int by = 1; by < blockSizeY + numFilterTaps; by++)
-                {
-                    const int yOffset = y + by + yInt - centreTapOffset;
-                    const pixel *sourceRow = pSrcImage + yOffset * srcStride;
-                    for (int bx = 0; bx < blockSizeX; bx++)
-                    {
-                        int iBase = x + bx + xInt - centreTapOffset;
-                        const pixel *rowStart = sourceRow + iBase;
-
-                        int iSum = 0;
-                        iSum += xFilter[1] * rowStart[1];
-                        iSum += xFilter[2] * rowStart[2];
-                        iSum += xFilter[3] * rowStart[3];
-                        iSum += xFilter[4] * rowStart[4];
-                        iSum += xFilter[5] * rowStart[5];
-                        iSum += xFilter[6] * rowStart[6];
-
-                        tempArray[by][bx] = iSum;
-                    }
-                }
-
-                pixel *pDstRow = pDstImage + y * dstStride;
-                for (int by = 0; by < blockSizeY; by++, pDstRow += dstStride)
-                {
-                    pixel *pDstPel = pDstRow + x;
-                    for (int bx = 0; bx < blockSizeX; bx++, pDstPel++)
-                    {
-                        int iSum = 0;
-
-                        iSum += yFilter[1] * tempArray[by + 1][bx];
-                        iSum += yFilter[2] * tempArray[by + 2][bx];
-                        iSum += yFilter[3] * tempArray[by + 3][bx];
-                        iSum += yFilter[4] * tempArray[by + 4][bx];
-                        iSum += yFilter[5] * tempArray[by + 5][bx];
-                        iSum += yFilter[6] * tempArray[by + 6][bx];
-
-                        iSum = (iSum + (1 << 11)) >> 12;
-                        iSum = iSum < 0 ? 0 : (iSum > maxValue ? maxValue : iSum);
-                        *pDstPel = (pixel)iSum;
-                    }
-                }
-            }
-        }
+        mctfPrim.applyMotion(pSrcImage, srcStride, pDstImage, dstStride, width, height, blockSizeX, blockSizeY, mvsStride, mvs, csx, csy, blockRow, rowSize, vShift);
     }
 }
 
@@ -1114,251 +1198,119 @@ void TemporalFilter::bilateralFilter_core(Frame* frame,
     }
 }
 
-void TemporalFilter::applyMotionBlock(const pixel *pSrc, const int srcStride, pixel *dst, const intptr_t dstStride, const int w, const int h, const int *xFilter, const int *yFilter)
-{
-    
-    const int numFilterTaps = 7;
-    const int centreTapOffset = 3;
-
-    int tempArray[8 + numFilterTaps][8];
-    const pixel maxValue = (1 << X265_DEPTH) - 1;
-
-    for (int y = 1; y < h + numFilterTaps; y++)
-    {
-        const int yOffset = y - centreTapOffset;
-        const pixel *sourceRow = pSrc + yOffset * srcStride;
-        for (int x = 0; x < w; x++)
-        {
-            int iBase = x - centreTapOffset;
-            const pixel *rowStart = sourceRow + iBase;
-
-            int iSum = 0;
-            iSum += xFilter[1] * rowStart[1];
-            iSum += xFilter[2] * rowStart[2];
-            iSum += xFilter[3] * rowStart[3];
-            iSum += xFilter[4] * rowStart[4];
-            iSum += xFilter[5] * rowStart[5];
-            iSum += xFilter[6] * rowStart[6];
-
-            tempArray[y][x] = iSum;
-        }
-    }
-
-    for (int y = 0; y < h; y++, dst += dstStride)
-    {
-        pixel *pDstPel = dst;
-        for (int x = 0; x < w; x++, pDstPel++)
-        {
-            int iSum = 0;
-
-            iSum += yFilter[1] * tempArray[y + 1][x];
-            iSum += yFilter[2] * tempArray[y + 2][x];
-            iSum += yFilter[3] * tempArray[y + 3][x];
-            iSum += yFilter[4] * tempArray[y + 4][x];
-            iSum += yFilter[5] * tempArray[y + 5][x];
-            iSum += yFilter[6] * tempArray[y + 6][x];
-
-            iSum = (iSum + (1 << 11)) >> 12;
-            iSum = iSum < 0 ? 0 : (iSum > maxValue ? maxValue : iSum);
-            *pDstPel = (pixel)iSum;
-        }
-    }
-}
-
 void TemporalFilter::bilateralFilterBlock(
-    Frame*                    frame,
+    Frame* frame,
     TemporalFilterRefPicInfo* m_mcstfRefList,
     int                       numRefs,
     int                       blockRow,
-    int                       blockSize,
+    int                       rowSize,
     double                    overallStrength)
 {
-
     int refStrengthRow = 0;
-
     if (frame->m_poc % 16 == 0)
         overallStrength = 1.5;
+
     const double lumaSigmaSq = (m_QP - m_sigmaZeroPoint) * (m_QP - m_sigmaZeroPoint) * m_sigmaMultiplier;
     const double chromaSigmaSq = 30 * 30;
-
     PicYuv* orgPic = frame->m_fencPic;
+
+    for (int i = 0; i < numRefs; i++)
+    {
+        TemporalFilterRefPicInfo* ref = &m_mcstfRefList[i];
+        applyMotion(m_mcstfRefList[i].mvs, m_mcstfRefList[i].mvsStride,
+            m_mcstfRefList[i].picBuffer, ref->compensatedPic,
+            blockRow, rowSize);
+    }
 
     for (int c = 0; c < m_numComponents; c++)
     {
-        int height, width;
-        pixel *srcPelPlane = NULL;
-        intptr_t srcStride, correctedPicsStride = 0;
+        const int csx = (!c) ? 0 : CHROMA_H_SHIFT(m_internalCsp);
+        const int csy = (!c) ? 0 : CHROMA_V_SHIFT(m_internalCsp);
+        const int height = (!c) ? orgPic->m_picHeight : orgPic->m_picHeight >> csy;
+        const int width = (!c) ? orgPic->m_picWidth : orgPic->m_picWidth >> csx;
+        pixel* srcPelPlane = orgPic->m_picOrg[c];
+        const intptr_t srcStride = (!c) ? orgPic->m_stride : (intptr_t)orgPic->m_strideC;
 
-        int csx = (!c) ? 0 : CHROMA_H_SHIFT(m_internalCsp);
-        int csy = (!c) ? 0 : CHROMA_V_SHIFT(m_internalCsp);
-        if (!c)
-        {
-            height = orgPic->m_picHeight;
-            width = orgPic->m_picWidth;
-            srcPelPlane = orgPic->m_picOrg[c];
-            srcStride = orgPic->m_stride;
-        }
-        else
-        {
-
-            height = orgPic->m_picHeight >> csy;
-            width = orgPic->m_picWidth >> csx;
-            srcPelPlane = orgPic->m_picOrg[c];
-            srcStride = (int)orgPic->m_strideC;
-        }
-
-        const double sigmaSq = (!c)  ? lumaSigmaSq : chromaSigmaSq;
-        const double weightScaling = overallStrength * ( (!c) ? 0.4 : m_chromaFactor);
-
+        const double sigmaSq = (!c) ? lumaSigmaSq : chromaSigmaSq;
+        const double weightScaling = overallStrength * ((!c) ? 0.4 : m_chromaFactor);
         const double maxSampleValue = (1 << m_bitDepth) - 1;
         const double bitDepthDiffWeighting = 1024.0 / (maxSampleValue + 1);
-
         const int blkSize = (!c) ? 8 : 4;
 
-        const int vShift       = (!c) ? 0 : csy;
-        const int planeRowStart = (blockRow * blockSize) >> vShift;
-        const int planeRowEnd   = X265_MIN((blockRow * blockSize + blockSize) >> vShift, height);
-
+        const int vShift = (!c) ? 0 : csy;
+        const int planeRowStart = (blockRow * rowSize) >> vShift;
+        const int planeRowEnd = X265_MIN((blockRow * rowSize + rowSize) >> vShift, height);
         const int blkRowStart = (planeRowStart / blkSize) * blkSize;
-        const int blkRowEnd   = X265_MIN(((planeRowEnd + blkSize - 1) / blkSize) * blkSize, height);
+        const int blkRowEnd = X265_MIN(((planeRowEnd + blkSize - 1) / blkSize) * blkSize, height);
 
-        for (int by = blkRowStart, blockNumY = planeRowStart / blkSize; by + blkSize <= blkRowEnd; by += blkSize, blockNumY++)
+        for (int by = blkRowStart; by + blkSize <= blkRowEnd; by += blkSize)
         {
-            for (int bx = 0, blockNumX = 0; bx + blkSize <= width; bx += blkSize, blockNumX++)
+            for (int bx = 0; bx + blkSize <= width; bx += blkSize)
             {
-                double vww   [16] = {};
-                double vsw   [16] = {};
-
                 const pixel* srcPel = srcPelPlane + by * srcStride + bx;
 
+                // ── Step 1: noise computation via SIMD primitive ─────────
                 double minError = 9999999;
-
-                for (int i = 0; i < numRefs; i++)
-                {
-                    TemporalFilterRefPicInfo *refPicInfo = &m_mcstfRefList[i];
-
-                    if (!c)
-                        correctedPicsStride = refPicInfo->compensatedPic->m_stride;
-                    else
-                        correctedPicsStride = refPicInfo->compensatedPic->m_strideC;
-
-                    // const intptr_t pelOffset = by * correctedPicsStride + bx;
-                    // primitives.pu[1].copy_pp(m_metld->me.fencPUYuv.m_buf[0], FENC_STRIDE, refPicInfo->compensatedPic->m_picOrg[c] + pelOffset, correctedPicsStride);
-
-                    
-                    int mvIdx = blockNumY * m_mcstfRefList[i].mvsStride + blockNumX;
-                    const MV &mv = m_mcstfRefList[i].mvs[mvIdx];
-                    const int dx = mv.x >> csx;
-                    const int dy = mv.y >> csy;
-                    const int xInt = mv.x >> (4 + csx);
-                    const int yInt = mv.y >> (4 + csy);
-
-                    const int yOffset = by + yInt;
-                    const int xOffset = bx + xInt;
-
-                    const pixel* src = refPicInfo->picBuffer->m_picOrg[c] + yOffset * srcStride + xOffset;
-                    const int    refStride = (int) ((!c) ? refPicInfo->picBuffer->m_stride : refPicInfo->picBuffer->m_strideC);
-                    pixel* dst = refPicInfo->compensatedPic->m_picOrg[c] + by * correctedPicsStride + bx;
-                    const int *xFilter = s_interpolationFilter[dx & 0xf];
-                    const int *yFilter = s_interpolationFilter[dy & 0xf];
-
-                    applyMotionBlock(src, refStride, dst, correctedPicsStride, blkSize, blkSize, xFilter, yFilter);
-
-                    double variance = 0, diffsum = 0;
-                    const pixel *refPel = refPicInfo->compensatedPic->m_picOrg[c] + by * correctedPicsStride + bx;
-                    for (int y1 = 0; y1 < blkSize; y1++)
-                    {
-                        for (int x1 = 0; x1 < blkSize; x1++)
-                        {
-                            int pix  = *(srcPel + srcStride * y1 + x1);
-                            int ref  = *(refPel + correctedPicsStride * y1 + x1);
-                            int diff = pix - ref;
-
-                            variance += diff * diff;
-
-                            if (x1 != blkSize - 1)
-                            {
-                                int pixR  = *(srcPel + srcStride * y1 + x1 + 1);
-                                int refR  = *(refPel + correctedPicsStride * y1 + x1 + 1);
-                                int diffR = pixR - refR;
-                                diffsum += (diffR - diff) * (diffR - diff);
-                            }
-                            if (y1 != blkSize - 1)
-                            {
-                                int pixD  = *(srcPel + srcStride * y1 + x1 + srcStride);
-                                int refD  = *(refPel + correctedPicsStride * y1 + x1 + correctedPicsStride);
-                                int diffD = pixD - refD;
-                                diffsum += (diffD - diff) * (diffD - diff);
-                            }
-                        }
-                    }
-                    const int cntV = blkSize * blkSize;
-                    const int cntD = 2 * cntV - blkSize - blkSize;
-                    refPicInfo->noise[(by / blkSize) * refPicInfo->mvsStride + (bx / blkSize)] = (int)round((15.0 * cntD / cntV * variance + 5.0) / (diffsum + 5.0));
-                    minError = X265_MIN(minError, (double)refPicInfo->error[(by / blkSize) * refPicInfo->mvsStride + (bx / blkSize)]);
-                }
-
-                // ── Step 2: pre-compute vww / vsw per reference (block-level) ─
                 for (int i = 0; i < numRefs; i++)
                 {
                     TemporalFilterRefPicInfo* refPicInfo = &m_mcstfRefList[i];
+                    const intptr_t refStride = (!c) ? refPicInfo->compensatedPic->m_stride
+                        : refPicInfo->compensatedPic->m_strideC;
+                    const pixel* refPel = refPicInfo->compensatedPic->m_picOrg[c]
+                        + by * refStride + bx;
 
+                    int iVariance = 0, iDiffsum = 0;
+                    mctfPrim.computeBlockStats(
+                        srcPel, srcStride, refPel, refStride,
+                        blkSize, &iVariance, &iDiffsum);
+
+                    const int cntV = blkSize * blkSize;
+                    const int cntD = 2 * cntV - blkSize - blkSize;
+                    refPicInfo->noise[(by / blkSize) * refPicInfo->mvsStride + (bx / blkSize)] =
+                        (int)round((15.0 * cntD / cntV * iVariance + 5.0) / (iDiffsum + 5.0));
+                    minError = X265_MIN(minError,
+                        (double)refPicInfo->error[(by / blkSize) * refPicInfo->mvsStride + (bx / blkSize)]);
+                }
+
+                // ── Step 2: pre-compute vww / vsw (block-level) ─────────
+                double vww[MCTF_MAX_REFS] = {};
+                double vsw[MCTF_MAX_REFS] = {};
+                for (int i = 0; i < numRefs; i++)
+                {
+                    TemporalFilterRefPicInfo* refPicInfo = &m_mcstfRefList[i];
                     const int error = refPicInfo->error[(by / blkSize) * refPicInfo->mvsStride + (bx / blkSize)];
                     const int noise = refPicInfo->noise[(by / blkSize) * refPicInfo->mvsStride + (bx / blkSize)];
-
                     const int index = X265_MIN(3, std::abs(refPicInfo->origOffset) - 1);
-
                     double ww = 1, sw = 1;
-                    ww *= (noise < 25) ? 1   : 1.2;
+                    ww *= (noise < 25) ? 1 : 1.2;
                     sw *= (noise < 25) ? 1.3 : 0.8;
                     ww *= (error < 50) ? 1.2 : ((error > 100) ? 0.8 : 1);
                     sw *= (error < 50) ? 1.3 : 1;
                     ww *= ((minError + 1) / (error + 1));
-
                     vww[i] = weightScaling * s_refStrengths[refStrengthRow][index] * ww;
                     vsw[i] = 2 * sw * sigmaSq;
                 }
 
-                // ── Step 3: pixel loop uses pre-computed vww / vsw ──────
-                for (int y = by; y < X265_MIN(by + blkSize, height); y++)
+                // ── Step 3: pixel filtering via SIMD primitive ───────────
+                const pixel* refBlkPtrs[MCTF_MAX_REFS];
+                intptr_t     refBlkStrides[MCTF_MAX_REFS];
+                for (int i = 0; i < numRefs; i++)
                 {
-                    for (int x = bx; x < X265_MIN(bx + blkSize, width); x++)
-                    {
-                        const int orgVal = (int)srcPelPlane[y * srcStride + x];
-                        double temporalWeightSum = 1.0;
-                        double newVal = (double)orgVal;
-
-                        for (int i = 0; i < numRefs; i++)
-                        {
-                            TemporalFilterRefPicInfo* refPicInfo = &m_mcstfRefList[i];
-
-                            correctedPicsStride = (!c) ? refPicInfo->compensatedPic->m_stride
-                                                                : refPicInfo->compensatedPic->m_strideC;
-
-                            const pixel* pCorrectedPelPtr = refPicInfo->compensatedPic->m_picOrg[c]
-                                                          + y * correctedPicsStride + x;
-                            const int refVal = (int)*pCorrectedPelPtr;
-
-                            double diff   = (double)(refVal - orgVal);
-                            diff         *= bitDepthDiffWeighting;
-                            double diffSq = diff * diff;
-
-                            const double weight = vww[i] * exp(-diffSq / vsw[i]);
-
-                            newVal            += weight * refVal;
-                            temporalWeightSum += weight;
-                        }
-
-                        newVal /= temporalWeightSum;
-                        double sampleVal = round(newVal);
-                        sampleVal = (sampleVal < 0 ? 0 : (sampleVal > maxSampleValue ? maxSampleValue : sampleVal));
-                        srcPelPlane[y * srcStride + x] = (pixel)sampleVal;
-                    }
+                    TemporalFilterRefPicInfo* refPicInfo = &m_mcstfRefList[i];
+                    refBlkStrides[i] = (!c) ? refPicInfo->compensatedPic->m_stride
+                        : refPicInfo->compensatedPic->m_strideC;
+                    refBlkPtrs[i] = refPicInfo->compensatedPic->m_picOrg[c]
+                        + by * refBlkStrides[i] + bx;
                 }
-
-            } // bx
-        } // by
-    } // c
+                mctfPrim.bilateralWeightedFilter(
+                    srcPel, srcStride,
+                    numRefs, refBlkPtrs, refBlkStrides,
+                    vww, vsw, bitDepthDiffWeighting, maxSampleValue,
+                    blkSize,
+                    srcPelPlane + by * srcStride + bx, srcStride);
+            }
+        }
+    }
 }
 
 
@@ -1479,22 +1431,22 @@ void MotionEstimatorTLD::motionEstimationLuma(MotionEstimatorTLD& m_metld, MV *m
                 }
             }
 
-            if (blockY > 0)
-            {
-                int idx = ((blockY - stepSize) / stepSize) * mvStride + (blockX / stepSize);
-                MV aboveMV = mvs[idx];
+            // if (blockY > 0)
+            // {
+            //     int idx = ((blockY - stepSize) / stepSize) * mvStride + (blockX / stepSize);
+            //     MV aboveMV = mvs[idx];
 
-                if (m_useSADinME)
-                    error = motionErrorLumaSAD(m_metld, src, stride, buf, blockX, blockY, aboveMV.x, aboveMV.y, blockSize, leastError);
-                else
-                    error = motionErrorLumaSSD(m_metld, src, stride, buf, blockX, blockY, aboveMV.x, aboveMV.y, blockSize, leastError);
+            //     if (m_useSADinME)
+            //         error = motionErrorLumaSAD(m_metld, src, stride, buf, blockX, blockY, aboveMV.x, aboveMV.y, blockSize, leastError);
+            //     else
+            //         error = motionErrorLumaSSD(m_metld, src, stride, buf, blockX, blockY, aboveMV.x, aboveMV.y, blockSize, leastError);
 
-                if (error < leastError)
-                {
-                    best.set(aboveMV.x, aboveMV.y);
-                    leastError = error;
-                }
-            }
+            //     if (error < leastError)
+            //     {
+            //         best.set(aboveMV.x, aboveMV.y);
+            //         leastError = error;
+            //     }
+            // }
 
             if (blockX > 0)
             {
@@ -1512,30 +1464,6 @@ void MotionEstimatorTLD::motionEstimationLuma(MotionEstimatorTLD& m_metld, MV *m
                     leastError = error;
                 }
             }
-
-            // calculate average
-            double avg = 0.0;
-            for (int x1 = 0; x1 < blockSize; x1++)
-            {
-                for (int y1 = 0; y1 < blockSize; y1++)
-                {
-                    avg = avg + *(src + (blockX + x1 + stride * (blockY + y1)));
-                }
-            }
-            avg = avg / (blockSize * blockSize);
-
-            // calculate variance
-            double variance = 0;
-            for (int x1 = 0; x1 < blockSize; x1++)
-            {
-                for (int y1 = 0; y1 < blockSize; y1++)
-                {
-                    int pix = *(src + (blockX + x1 + stride * (blockY + y1)));
-                    variance = variance + (pix - avg) * (pix - avg);
-                }
-            }
-
-            leastError = (int)(20 * ((leastError + 5.0) / (variance + 5.0)) + (leastError / (blockSize * blockSize)) / 50);
 
             int mvIdx = (blockY / stepSize) * mvStride + (blockX / stepSize);
             mvs[mvIdx] = best;
@@ -1634,27 +1562,27 @@ void MotionEstimatorTLD::motionEstimationLumaDoubleRes(MotionEstimatorTLD& m_met
                 }
             }
 
-            prevBest = best;
-            int doubleRange = 3 * 4;
-            for (int y2 = prevBest.y - doubleRange; y2 <= prevBest.y + doubleRange; y2+=4)
-            {
-                for (int x2 = prevBest.x - doubleRange; x2 <= prevBest.x + doubleRange; x2+=4)
-                {
-                    if (m_useSADinME)
-                        error = motionErrorLumaSAD(m_metld, orig->m_picOrg[0], (int)orig->m_stride, buffer->m_picOrg[0], blockX, blockY, x2, y2, blockSize, leastError);
-                    else
-                        error = motionErrorLumaSSD(m_metld, orig->m_picOrg[0], (int)orig->m_stride, buffer->m_picOrg[0], blockX, blockY, x2, y2, blockSize, leastError);
+            // prevBest = best;
+            // int doubleRange = 3 * 4;
+            // for (int y2 = prevBest.y - doubleRange; y2 <= prevBest.y + doubleRange; y2+=4)
+            // {
+            //     for (int x2 = prevBest.x - doubleRange; x2 <= prevBest.x + doubleRange; x2+=4)
+            //     {
+            //         if (m_useSADinME)
+            //             error = motionErrorLumaSAD(m_metld, orig->m_picOrg[0], (int)orig->m_stride, buffer->m_picOrg[0], blockX, blockY, x2, y2, blockSize, leastError);
+            //         else
+            //             error = motionErrorLumaSSD(m_metld, orig->m_picOrg[0], (int)orig->m_stride, buffer->m_picOrg[0], blockX, blockY, x2, y2, blockSize, leastError);
 
-                    if (error < leastError)
-                    {
-                        best.set(x2, y2);
-                        leastError = error;
-                    }
-                }
-            }
+            //         if (error < leastError)
+            //         {
+            //             best.set(x2, y2);
+            //             leastError = error;
+            //         }
+            //     }
+            // }
 
             prevBest = best;
-            doubleRange = 3;
+            int doubleRange = 3;
             for (int y2 = prevBest.y - doubleRange; y2 <= prevBest.y + doubleRange; y2++)
             {
                 for (int x2 = prevBest.x - doubleRange; x2 <= prevBest.x + doubleRange; x2++)
@@ -1673,22 +1601,22 @@ void MotionEstimatorTLD::motionEstimationLumaDoubleRes(MotionEstimatorTLD& m_met
             }
 
 
-            if (blockY > 0)
-            {
-                int idx = ((blockY - stepSize) / stepSize) * mvStride + (blockX / stepSize);
-                MV aboveMV = mvs[idx];
+            // if (blockY > 0)
+            // {
+            //     int idx = ((blockY - stepSize) / stepSize) * mvStride + (blockX / stepSize);
+            //     MV aboveMV = mvs[idx];
 
-                if (m_useSADinME)
-                    error = motionErrorLumaSAD(m_metld, orig->m_picOrg[0], (int)orig->m_stride, buffer->m_picOrg[0], blockX, blockY, aboveMV.x, aboveMV.y, blockSize, leastError);
-                else
-                    error = motionErrorLumaSSD(m_metld, orig->m_picOrg[0], (int)orig->m_stride, buffer->m_picOrg[0], blockX, blockY, aboveMV.x, aboveMV.y, blockSize, leastError);
+            //     if (m_useSADinME)
+            //         error = motionErrorLumaSAD(m_metld, orig->m_picOrg[0], (int)orig->m_stride, buffer->m_picOrg[0], blockX, blockY, aboveMV.x, aboveMV.y, blockSize, leastError);
+            //     else
+            //         error = motionErrorLumaSSD(m_metld, orig->m_picOrg[0], (int)orig->m_stride, buffer->m_picOrg[0], blockX, blockY, aboveMV.x, aboveMV.y, blockSize, leastError);
 
-                if (error < leastError)
-                {
-                    best.set(aboveMV.x, aboveMV.y);
-                    leastError = error;
-                }
-            }
+            //     if (error < leastError)
+            //     {
+            //         best.set(aboveMV.x, aboveMV.y);
+            //         leastError = error;
+            //     }
+            // }
 
             if (blockX > 0)
             {
