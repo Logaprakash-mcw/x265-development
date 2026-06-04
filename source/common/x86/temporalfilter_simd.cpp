@@ -186,9 +186,9 @@ namespace X265_NS {
             _mm_set1_epi16((int16_t)xFilter[5]),
             _mm_set1_epi16((int16_t)xFilter[6]));
 
-        const __m256i xf12 = _mm256_set_m128i(xf12_128, xf12_128);
-        const __m256i xf34 = _mm256_set_m128i(xf34_128, xf34_128);
-        const __m256i xf56 = _mm256_set_m128i(xf56_128, xf56_128);
+        const __m256i xf12 = _mm256_broadcastsi128_si256(xf12_128);
+        const __m256i xf34 = _mm256_broadcastsi128_si256(xf34_128);
+        const __m256i xf56 = _mm256_broadcastsi128_si256(xf56_128);
 
         for (int y1 = 1; y1 < bs + 7; y1++)
         {
@@ -223,15 +223,15 @@ namespace X265_NS {
                 __m128i s6 = _mm_cvtepu8_epi16(_mm_loadl_epi64((const __m128i*) & rowStart[6]));
 #endif
 
-                __m256i pairs12 = _mm256_set_m128i(
-                    _mm_unpackhi_epi16(s1, s2),
-                    _mm_unpacklo_epi16(s1, s2));
-                __m256i pairs34 = _mm256_set_m128i(
-                    _mm_unpackhi_epi16(s3, s4),
-                    _mm_unpacklo_epi16(s3, s4));
-                __m256i pairs56 = _mm256_set_m128i(
-                    _mm_unpackhi_epi16(s5, s6),
-                    _mm_unpacklo_epi16(s5, s6));
+                __m256i pairs12 =_mm256_inserti128_si256(
+        _mm256_castsi128_si256(_mm_unpacklo_epi16(s1, s2)),
+        _mm_unpackhi_epi16(s1, s2), 1);
+                __m256i pairs34 = _mm256_inserti128_si256(
+        _mm256_castsi128_si256(_mm_unpacklo_epi16(s3, s4)),
+        _mm_unpackhi_epi16(s3, s4), 1);
+                __m256i pairs56 =  _mm256_inserti128_si256(
+        _mm256_castsi128_si256(_mm_unpacklo_epi16(s5, s6)),
+        _mm_unpackhi_epi16(s5, s6), 1);
 
                 __m256i h_out = _mm256_add_epi32(
                     _mm256_add_epi32(
@@ -292,9 +292,7 @@ namespace X265_NS {
                     _mm_loadu_si128((const __m128i*) & origRowBase[x1]));
 #else
                 __m128i xorig = _mm_loadl_epi64((const __m128i*) & origRowBase[x1]);
-                __m256i orig = _mm256_set_m128i(
-                    _mm_cvtepu8_epi32(_mm_srli_si128(xorig, 4)),
-                    _mm_cvtepu8_epi32(xorig));
+                __m256i orig = _mm256_inserti128_si256(_mm256_castsi128_si256(_mm_cvtepu8_epi32(xorig)), _mm_cvtepu8_epi32(_mm_srli_si128(xorig, 4)), 1);
 #endif
 
                 /* diff = filtered_pixel - orig_pixel */
