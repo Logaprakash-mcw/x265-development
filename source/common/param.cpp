@@ -418,8 +418,8 @@ void x265_param_default(x265_param* param)
 
     /* MCSTF */
     param->bEnableTemporalFilter = 0;
-    param->bEnableEncoderRowME = 0;
-    param->bEnableLookaheadRowME = 0;
+    param->bEnableEncoderRowME = -1;
+    param->bEnableLookaheadRowME = -1;
     param->bEnableBilateralRowME = 0;
     param->L1Size = 16;
     param->L2Size = 16;
@@ -1507,7 +1507,7 @@ int x265_param_parse(x265_param* p, const char* name, const char* value)
         OPT("film-grain") p->filmGrain = (char* )value;
         OPT("aom-film-grain") p->aomFilmGrain = (char*)value;
         OPT("mcstf") p->bEnableTemporalFilter = atobool(value);
-        OPT("encoder-row-me") p->bEnableEncoderRowME = atobool(value);
+        OPT("encoder-row-me") p->bEnableEncoderRowME = atoi(value);
         OPT("lookahead-row-me") p->bEnableLookaheadRowME = atoi(value);
         OPT("l1-rowsize") p->L1Size = atoi(value);
         OPT("l2-rowsize") p->L2Size = atoi(value);
@@ -1980,11 +1980,19 @@ int x265_check_params(x265_param* param)
             CHECK(param->hmeRange[level] < 0 || param->hmeRange[level] >= 32768,
                 "Search Range for HME levels must be between 0 and 32768");
     }
-    if(param->bEnableEncoderRowME && param->bEnableLookaheadRowME)
+    if (param->bEnableEncoderRowME > -1 && param->bEnableLookaheadRowME > -1)
     {
-        param->bEnableEncoderRowME = 0;
-        x265_log(param, X265_LOG_WARNING, "Encoder row parallelism disabled. Lookahead parallelism enabled");
+        param->bEnableEncoderRowME = -1;
+        x265_log(param, X265_LOG_WARNING, "Encoder MCSTF disabled, Lookahead MCSTF with ref/row parallelism enabled\n");
     }
+    if (param->bEnableEncoderRowME == -1 && param->bEnableLookaheadRowME == -1)
+    {
+        param->bEnableLookaheadRowME = 0;
+        x265_log(param, X265_LOG_INFO, "Encoder MCSTF disabled, Lookahead MCSTF with ref parallelism enabled\n");
+    }
+    if (param->bEnableLookaheadRowME > 4) param->bEnableLookaheadRowME = 4;
+    if (param->bEnableEncoderRowME > 4) param->bEnableEncoderRowME = 4;
+
 #if !X86_64 && !X265_ARCH_ARM64 && !X265_ARCH_RISCV64
     CHECK(param->searchMethod == X265_SEA && (param->sourceWidth > 840 || param->sourceHeight > 480),
         "SEA motion search does not support resolutions greater than 480p in 32 bit build");
@@ -2251,9 +2259,9 @@ void x265_print_params(x265_param* param)
     if(param->bEnableTemporalFilter)
         TOOLOPT(param->bEnableTemporalFilter, "mcstf");
         TOOLVAL(param->mcstfFrameRange, "mcstf-ref-range=%d");
-    if(param->bEnableEncoderRowME)
+    if(param->bEnableEncoderRowME > -1)
         TOOLOPT(param->bEnableEncoderRowME, "MCSTF ME row parallelism in Encoder");
-    if(param->bEnableLookaheadRowME)
+    if(param->bEnableLookaheadRowME > -1)
         TOOLVAL(param->bEnableLookaheadRowME, "MCSTF ME row parallelism in Lookahead with level=%d");
     if(param->bEnableBilateralRowME)
         TOOLOPT(param->bEnableBilateralRowME, "Bilateral filter row parallelism");

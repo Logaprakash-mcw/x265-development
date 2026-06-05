@@ -390,7 +390,7 @@ namespace X265_NS {
         H0("   --[no-]frame-dup              Enable Frame duplication. Default %s\n", OPT(param->bEnableFrameDuplication));
         H0("   --dup-threshold <integer>     PSNR threshold for Frame duplication. Default %d\n", param->dupThreshold);
         H0("   --[no-]mcstf                  Enable GOP-based temporal filter. Default %d\n", param->bEnableTemporalFilter);
-        H0("   --[no-]encoder-row-me         Enable Block Row split parallel ME for MCSTF in Encoder. Default %d\n", param->bEnableEncoderRowME);
+        H0("   --encoder-row-me         Enable Block Row split parallel ME for MCSTF in Encoder. Default %d\n", param->bEnableEncoderRowME);
         H0("   --lookahead-row-me            Enable Block Row split parallel ME for MCSTF in Lookahead. Default %d\n", param->bEnableLookaheadRowME);
         H0("   --l1-rowsize                  Block Row split size for double resolution for MCSTF in Lookahead. Default %d\n", param->L1Size);
         H0("   --l2-rowsize                  Block Row split size for orig resolution for MCSTF in Lookahead. Default %d\n", param->L2Size);

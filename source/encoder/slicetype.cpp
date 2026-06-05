@@ -1809,20 +1809,20 @@ void Lookahead::compCostBref(Lowres **frames, int start, int end, int num)
     }
 }
 
-void CostEstimateGroup::estimatelowresmotion(MotionEstimatorTLD& m_metld, Frame* curframe, int refId)
+void CostEstimateGroup::estimatelowresmotion(MotionEstimatorTLD& m_metld, Frame* curframe, int refId, int rowMELevel)
 {
     m_metld.m_bitDepth = curframe->m_param->internalBitDepth;
     TemporalFilterRefPicInfo* ref = &curframe->m_mcstfRefList[refId];
-    if (curframe->m_param->bEnableLookaheadRowME < 4)
+    if (rowMELevel < 4)
         m_metld.motionEstimationLuma(m_metld, ref->mvs0, ref->mvsStride0, curframe->m_lowres.lowerResPlane[0], (int)(curframe->m_lowres.lumaStride / 2), (curframe->m_lowres.lines / 2), (curframe->m_lowres.width / 2), ref->lowerRes, 16, curframe->m_param->searchRangeForLayer2);
     
-    if (curframe->m_param->bEnableLookaheadRowME < 3)
+    if (rowMELevel < 3)
         m_metld.motionEstimationLuma(m_metld, ref->mvs1, ref->mvsStride1, curframe->m_lowres.lowresPlane[0], (int)(curframe->m_lowres.lumaStride), (curframe->m_lowres.lines), (curframe->m_lowres.width), ref->lowres, 16, curframe->m_param->searchRangeForLayer1, ref->mvs0, ref->mvsStride0, 2);
 
-    if(curframe->m_param->bEnableLookaheadRowME < 2)
+    if(rowMELevel < 2)
         m_metld.motionEstimationLuma(m_metld, ref->mvs2, ref->mvsStride2, curframe->m_fencPic->m_picOrg[0], (int)curframe->m_fencPic->m_stride, curframe->m_fencPic->m_picHeight, curframe->m_fencPic->m_picWidth, ref->picBuffer->m_picOrg[0], 16, curframe->m_param->searchRangeForLayer0, ref->mvs1, ref->mvsStride1, 2);
 
-    if(!(curframe->m_param->bEnableEncoderRowME || curframe->m_param->bEnableLookaheadRowME ))
+    if(rowMELevel < 1)
     {
         m_metld.motionEstimationLumaDoubleRes(m_metld, ref->mvs, ref->mvsStride, curframe->m_fencPic, ref->picBuffer, 8, ref->mvs2, ref->mvsStride2, 1, ref->error);
         curframe->m_lowres.lowresMcstfMvs[0][refId][0].x = 1;
@@ -2298,32 +2298,76 @@ bool Lookahead::generatemcstf(Frame * frameEnc, PicList refPic, int poclast)
     return true;
 }
 
-void Lookahead::runMCSTF(Frame* pic)
+void Lookahead::runMCSTFME(Frame* pic, int rowMELevels)
 {
-   const int numRef     = pic->m_mcstf->m_numRef;
-    if (numRef == 0)
-        return;
+//    const int numRef     = pic->m_mcstf->m_numRef;
+//     if (numRef == 0)
+//         return;
 
-    const int blockSize    = 16;
-    const int numBlockRows = (pic->m_fencPic->m_picHeight + blockSize - 1) / blockSize;
+//     const int blockSize    = 16;
+//     const int numBlockRows = (pic->m_fencPic->m_picHeight + blockSize - 1) / blockSize;
     
+//     {
+//        CostEstimateGroup phase2(*this, NULL);
+
+//        // Must be called before any add_row() so m_rowDone[] is zeroed
+//        phase2.initRowSync(numRef, numBlockRows, blockSize);
+
+//        for (int j = 0; j < numRef; j++)
+//        {
+//            if (pic->m_lowres.lowresMcstfMvs[0][j][0].x != 0x7FFF)
+//                continue;
+
+//            for (int row = 0; row < numBlockRows; row++)
+//                phase2.add_row(j, pic->m_mcstfRefList[j].poc,
+//                               pic->m_poc, pic, row, 4);
+//        }
+
+//        phase2.finishBatch();
+//     }
+
+    if (rowMELevels < 4)
     {
-       CostEstimateGroup phase2(*this, NULL);
+        CostEstimateGroup estGroup(*this, NULL);
+        for (int j = 1; j <= pic->m_mcstf->m_numRef; j++)
+        {
+            TemporalFilterRefPicInfo* ref = &pic->m_mcstfRefList[j - 1];
+            int i = ref->poc;
 
-       // Must be called before any add_row() so m_rowDone[] is zeroed
-       phase2.initRowSync(numRef, numBlockRows, blockSize);
+            /* Skip search if already done */
+            if (pic->m_lowres.lowresMcstfMvs[0][j - 1][0].x != 0x7FFF)
+                continue;
 
-       for (int j = 0; j < numRef; j++)
-       {
-           if (pic->m_lowres.lowresMcstfMvs[0][j][0].x != 0x7FFF)
-               continue;
+            estGroup.add(j - 1, i, pic->m_poc, pic);
+        }
+        estGroup.finishBatch();
+    }
+    if (rowMELevels)
+    {
+        // const int rowMELevels     = m_param->bEnableLookaheadRowME;
+        const int rowLevelBlockSize[4]    = {m_param->L1Size, m_param->L2Size, m_param->L3Size, m_param->L4Size};
+        const int origHeight       = pic->m_fencPic->m_picHeight;
+        const int levelHeight[4]   = {origHeight, origHeight, origHeight /2, origHeight / 4};
+        for(int i = rowMELevels; i > 0; i--)
+        {
+            const int numBlockRows = (levelHeight[i-1] + rowLevelBlockSize[i-1] - 1) / rowLevelBlockSize[i-1];
+            CostEstimateGroup estGroup(*this, NULL);
 
-           for (int row = 0; row < numBlockRows; row++)
-               phase2.add_row(j, pic->m_mcstfRefList[j].poc,
-                              pic->m_poc, pic, row, 4);
-       }
+            estGroup.initRowSync(pic->m_mcstf->m_numRef, numBlockRows, rowLevelBlockSize[i-1]);
+            for (int j = 1; j <= pic->m_mcstf->m_numRef; j++)
+            {
+                TemporalFilterRefPicInfo* ref = &pic->m_mcstfRefList[j - 1];
+                int refpoc = ref->poc;
 
-       phase2.finishBatch();
+                /* Skip search if already done */
+                if (pic->m_lowres.lowresMcstfMvs[0][j - 1][0].x != 0x7FFF)
+                    continue;
+
+                for (int row = 0; row < numBlockRows; row++)
+                        estGroup.add_row(j - 1, refpoc, pic->m_poc, pic, row, i);
+            }
+            estGroup.finishBatch();
+        }
     }
 }
 
@@ -2601,7 +2645,10 @@ void Lookahead::slicetypeDecide()
                     fflush(stderr);
                 }
 
-                if (m_param->bEnableLookaheadRowME < 4)
+                if(m_param->bEnableEncoderRowME == -1)
+                    runMCSTFME(frameEnc, m_param->bEnableLookaheadRowME);
+
+                /*if (m_param->bEnableLookaheadRowME < 4)
                 {
                     CostEstimateGroup estGroup(*this, frames);
                     for (int j = 1; j <= frameEnc->m_mcstf->m_numRef; j++)
@@ -2609,7 +2656,7 @@ void Lookahead::slicetypeDecide()
                         TemporalFilterRefPicInfo* ref = &frameEnc->m_mcstfRefList[j - 1];
                         int i = ref->poc;
 
-                        /* Skip search if already done */
+                        /* Skip search if already done
                         if (frameEnc->m_lowres.lowresMcstfMvs[0][j - 1][0].x != 0x7FFF)
                             continue;
 
@@ -2634,7 +2681,7 @@ void Lookahead::slicetypeDecide()
                             TemporalFilterRefPicInfo* ref = &frameEnc->m_mcstfRefList[j - 1];
                             int refpoc = ref->poc;
 
-                            /* Skip search if already done */
+                            /* Skip search if already done
                             if (frameEnc->m_lowres.lowresMcstfMvs[0][j - 1][0].x != 0x7FFF)
                                 continue;
 
@@ -2643,7 +2690,7 @@ void Lookahead::slicetypeDecide()
                         }
                         estGroup.finishBatch();
                     }
-                }
+                }*/
             }
             frameEnc = frameEnc->m_next;
         }
@@ -4500,7 +4547,7 @@ int64_t CostEstimateGroup::singleCost(int p0, int p1, int b, bool intraPenalty)
     return estimateFrameCost(tld, p0, p1, b, intraPenalty);
 }
 
-void CostEstimateGroup::add(int p0, int p1, int b)
+void CostEstimateGroup::add(int p0, int p1, int b, Frame* pic)
 {
     X265_CHECK(m_batchMode || !m_jobTotal, "single CostEstimateGroup instance cannot mix batch modes\n");
     m_batchMode = true;
@@ -4512,6 +4559,7 @@ void CostEstimateGroup::add(int p0, int p1, int b)
     e.bRowMode = false;
     e.frame = NULL;
     e.blockRow = -1;
+    e.frame = pic;
 
     if (m_jobTotal == MAX_BATCH_SIZE)
         finishBatch();
@@ -4583,7 +4631,7 @@ void CostEstimateGroup::processTasks(int workerThreadID)
             {
                 if (!e.bRowMode)
                 {
-                    estimatelowresmotion(m_metld, curFrame, e.p0);
+                    estimatelowresmotion(m_metld, curFrame, e.p0, (curFrame->m_param->bEnableLookaheadRowME != -1) ? curFrame->m_param->bEnableLookaheadRowME : curFrame->m_param->bEnableEncoderRowME);
                 }
                 else
                 {

@@ -226,7 +226,7 @@ public:
     Frame*  getDecidedPicture();
 
     void    getEstimatedPictureCost(Frame *pic);
-    void    runMCSTF(Frame *pic);
+    void    runMCSTFME(Frame *pic, int rowMELevels);
     void    setLookaheadQueue();
     int     findSliceType(int poc);
     bool    generatemcstf(Frame * frame, PicList refPic, int poclast);
@@ -323,7 +323,7 @@ public:
         volatile int    atomicBlockX;
         volatile int*   prevAtomicBlockX;
     } m_estimates[MAX_BATCH_SIZE];
-    void add(int p0, int p1, int b);
+    void add(int p0, int p1, int b, Frame* pic = NULL);
     void add_row(int refIdx, int poc, int curPoc, Frame* pic, int blockRow, int level);
     void initRowSync(int numRefs, int numBlockRows, int mctfUnitSize);
     void finishBatch();
@@ -337,7 +337,7 @@ protected:
     int64_t estimateFrameCost(LookaheadTLD& tld, int p0, int p1, int b, bool intraPenalty);
     void    estimateCUCost(LookaheadTLD& tld, int cux, int cuy, int p0, int p1, int b, bool bDoSearch[2], bool lastRow, int slice, bool hme);
 
-    void    estimatelowresmotion(MotionEstimatorTLD& m_metld, Frame* curframe, int refId);
+    void    estimatelowresmotion(MotionEstimatorTLD& m_metld, Frame* curframe, int refId, int rowMELevel);
     void    motionestimation_doubleres_row(MotionEstimatorTLD& m_metld, Frame* curframe, int refId, int row, volatile int& atomicBlockX, volatile int* prevAtomicBlockX);
     void    motionestimation_luma_row(MotionEstimatorTLD& metld, MV* mvs, uint32_t mvStride, pixel* src, int stride, int height, int width, pixel* buf, int bs, int sRange,
             int row,volatile int& atomicBlockX, volatile int* prevAtomicBlockX, MV* previous = 0, uint32_t prevmvStride = 0, int factor = 1);
