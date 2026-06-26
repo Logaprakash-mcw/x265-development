@@ -313,9 +313,12 @@ public:
     struct Estimate
     {
         int  p0, b, p1;
+        int    blockRow;
+        int    MElevel;
     } m_estimates[MAX_BATCH_SIZE];
 
     void add(int p0, int p1, int b);
+    void add_row(int refIdx, int poc, int curPoc, int blockRow, int level);
     void finishBatch();
 
 protected:
@@ -326,8 +329,6 @@ protected:
 
     int64_t estimateFrameCost(LookaheadTLD& tld, int p0, int p1, int b, bool intraPenalty);
     void    estimateCUCost(LookaheadTLD& tld, int cux, int cuy, int p0, int p1, int b, bool bDoSearch[2], bool lastRow, int slice, bool hme);
-
-    void    estimatelowresmotion(MotionEstimatorTLD& m_metld, Frame* curframe, int refId);
 
     CostEstimateGroup& operator=(const CostEstimateGroup&);
 };
