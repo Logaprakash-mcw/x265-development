@@ -21,11 +21,11 @@
 * For more information, contact us at license @ x265.com.
 *****************************************************************************/
 
-/* MCTF SIMD kernels - Provides AVX2 implementations of MCSTF primitives
- * declared in temporalfilter.h (MCTFPrimitives).
+/* MCSTF SIMD kernels - Provides AVX2 implementations of MCSTF primitives
+ * declared in temporalfilter.h (MCSTFPrimitives).
  *
- * Entry point: setupMCTFPrimitives_x86(MCTFPrimitives&, int cpuMask)
- * Called from primitives.cpp after setupMCTFPrimitives_scalar().
+ * Entry point: setupMCSTFPrimitives_x86(MCSTFPrimitives&, int cpuMask)
+ * Called from primitives.cpp after setupMCSTFPrimitives_scalar().
  * Overrides only the function pointers whose ISA requirement is met.
  */
 
@@ -35,7 +35,6 @@
 #include <tmmintrin.h>   /* SSSE3  */
 #include <smmintrin.h>   /* SSE4.1 */
 #include <immintrin.h>   /* AVX2   */
-#include <cmath>
 
 #include "common.h"
 #include "primitives.h"
@@ -162,15 +161,19 @@ namespace X265_NS {
             const pixel* origOrigin, intptr_t origStride,
             const pixel* buffOrigin, intptr_t buffStride,
             int x, int y, int dx, int dy,
-            int bs, int besterror, int bitDepth, int errorMode)
+            int bs, int besterror, int bitDepth)
     {
         const int* xFilter = s_interpolationFilter[dx & 0xF];
         const int* yFilter = s_interpolationFilter[dy & 0xF];
 
+        X265_CHECK(bs <= 16, "Unsupported block size\n");
         int tempArray[64 + 8][64];
         const int int_dx = dx >> 4;
         const int int_dy = dy >> 4;
+        int error;
 
+        // HEVC interpolation filters always have zero-valued end taps
+        // (xFilter[0] and xFilter[7]), so only taps 1..6 are processed.
         const __m128i xf12_128 = _mm_unpacklo_epi16(
             _mm_set1_epi16((int16_t)xFilter[1]),
             _mm_set1_epi16((int16_t)xFilter[2]));
@@ -237,6 +240,7 @@ namespace X265_NS {
             }
         }
 
+        // End taps yFilter[0] and yFilter[7] are always zero.
         const __m256i yt1 = _mm256_set1_epi32(yFilter[1]);
         const __m256i yt2 = _mm256_set1_epi32(yFilter[2]);
         const __m256i yt3 = _mm256_set1_epi32(yFilter[3]);
@@ -286,21 +290,17 @@ namespace X265_NS {
 
                 __m256i diff = _mm256_sub_epi32(v, orig);
 
-                __m256i row_err;
-                if (errorMode == 0)  /* SAD */
-                    row_err = _mm256_abs_epi32(diff);
-                else                 /* SSD */
-                    row_err = _mm256_mullo_epi32(diff, diff);
+                __m256i row_err = _mm256_mullo_epi32(diff, diff); /* SSD */
 
                 xerror = _mm256_add_epi32(xerror, row_err);
             }
 
-            int error = hsum_epi32_avx(xerror);
+            error = hsum_epi32_avx(xerror);
             if (error > besterror)
                 return error;
         }
 
-        return hsum_epi32_avx(xerror);
+        return error;
     }
 
     /* Per-block separable 6-tap filter worker */
@@ -672,7 +672,7 @@ namespace X265_NS {
         const __m256d vMax = _mm256_set1_pd(maxSample);
         const __m256d vHalf = _mm256_set1_pd(0.5);
 
-        double neg_inv_vsw[MCTF_MAX_REFS];
+        double neg_inv_vsw[MCSTF_MAX_REFS];
         for (int i = 0; i < numRefs; i++)
             neg_inv_vsw[i] = -1.0 / vsw[i];
 
@@ -721,7 +721,7 @@ namespace X265_NS {
     }
 
     /* Dispatch - overrides scalar defaults with SIMD variants at runtime */
-    void setupMCTFPrimitives_x86(MCSTFPrimitives & p, int cpuMask)
+    void setupMCSTFPrimitives_x86(MCSTFPrimitives & p, int cpuMask)
     {
         if (cpuMask & X265_CPU_AVX2)
         {

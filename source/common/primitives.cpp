@@ -254,10 +254,10 @@ void x265_setup_primitives(x265_param *param)
     {
         setupCPrimitives(primitives);
 
-        /* MCTF primitives: scalar defaults, then x86 SIMD overrides on capable CPUs */
-        setupMCTFPrimitives_scalar(mcstfPrim);
+        /* MCSTF primitives: scalar defaults, then x86 SIMD overrides on capable CPUs */
+        setupMCSTFPrimitives_scalar(mcstfPrim);
 #if ENABLE_ASSEMBLY && X265_ARCH_X86
-        setupMCTFPrimitives_x86(mcstfPrim, param->cpuid);
+        setupMCSTFPrimitives_x86(mcstfPrim, param->cpuid);
 #endif
 
         /* We do not want the encoder to use the un-optimized intra all-angles
