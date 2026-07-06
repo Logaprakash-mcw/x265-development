@@ -170,7 +170,7 @@ namespace X265_NS {
         int tempArray[64 + 8][64];
         const int int_dx = dx >> 4;
         const int int_dy = dy >> 4;
-        int error;
+        int error = 0;
 
         // HEVC interpolation filters always have zero-valued end taps
         // (xFilter[0] and xFilter[7]), so only taps 1..6 are processed.

@@ -63,6 +63,9 @@ class Lookahead;
 
 #define NUM64x64INPIC(w,h)                  ((w*h)>> (MAX_LOG2_CU_SIZE<<1))
 
+#define MOTION_ESTIMATION_LEVELS            4
+#define PARALLEL_ME_ROWSIZE                 16
+
 #if HIGH_BIT_DEPTH
 #define EDGE_THRESHOLD 1023.0
 #else
@@ -314,13 +317,13 @@ public:
     enum { MAX_BATCH_SIZE = 512 };
     struct Estimate
     {
-        int  p0, b, p1;
+        int    p0, b, p1;
         int    blockRow;
         int    MElevel;
     } m_estimates[MAX_BATCH_SIZE];
 
     void add(int p0, int p1, int b);
-    void add_row(int refIdx, int poc, int curPoc, int blockRow, int level);
+    void addRow(int refIdx, int poc, int curPoc, int blockRow, int level);
     void finishBatch();
 
 protected:
